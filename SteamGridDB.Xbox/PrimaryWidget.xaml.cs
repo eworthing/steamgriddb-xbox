@@ -42,6 +42,10 @@ namespace SteamGridDB.Xbox
         private const string newImageExtension = ".new";
         private const string manifestFileExtension = ".manifest";
 
+        // Grid styles that normally carry the game's title artwork, matching the look of native Xbox app tiles.
+        // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
+        private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
+
         private static Dictionary<string, string> ubisoftGameLookupCache = null;
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -609,32 +613,20 @@ namespace SteamGridDB.Xbox
                                 continue;
                             }
 
-                            // Fetch grids and icons from SteamGridDB
-                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
-                            List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                            // Prefer grids with title artwork so tiles match the native Xbox app look,
+                            // falling back to any grid style, then icons as a last resort
+                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId, textBearingGridStyles);
 
-                            // Try grids first
+                            if (grids == null || grids.Count == 0)
+                            {
+                                grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                            }
+
                             if (grids != null && grids.Count > 0)
                             {
-                                // Get the highest-scored grid
-                                SteamGridDbGrid bestGrid = grids.OrderByDescending(g => g.Score).First();
+                                // Get the best-styled, highest-scored grid
+                                SteamGridDbGrid bestGrid = grids.OrderBy(g => GridStylePriority(g.Style)).ThenByDescending(g => g.Score).First();
                                 bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestGrid.Url, false);
-
-                                if (downloaded)
-                                {
-                                    successCount++;
-                                }
-                                else
-                                {
-                                    errorCount++;
-                                }
-                            }
-                            // If no grids, try icons
-                            else if (icons != null && icons.Count > 0)
-                            {
-                                // Get the highest-scored icon
-                                SteamGridDbGrid bestIcon = icons.OrderByDescending(i => i.Score).First();
-                                bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false);
 
                                 if (downloaded)
                                 {
@@ -647,9 +639,30 @@ namespace SteamGridDB.Xbox
                             }
                             else
                             {
-                                notFoundCount++;
+                                // If no grids, try icons
+                                List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.XboxPlatformId);
 
-                                System.Diagnostics.Debug.WriteLine($"No artwork found for {game.Name}");
+                                if (icons != null && icons.Count > 0)
+                                {
+                                    // Get the highest-scored icon
+                                    SteamGridDbGrid bestIcon = icons.OrderByDescending(i => i.Score).First();
+                                    bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false);
+
+                                    if (downloaded)
+                                    {
+                                        successCount++;
+                                    }
+                                    else
+                                    {
+                                        errorCount++;
+                                    }
+                                }
+                                else
+                                {
+                                    notFoundCount++;
+
+                                    System.Diagnostics.Debug.WriteLine($"No artwork found for {game.Name}");
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -951,34 +964,42 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Returns the sort rank of a grid style - title-bearing box art styles first, icon-like styles last.
+        /// </summary>
+        /// <param name="style">Grid style reported by SteamGridDB.</param>
+        private static int GridStylePriority(string style)
+        {
+            int index = Array.IndexOf(textBearingGridStyles, style);
+
+            return index >= 0 ? index : textBearingGridStyles.Length;
+        }
+
+        /// <summary>
         /// Populates the grid selection panel with the provided grids and icons.
         /// </summary>
         /// <param name="grids">Collection of grid artworks</param>
         /// <param name="icons">Collection of icon artworks</param>
         private void PopulateGridSelectionPanel(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons)
         {
-            // Combine grids and icons
-            List<SteamGridDbGrid> allArtworks = new List<SteamGridDbGrid>();
+            // Combine grids and icons - box-art style grids first, then remaining grids, then icons
+            List<SteamGridDbGrid> sortedArtworks = new List<SteamGridDbGrid>();
 
             if (grids != null && grids.Count > 0)
             {
-                allArtworks.AddRange(grids);
+                sortedArtworks.AddRange(grids.OrderBy(g => GridStylePriority(g.Style)).ThenByDescending(g => g.Score));
             }
 
             if (icons != null && icons.Count > 0)
             {
-                allArtworks.AddRange(icons);
+                sortedArtworks.AddRange(icons.OrderByDescending(i => i.Score));
             }
 
-            if (allArtworks.Count == 0)
+            if (sortedArtworks.Count == 0)
             {
                 GridPanelStatus.Text = "No artworks found for this game";
 
                 return;
             }
-
-            // Sort by score (highest first)
-            List<SteamGridDbGrid> sortedArtworks = allArtworks.OrderByDescending(g => g.Score).ToList();
 
             // Add items to grid view
             foreach (SteamGridDbGrid artwork in sortedArtworks)
@@ -997,7 +1018,7 @@ namespace SteamGridDB.Xbox
             int gridCount = grids?.Count ?? 0;
             int iconCount = icons?.Count ?? 0;
 
-            GridPanelStatus.Text = $"Found {gridCount} grid{(gridCount == 1 ? "" : "s")} and {iconCount} icon{(iconCount == 1 ? "" : "s")} ({allArtworks.Count} total)";
+            GridPanelStatus.Text = $"Found {gridCount} grid{(gridCount == 1 ? "" : "s")} and {iconCount} icon{(iconCount == 1 ? "" : "s")} ({sortedArtworks.Count} total)";
 
             // Focus the first artwork for controller navigation
             var _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
