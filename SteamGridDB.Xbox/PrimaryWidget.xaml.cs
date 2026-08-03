@@ -50,10 +50,11 @@ namespace SteamGridDB.Xbox
 
         // Notes/tags vocabulary of physical-media mockups (word-bounded, so "Xbox" never matches "box").
         // "icon" is deliberately absent - it appears in legitimate source notes like "PS icon" too often.
-        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro|custom|wallpapers?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro|custom|wallpapers?|iisu|game icons|wallhaven|artstation|deviantart)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
-        private static readonly Regex boostedGridMetadata = new Regex(@"\b(official|offical)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo),
+        // press kits, or citing an official platform-store domain
+        private static readonly Regex boostedGridMetadata = new Regex(@"\b(official|offical|press ?kits?)\b|xbox\.com|playstation\.com|nintendo\.com|microsoft\.com", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         // Edition markers in notes/tags; art is demoted when the marker is absent from the game's own name
         private static readonly Regex editionGridMetadata = new Regex(@"\b(deluxe|goty|game of the year|definitive|ultimate|premium|collector'?s?|complete|anniversary|remaster(ed)?|enhanced|legendary|gold)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -1268,7 +1269,7 @@ namespace SteamGridDB.Xbox
 
             text = Regex.Replace(text, @"\[>[^\]]*\]\s*\([^)]*\)", " ");
             text = Regex.Replace(text, @"\[([^\]]*)\]\s*\([^)]*\)", "$1");
-            text = Regex.Replace(text, @"https?://\S+", " ");
+            text = Regex.Replace(text, @"https?://(?:www\.)?([^/\s)\]]+)\S*", " $1 ");
 
             return text;
         }
