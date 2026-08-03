@@ -9,14 +9,14 @@
   IgnorableNamespaces="uap uap3 mp rescap">
 
   <Identity
-    Name="KDerevianko.SteamGridDBforXbox"
+    Name="eworthing.SteamGridDBforXbox.Dev"
     Publisher="CN=3A3A4DF3-61EC-44B3-8236-B38DEB2BFA98"
     Version="1.4.0.0" />
 
-  <mp:PhoneIdentity PhoneProductId="556a41b4-fae4-4e6f-925e-cd8945b576d5" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+  <mp:PhoneIdentity PhoneProductId="3cf67c0f-7249-4a5d-9799-7607048aa2f4" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>SteamGridDB for Xbox</DisplayName>
+    <DisplayName>SteamGridDB (fork)</DisplayName>
     <PublisherDisplayName>K Derevianko</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -34,7 +34,7 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="SteamGridDB.Xbox.App">
       <uap:VisualElements
-        DisplayName="SteamGridDB for Xbox"
+        DisplayName="SteamGridDB (fork)"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Description="SteamGridDB for Xbox Full Screen Experience (XFSE)"
@@ -45,8 +45,8 @@
       <Extensions>
         <uap3:Extension Category="windows.appExtension">
           <uap3:AppExtension Name="microsoft.gameBarUIExtension"
-                             Id="PrimaryWidget"
-                             DisplayName="SteamGridDB"
+                             Id="PrimaryWidgetFork"
+                             DisplayName="SteamGridDB (fork)"
                              Description="SteamGridDB for Xbox Full Screen Experience (XFSE)"
                              PublicFolder="Assets">
             <uap3:Properties>
