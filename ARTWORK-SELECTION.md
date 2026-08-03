@@ -28,8 +28,9 @@ Three evidence sources, all reproducible:
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
-| §4.4 JPEG written to `.png` | outstanding |
-| §4.7–§4.9 | outstanding |
+| §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
+| §4.9 picker rescue fetch, edition-mismatch bug | **implemented** |
+| §4.7 record chosen grid ID, §4.8 corner gate, §4.9 portrait crop | outstanding |
 
 Net effect on the library: **18 of 150 picks change**, none graded worse.
 
@@ -464,16 +465,20 @@ have exactly one icon. The value is in the picker ordering and in not carrying a
 
 Also fixed here: the discarded `dimensions` parameter noted in §2.4.
 
-### 4.4 Stop writing JPEG bytes into a `.png` file
+### 4.4 Stop writing JPEG bytes into a `.png` file — IMPLEMENTED
 
-59 of 131 grid picks are `image/jpeg`, written to the game's `.png` path. Windows imaging sniffs
-content so it renders, but the extension is a lie. `fd90da6` fixed the related `.bak`/`.new`
-sibling-naming bug via `Path.ChangeExtension` (`:253`), which makes the naming consistent — but
-nothing anywhere inspects the actual image format. Either prefer PNG in ranking (§4.2), request
-`mimes=image/png` outright, or transcode on save.
+Transcoded on save (`EnsurePngAsync`), rather than filtered at request time or preferred in ranking.
 
-`mimes=image/png` is the strongest version and costs nothing — but it drops ~35% of the pool, so it
-should be graded, not assumed.
+Both of the other options are ruled out by grading. Preferring PNG in the ranking graded 2–7 against
+for grids and 30–29 for icons — format is not a quality signal. Requesting `mimes=image/png` would
+have discarded 35% of the candidate pool to fix a naming problem, and would have taken the artwork
+graded best for several games with it.
+
+Converting sidesteps the question: artwork is chosen on merit, then the bytes are made to match the
+name the Xbox app owns. Roughly 45% of picks and about half of all icons needed it. Windows imaging
+sniffs content, which is why mislabelled files have worked so far - that is luck, not a contract,
+and the mismatched bytes also flowed into the `.bak` and `.new` siblings. Conversion failure falls
+back to writing the original bytes: a mislabelled tile that renders beats no tile.
 
 ### 4.5 Distinguish "no artwork" from "the request failed" — IMPLEMENTED
 
@@ -529,14 +534,12 @@ At 9% reach it is not doing the job its comment claims. Two options:
 
 ### 4.9 Loose ends
 
-- **The picker still does not do the rescue fetch.** `LoadGridSelectionPanelAsync:1481` calls
-  `GetSquareGridsByPlatformIdAsync` once; `FixLibraryAsync:1012` follows up with a `styles=`-filtered
-  call when page 1 is all icon-like. The manual picker can therefore show a strictly worse set than
-  auto-fix chose from. (`fd90da6` fixed the ID this call passes, but not the missing second call.)
-- **`IsEditionMismatch` demotes everything when the name is unknown.** `:1535` still treats
-  `IsNullOrEmpty(gameName)` as a mismatch, so for any game whose name did not resolve, every
-  edition-labelled candidate lands in the bottom tier. Returning `false` on an unknown name is the
-  safer reading.
+- ~~**The picker does not do the rescue fetch.**~~ **Fixed.** `LoadGridSelectionPanelAsync` now makes
+  the same `styles=`-filtered follow-up as `FixLibraryAsync` when page 1 is all icon-like, so the
+  picker can no longer offer a strictly worse set than auto-fix chose from.
+- ~~**`IsEditionMismatch` demotes everything when the name is unknown.**~~ **Fixed** — an unresolved
+  name is no longer treated as evidence of a mismatch. No effect on the current library, where every
+  game resolves a name; it was demoting every edition-labelled candidate on no evidence.
 - **Manual search results are unranked.** Per §3.6 — fuzzy-sort against the search term, and
   surface `verified` / `types`, both of which the autocomplete response already returns.
 - **3 games have no square grid at all** — Make Way, Star Trek: Starfleet Academy, Star Trek:

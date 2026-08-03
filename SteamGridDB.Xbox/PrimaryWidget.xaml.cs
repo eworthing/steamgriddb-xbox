@@ -1311,13 +1311,17 @@ namespace SteamGridDB.Xbox
                     }
                 }
 
+                // The Xbox app names every tile .png and we cannot rename its files, so anything that
+                // is not already a PNG is re-encoded rather than written under a lying extension
+                IBuffer tileBytes = await EnsurePngAsync(imageBytes);
+
                 // Save the new image (replaces current)
                 StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBufferAsync(imageFile, imageBytes);
+                await FileIO.WriteBufferAsync(imageFile, tileBytes);
 
                 // Save a copy of the new image as .new file
                 StorageFile newFile = await game.ImageFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBufferAsync(newFile, imageBytes);
+                await FileIO.WriteBufferAsync(newFile, tileBytes);
 
                 // Reload the image in the UI
                 BitmapImage newImage = await CreateThumbnailAsync(imageFile);
@@ -1642,6 +1646,70 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Returns the image as PNG, re-encoding it when it is anything else.
+        ///
+        /// Roughly 45% of auto-selected artwork is served as JPEG, and about half of all icons are
+        /// .ico, but the Xbox app's own filenames are always .png and it owns those names - so the
+        /// bytes have to match the extension rather than the other way round. Windows imaging happens
+        /// to sniff content, which is why this has worked so far; that is luck, not a contract, and
+        /// the mismatched files also flow into the .bak and .new siblings.
+        ///
+        /// Format has twice graded as no guide to artwork quality, so this deliberately converts
+        /// rather than influencing which artwork gets picked.
+        /// </summary>
+        /// <param name="imageBytes">Encoded image in any format the platform can decode.</param>
+        /// <returns>PNG bytes, or the original bytes when they are already PNG or cannot be decoded.</returns>
+        private static async Task<IBuffer> EnsurePngAsync(IBuffer imageBytes)
+        {
+            if (imageBytes == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                using (var source = new InMemoryRandomAccessStream())
+                {
+                    await source.WriteAsync(imageBytes);
+                    source.Seek(0);
+
+                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(source);
+
+                    if (decoder.DecoderInformation.CodecId == BitmapDecoder.PngDecoderId)
+                    {
+                        return imageBytes;
+                    }
+
+                    SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
+                        BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+
+                    using (var target = new InMemoryRandomAccessStream())
+                    {
+                        BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, target);
+
+                        encoder.SetSoftwareBitmap(bitmap);
+
+                        await encoder.FlushAsync();
+                        target.Seek(0);
+
+                        var converted = new Windows.Storage.Streams.Buffer((uint)target.Size);
+
+                        await target.ReadAsync(converted, (uint)target.Size, InputStreamOptions.None);
+
+                        return converted;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Better a mislabelled tile that renders than no tile at all
+                System.Diagnostics.Debug.WriteLine($"Could not convert artwork to PNG, writing as-is: {ex.Message}");
+
+                return imageBytes;
+            }
+        }
+
+        /// <summary>
         /// True when the image is opaque in its corners. Case mockups and rounded icon-style uploads
         /// have transparent corners; legitimate box art fills the whole square.
         /// </summary>
@@ -1774,6 +1842,18 @@ namespace SteamGridDB.Xbox
                     List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
                     List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
+                    // Same rescue call auto-fix makes: without it the picker can offer a strictly worse
+                    // set than the one auto-fix chose from, which reads as the picker being broken
+                    if (grids != null && grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
+                    {
+                        List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId, textBearingGridStyles);
+
+                        if (textBearingGrids != null && textBearingGrids.Count > 0)
+                        {
+                            grids = textBearingGrids;
+                        }
+                    }
+
                     PopulateGridSelectionPanel(grids, icons);
                 }
 
@@ -1869,9 +1949,16 @@ namespace SteamGridDB.Xbox
         /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
         private static bool IsEditionMismatch(string metadata, string gameName)
         {
+            if (string.IsNullOrEmpty(gameName))
+            {
+                // Nothing to compare against. Treating that as a mismatch demoted every
+                // edition-labelled candidate for any game whose name did not resolve, on no evidence.
+                return false;
+            }
+
             foreach (Match match in editionGridMetadata.Matches(metadata))
             {
-                if (string.IsNullOrEmpty(gameName) || gameName.IndexOf(match.Value, StringComparison.OrdinalIgnoreCase) < 0)
+                if (gameName.IndexOf(match.Value, StringComparison.OrdinalIgnoreCase) < 0)
                 {
                     return true;
                 }
