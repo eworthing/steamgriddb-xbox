@@ -160,9 +160,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                     return null;
                 }
 
-                JsonObject data = root.GetNamedObject("data", null);
-                JsonObject platformData = data?.GetNamedObject("external_platform_data", null);
-                JsonArray steamEntries = platformData?.GetNamedArray("steam", null);
+                JsonObject data = NamedObject(root, "data");
+                JsonObject platformData = NamedObject(data, "external_platform_data");
+                JsonArray steamEntries = NamedArray(platformData, "steam");
 
                 if (steamEntries == null || steamEntries.Count == 0)
                 {
@@ -172,13 +172,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 }
 
                 JsonObject entry = steamEntries.GetObjectAt(0);
-
-                // string.Empty, not null: GetNamedString's default crosses the WinRT boundary as an
-                // HSTRING, which cannot be null, so passing null throws ArgumentNullException rather
-                // than returning it. That threw for every game with Steam platform data, and the
-                // catch below turned it into "this game has no official artwork".
-                string appId = entry.GetNamedString("id", string.Empty);
-                JsonObject metadata = entry.GetNamedObject("metadata", null);
+                string appId = NamedString(entry, "id");
+                JsonObject metadata = NamedObject(entry, "metadata");
 
                 if (string.IsNullOrEmpty(appId) || metadata == null)
                 {
@@ -188,10 +183,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 }
 
                 // Prefer the 2x capsule, then the 1x, then the store header
-                JsonObject capsule = metadata.GetNamedObject("library_capsule_full", null);
-                string path = FirstLocalisedValue(capsule?.GetNamedObject("image2x", null))
-                    ?? FirstLocalisedValue(capsule?.GetNamedObject("image", null))
-                    ?? FirstLocalisedValue(metadata.GetNamedObject("header_image_full", null));
+                JsonObject capsule = NamedObject(metadata, "library_capsule_full");
+                string path = FirstLocalisedValue(NamedObject(capsule, "image2x"))
+                    ?? FirstLocalisedValue(NamedObject(capsule, "image"))
+                    ?? FirstLocalisedValue(NamedObject(metadata, "header_image_full"));
 
                 if (string.IsNullOrEmpty(path))
                 {
@@ -212,6 +207,50 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         /// <summary>
+        /// Named lookups that tolerate a key being absent, explicitly null, or the wrong type.
+        ///
+        /// Windows.Data.Json's own defaulting overloads only substitute the default when the key is
+        /// missing. A key that is present and JSON null throws InvalidOperationException, and
+        /// GetNamedString additionally rejects a null default outright, because its fallback crosses
+        /// the WinRT boundary as an HSTRING. Both cases threw here and the catch turned them into
+        /// "Valve has no artwork for this game" - which is real for some games, so a bug that hit
+        /// every game looked exactly like the truth.
+        /// </summary>
+        /// <param name="source">Object to read from, or null.</param>
+        /// <param name="name">Member to read.</param>
+        private static JsonObject NamedObject(JsonObject source, string name)
+        {
+            IJsonValue value = NamedValue(source, name);
+
+            return value?.ValueType == JsonValueType.Object ? value.GetObject() : null;
+        }
+
+        /// <summary>
+        /// As <see cref="NamedObject"/>, for arrays.
+        /// </summary>
+        private static JsonArray NamedArray(JsonObject source, string name)
+        {
+            IJsonValue value = NamedValue(source, name);
+
+            return value?.ValueType == JsonValueType.Array ? value.GetArray() : null;
+        }
+
+        /// <summary>
+        /// As <see cref="NamedObject"/>, for strings.
+        /// </summary>
+        private static string NamedString(JsonObject source, string name)
+        {
+            IJsonValue value = NamedValue(source, name);
+
+            return value?.ValueType == JsonValueType.String ? value.GetString() : null;
+        }
+
+        private static IJsonValue NamedValue(JsonObject source, string name)
+        {
+            return source != null && source.ContainsKey(name) ? source[name] : null;
+        }
+
+        /// <summary>
         /// Returns the first value of a {language: path} map, preferring English when it is present.
         /// </summary>
         private static string FirstLocalisedValue(JsonObject localised)
@@ -221,15 +260,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 return null;
             }
 
-            // See the note on appId: the default must not be null
-            string preferred = localised.GetNamedString("english", string.Empty);
+            string preferred = NamedString(localised, "english") ?? NamedString(localised, "en");
 
-            if (string.IsNullOrEmpty(preferred))
-            {
-                preferred = localised.GetNamedString("en", string.Empty);
-            }
-
-            if (!string.IsNullOrEmpty(preferred))
+            if (preferred != null)
             {
                 return preferred;
             }
