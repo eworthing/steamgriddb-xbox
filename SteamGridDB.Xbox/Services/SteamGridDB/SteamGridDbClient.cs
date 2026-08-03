@@ -31,6 +31,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         // Icon sizes worth using for a tile. Smaller sizes exist down to 8px and are never wanted here.
         private static readonly string[] squareIconDimensions = { "128", "256", "512", "1024" };
 
+        // Portrait box art, used only when a game has no square artwork at all and would otherwise
+        // fall back to an icon. Cropped to a square before it becomes a tile.
+        private static readonly string[] portraitGridDimensions = { "600x900", "342x482", "660x930" };
+
         private readonly TimeSpan timeout;
         private bool disposed = false;
 
@@ -336,6 +340,19 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// </summary>
         /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
         /// <param name="platformId">Platform-specific game ID.</param>
+        /// <summary>
+        /// Gets portrait box art for a game by platform ID - the shapes SteamGridDB uses for store
+        /// capsules. Only useful once cropped to a square; see the tile crop in the widget.
+        /// </summary>
+        /// <param name="platform">Platform type (steam, gog, egs, etc).</param>
+        /// <param name="platformId">Platform-specific game ID.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>List of portrait grids, empty when there are none, null when the request failed.</returns>
+        public async Task<List<SteamGridDbGrid>> GetPortraitGridsByPlatformIdAsync(string platform, string platformId, CancellationToken cancellationToken = default)
+        {
+            return await GetGridsByPlatformIdAsync(platform, platformId, portraitGridDimensions, null, cancellationToken);
+        }
+
         /// <param name="styles">Styles to filter by. Use null for all styles.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>List of square icons only.</returns>

@@ -30,7 +30,8 @@ Three evidence sources, all reproducible:
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
 | §4.9 picker rescue fetch, edition-mismatch bug | **implemented** |
-| §4.7 record chosen grid ID, §4.8 corner gate, §4.9 portrait crop | outstanding |
+| §4.9 portrait crop for grid-less games | **implemented** — content-placed crop, won 23 of 34 |
+| §4.7 record chosen grid ID, §4.8 corner gate | outstanding |
 
 Net effect on the library: **18 of 150 picks change**, none graded worse.
 
@@ -542,9 +543,9 @@ At 9% reach it is not doing the job its comment claims. Two options:
   game resolves a name; it was demoting every edition-labelled candidate on no evidence.
 - **Manual search results are unranked.** Per §3.6 — fuzzy-sort against the search term, and
   surface `verified` / `types`, both of which the autocomplete response already returns.
-- **3 games have no square grid at all** — Make Way, Star Trek: Starfleet Academy, Star Trek:
-  Starfleet Command Gold Edition — but do have 600×900 art (11, 5 and 6 candidates). Centre-cropping
-  a portrait grid would serve them better than the icon path (§4.3).
+- ~~**3 games have no square grid at all.**~~ **Fixed.** Make Way, Star Trek: Starfleet Academy and
+  Star Trek: Starfleet Command Gold Edition now take cropped portrait box art instead of an icon —
+  two of the three were being handed a `.ico`. See §4.9c.
 
 Two items from earlier revisions of this document are now **fixed** and have been removed:
 `GridMetadata` calling uncompiled inline `Regex.Replace` (now uses the compiled fields, `:1518-1520`),
