@@ -1002,6 +1002,13 @@ namespace SteamGridDB.Xbox
                 int skippedCount = 0;
                 int errorCount = 0;
 
+                FixLog.Start(refixCustomised ? "Re-fix all games" : "Fix my library");
+
+                foreach (string note in SteamGridDbClient.CapsuleParseNotes)
+                {
+                    FixLog.Write($"capsule parse: {note}");
+                }
+
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
                     foreach (GameEntry game in eligibleGames)
@@ -1030,6 +1037,8 @@ namespace SteamGridDB.Xbox
                             // Rank the unfiltered results client-side: tied scores are common, and the stable
                             // sort keeps SteamGridDB's canonical ordering for ties (the same image the site
                             // shows first, typically the official box art).
+                            FixLog.Write($"{game.Name} [{platformString}/{game.ExternalPlatformId}] capsule={(string.IsNullOrEmpty(game.OfficialCapsuleUrl) ? "none" : game.OfficialCapsuleUrl)}");
+
                             List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, platformString, game.ExternalPlatformId);
 
                             if (grids == null)
@@ -1047,7 +1056,13 @@ namespace SteamGridDB.Xbox
                             if (grids.Count > 0)
                             {
                                 // Rank candidates, then take the best one whose art actually fills the tile
-                                (IBuffer Bytes, int ArtworkId) best = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name), game.Name, game.OfficialCapsuleUrl);
+                                List<SteamGridDbGrid> ranked = RankGrids(grids, game.Name);
+
+                                FixLog.Write($"  {grids.Count} square candidates, ranked: {string.Join(", ", ranked.Take(5).Select(g => g.Id))}");
+
+                                (IBuffer Bytes, int ArtworkId) best = await DownloadBestTileFillingImageAsync(ranked, game.Name, game.OfficialCapsuleUrl);
+
+                                FixLog.Write($"  applied {best.ArtworkId}");
                                 bool downloaded = best.Bytes != null && await ReplaceImageCoreAsync(game, best.Bytes, false, best.ArtworkId);
 
                                 if (downloaded)
@@ -1107,6 +1122,8 @@ namespace SteamGridDB.Xbox
                         }
                     }
                 }
+
+                await FixLog.SaveAsync();
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                 {
@@ -1420,6 +1437,8 @@ namespace SteamGridDB.Xbox
         {
             if (string.IsNullOrEmpty(officialCapsuleUrl))
             {
+                FixLog.Write("  gate: no official capsule for this game");
+
                 return (null, 0);
             }
 
@@ -1431,17 +1450,23 @@ namespace SteamGridDB.Xbox
                 // Distinct from "the artwork already matches": this is the gate unable to run at all,
                 // which is indistinguishable from it declining unless it says so. It reported nothing
                 // for an entire library once, because a bad crop transform made every signature fail.
-                System.Diagnostics.Debug.WriteLine($"Official-artwork gate could not compare {gameName} - capsule or candidate unreadable");
+                FixLog.Write($"  gate: unreadable ({(official == null ? "capsule" : "chosen artwork")})");
 
                 return (null, 0);
             }
 
-            if (official.ColourMatch(chosen) >= officialArtworkFloor)
+            double chosenMatch = official.ColourMatch(chosen);
+
+            if (chosenMatch >= officialArtworkFloor)
             {
+                FixLog.Write($"  gate: chosen already matches official art ({chosenMatch:F2})");
+
                 return (null, 0);
             }
 
             double chosenLayout = official.LayoutMatch(chosen);
+
+            FixLog.Write($"  gate: chosen matches only {chosenMatch:F2}, looking for a replacement above {officialArtworkCeiling:F2}");
 
             // Everything before chosenIndex already failed the tile-fill check on the way here, so it
             // can only fail it again - starting past the winner saves re-fetching and re-decoding them.
@@ -1455,15 +1480,25 @@ namespace SteamGridDB.Xbox
                 IBuffer candidateBytes = await DownloadArtworkAsync(rankedGrids[i].Url);
                 ArtworkSignature candidate = await ArtworkSignature.CreateAsync(candidateBytes);
 
-                if (candidate == null
-                    || official.ColourMatch(candidate) <= officialArtworkCeiling
-                    || official.LayoutMatch(candidate) < chosenLayout
-                    || !await TileImage.FillsTileAsync(candidateBytes))
+                if (candidate == null)
                 {
+                    FixLog.Write($"    {rankedGrids[i].Id}: unreadable");
+
                     continue;
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Official-artwork gate replaced grid {rankedGrids[chosenIndex].Id} with {rankedGrids[i].Id}");
+                double candidateMatch = official.ColourMatch(candidate);
+                double candidateLayout = official.LayoutMatch(candidate);
+
+                if (candidateMatch <= officialArtworkCeiling || candidateLayout < chosenLayout
+                    || !await TileImage.FillsTileAsync(candidateBytes))
+                {
+                    FixLog.Write($"    {rankedGrids[i].Id}: colour {candidateMatch:F2}, layout {candidateLayout:F2} vs {chosenLayout:F2} - rejected");
+
+                    continue;
+                }
+
+                FixLog.Write($"    {rankedGrids[i].Id}: colour {candidateMatch:F2}, layout {candidateLayout:F2} - REPLACED {rankedGrids[chosenIndex].Id}");
 
                 return (candidateBytes, rankedGrids[i].Id);
             }

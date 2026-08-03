@@ -39,6 +39,21 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         // fall back to an icon. Cropped to a square before it becomes a tile.
         private static readonly string[] portraitGridDimensions = { "600x900", "342x482", "660x930" };
 
+        /// <summary>
+        /// Where the first few capsule-URL parses gave up. The parse runs during the library load, long
+        /// before any run log exists, and a null result is indistinguishable from a game Valve has no
+        /// artwork for - which is how it went unnoticed that every game was failing.
+        /// </summary>
+        public static readonly List<string> CapsuleParseNotes = new List<string>();
+
+        private static void NoteCapsuleParse(string note)
+        {
+            if (CapsuleParseNotes.Count < 5)
+            {
+                CapsuleParseNotes.Add(note);
+            }
+        }
+
         private readonly TimeSpan timeout;
         private bool disposed = false;
 
@@ -140,6 +155,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             {
                 if (!JsonObject.TryParse(json, out JsonObject root))
                 {
+                    NoteCapsuleParse($"TryParse failed on {json?.Length ?? 0} chars");
+
                     return null;
                 }
 
@@ -149,15 +166,24 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
                 if (steamEntries == null || steamEntries.Count == 0)
                 {
+                    NoteCapsuleParse($"data={data != null}, external_platform_data={platformData != null}, steam={(steamEntries == null ? "null" : steamEntries.Count.ToString())}, keys=[{(data == null ? "" : string.Join(",", data.Keys))}]");
+
                     return null;
                 }
 
                 JsonObject entry = steamEntries.GetObjectAt(0);
-                string appId = entry.GetNamedString("id", null);
+
+                // string.Empty, not null: GetNamedString's default crosses the WinRT boundary as an
+                // HSTRING, which cannot be null, so passing null throws ArgumentNullException rather
+                // than returning it. That threw for every game with Steam platform data, and the
+                // catch below turned it into "this game has no official artwork".
+                string appId = entry.GetNamedString("id", string.Empty);
                 JsonObject metadata = entry.GetNamedObject("metadata", null);
 
                 if (string.IsNullOrEmpty(appId) || metadata == null)
                 {
+                    NoteCapsuleParse($"entry keys=[{string.Join(",", entry.Keys)}] appId={appId ?? "null"} metadata={metadata != null}");
+
                     return null;
                 }
 
@@ -169,6 +195,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
                 if (string.IsNullOrEmpty(path))
                 {
+                    NoteCapsuleParse($"metadata keys=[{string.Join(",", metadata.Keys)}] capsule={capsule != null}");
+
                     return null;
                 }
 
@@ -176,6 +204,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
             catch (Exception ex)
             {
+                NoteCapsuleParse($"threw: {ex.GetType().Name} {ex.Message}");
                 System.Diagnostics.Debug.WriteLine($"Could not read official capsule URL: {ex.Message}");
 
                 return null;
@@ -192,9 +221,15 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 return null;
             }
 
-            string preferred = localised.GetNamedString("english", null) ?? localised.GetNamedString("en", null);
+            // See the note on appId: the default must not be null
+            string preferred = localised.GetNamedString("english", string.Empty);
 
-            if (preferred != null)
+            if (string.IsNullOrEmpty(preferred))
+            {
+                preferred = localised.GetNamedString("en", string.Empty);
+            }
+
+            if (!string.IsNullOrEmpty(preferred))
             {
                 return preferred;
             }

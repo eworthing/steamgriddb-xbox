@@ -1,0 +1,64 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+using Windows.Storage;
+
+namespace SteamGridDB.Xbox.Services.Artwork
+{
+    /// <summary>
+    /// A record of what the last "fix library" run did, written to last-fix.log in the widget's local
+    /// data.
+    ///
+    /// Artwork selection makes a chain of decisions per game - which candidates came back, which one
+    /// ranking chose, whether the official-artwork gate could run and what it concluded - and every one
+    /// of them was previously invisible. The gate failed on an entire library while looking exactly
+    /// like a gate that had simply decided it had nothing to do, and the only way that was found was by
+    /// diffing the artwork IDs on disk against a separate model of what should have happened.
+    ///
+    /// Lines are held in memory and written once at the end of a run, so a 150-game pass costs one
+    /// file write.
+    /// </summary>
+    internal static class FixLog
+    {
+        private const string fileName = "last-fix.log";
+
+        private static readonly List<string> lines = new List<string>();
+
+        /// <summary>
+        /// Begins a new run, discarding whatever the previous one recorded.
+        /// </summary>
+        /// <param name="what">Short description of the operation, for the header.</param>
+        public static void Start(string what)
+        {
+            lines.Clear();
+            lines.Add($"{what} - {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
+        }
+
+        /// <summary>
+        /// Records one line against the run.
+        /// </summary>
+        public static void Write(string line)
+        {
+            lines.Add(line);
+        }
+
+        /// <summary>
+        /// Writes the run to disk.
+        /// </summary>
+        public static async Task SaveAsync()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    fileName, CreationCollisionOption.ReplaceExisting);
+
+                await FileIO.WriteLinesAsync(file, lines);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not write the fix log: {ex.Message}");
+            }
+        }
+    }
+}
