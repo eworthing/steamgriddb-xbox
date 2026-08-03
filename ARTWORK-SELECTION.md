@@ -26,9 +26,9 @@ Three evidence sources, all reproducible:
 | §4.2a PNG-over-JPEG tie-break | **tried and reverted** — graded 2 better / 7 worse |
 | §4.6 request-side filters | **implemented** — no behaviour change, by design |
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
-| §4.3 icon fallback | outstanding |
+| §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
+| §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | outstanding |
-| §4.5 failures reported as misses | outstanding |
 | §4.7–§4.9 | outstanding |
 
 Net effect on the library: **18 of 150 picks change**, none graded worse.
@@ -434,20 +434,35 @@ The `.png` filename problem is real but belongs to §4.4, at the download, not t
 The resolution tie-break graded 3 better / 1 worse in isolation, and the one loss (The Walking Dead:
 Saints & Sinners) was subsequently fixed by the §4.1 gate.
 
-### 4.3 Fix the icon fallback
+### 4.3 Fix the icon fallback — IMPLEMENTED, but almost none of the plan survived
 
-Three changes at `:1038-1043`, in the order they matter (§2.4):
+The proposal was three changes: prefer `styles=official`, reject `image/vnd.microsoft.icon`, and
+sort by size. Grading 108 games killed two of the three.
 
-1. Request `styles=official` first, falling back to unfiltered — 820 of 1577 icon candidates carry
-   it, and it is the same "official" signal the grid ranker infers from free text. The client
-   already takes a `styles` argument.
-2. Filter or reject `image/vnd.microsoft.icon` — 48% of the pool, currently written verbatim into
-   the game's `.png` path. `mimes=image/png` on the icons request is the one-parameter version.
-3. Replace `OrderByDescending(i => i.Score)` with largest-dimension-first; `.ico` entries report
-   `0x0`, so this also sorts them last for free.
+| Deciding key | n | today better | proposed better | same | verdict |
+| --- | --- | --- | --- | --- | --- |
+| format — PNG over `.ico` | 83 | 30 | 29 | 23 | no signal |
+| style — `official` over `custom` | 17 | 8 | 3 | 6 | **actively worse** |
+| size — larger first | 8 | 1 | 6 | 1 | the only winner |
 
-Only 3 games take this path today, but they take it every single run. While in here, fix the
-discarded `dimensions` parameter noted in §2.4.
+- **Preferring PNG is worthless**, exactly as it was for grids (§4.2). Two independent gradings now
+  say format does not predict whether artwork is good.
+- **`official` is a trap.** SteamGridDB's official icon is frequently the small platform icon:
+  `Unrailed!` 128px official against a 512px custom, `Wolfenstein II` the same, `A Building Full of
+  Cats` 256 against 512. A label was outranking size.
+- **No whole-list ordering beat the API's own order.** Sorting by size, by format, by style, or any
+  pairing, all landed at 37–39 correct out of 77 decisive verdicts. Coin flips.
+
+What shipped is the one rule the data supports: keep the API's order, and among icons of the same
+*kind* — same format, same style — take the largest. That moved 14 picks on the graded set, 6 onto
+preferred artwork and 1 onto rejected. `RankIcons` also replaces the sort on the retired `Score`,
+which was sorting on a constant.
+
+**This changes no tile in the library today.** All three games that actually fall back to an icon
+keep their pick: Make Way's two icons already had the better one first, and both Star Trek entries
+have exactly one icon. The value is in the picker ordering and in not carrying a dead sort.
+
+Also fixed here: the discarded `dimensions` parameter noted in §2.4.
 
 ### 4.4 Stop writing JPEG bytes into a `.png` file
 
@@ -460,16 +475,17 @@ nothing anywhere inspects the actual image format. Either prefer PNG in ranking 
 `mimes=image/png` is the strongest version and costs nothing — but it drops ~35% of the pool, so it
 should be graded, not assumed.
 
-### 4.5 Distinguish "no artwork" from "the request failed"
+### 4.5 Distinguish "no artwork" from "the request failed" — IMPLEMENTED
 
-Per §3.5, `30d3354` split out unsupported-platform skips but a throttled or failed request is still
-reported as "had no artwork in the database". Minimum viable fix: have `GetAsync` surface the status
-code instead of returning `null` for both cases, and count non-200 as an error in `FixLibraryAsync`
-rather than a miss. Retry with `Retry-After` on 429, as `steam-rom-manager` does, is the fuller
-version.
+The artwork fetches now return `null` when the *request* failed and an empty list only when
+SteamGridDB genuinely has nothing, and `FixLibraryAsync` counts the former as an error rather than
+reporting "had no artwork in the database".
 
-This matters most for grading: a run whose failures are miscounted as misses cannot be compared
-against the previous run.
+This was the quiet one. Before it, a throttled run of 130 games was indistinguishable from a library
+with no artwork available - which would have silently corrupted every grading round in this
+document. Worth doing before any further comparison, not after.
+
+Retry with `Retry-After` on 429, as `steam-rom-manager` does (§3.5), is still outstanding.
 
 ### 4.6 Send the filters everyone else sends — IMPLEMENTED
 
@@ -536,9 +552,7 @@ and `FixLibraryAsync` re-implementing the style-tier check instead of calling `G
 
 ## Remaining order
 
-1. **§4.3 + §4.5** — the icon path and the failure accounting. Both are correctness rather than
-   taste, and §4.5 is a prerequisite for trusting any graded comparison that follows.
-2. **§4.4** — the `.png` filename problem, now that the ranking-level attempt at it is known not to
+1. **§4.4** — the `.png` filename problem, now that the ranking-level attempt at it is known not to
    work. `mimes=image/png` at request time or transcoding on save are the two live options.
 3. **§4.7, §4.8, §4.9** — only if graded results justify them.
 
@@ -547,7 +561,12 @@ and `FixLibraryAsync` re-implementing the style-tier check instead of calling `G
 Worth keeping, because none of it came from analysis:
 
 - **Every plausible-sounding rule needs grading before it ships.** The PNG tie-break read as
-  obviously correct and was 2–7 against.
+  obviously correct and was 2–7 against for grids, then 30–29 for icons. "Prefer the official one"
+  read as the safest rule in the document and was 3–8 against.
+- **Decompose stacked changes before judging them.** Both the grid and the icon proposals bundled
+  several keys and graded as a wash overall; splitting each by which key decided the pick found the
+  one worth keeping and the ones to drop. An undecomposed verdict would have thrown away resolution
+  along with format.
 - **Thresholds need a margin, not just a level.** Two separate failures — Hi-Fi RUSH moving on a
   0.046 gain, Mad Max held back by 0.01 — were both edge effects at a hard boundary.
 - **One metric is not enough.** Colour similarity and layout similarity fail in different places;

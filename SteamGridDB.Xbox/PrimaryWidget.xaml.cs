@@ -1032,7 +1032,19 @@ namespace SteamGridDB.Xbox
                             // shows first, typically the official box art).
                             List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
-                            if (grids != null && grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
+                            if (grids == null)
+                            {
+                                // The request itself failed - throttled, offline, a bad gateway. Reporting
+                                // that as "SteamGridDB has no artwork" would be a lie, and would make a
+                                // graded comparison against the previous run meaningless.
+                                errorCount++;
+
+                                System.Diagnostics.Debug.WriteLine($"Artwork lookup failed for {game.Name}");
+
+                                continue;
+                            }
+
+                            if (grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
                             {
                                 // First page is all icon-like styles - ask the server for title-bearing ones beyond it
                                 List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId, textBearingGridStyles);
@@ -1043,7 +1055,7 @@ namespace SteamGridDB.Xbox
                                 }
                             }
 
-                            if (grids != null && grids.Count > 0)
+                            if (grids.Count > 0)
                             {
                                 // Rank candidates, then take the best one whose art actually fills the tile
                                 IBuffer imageBytes = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name), game.Name, game.OfficialCapsuleUrl);
@@ -1063,10 +1075,18 @@ namespace SteamGridDB.Xbox
                                 // If no grids, try icons
                                 List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
-                                if (icons != null && icons.Count > 0)
+                                if (icons == null)
                                 {
-                                    // Get the highest-scored icon
-                                    SteamGridDbGrid bestIcon = icons.OrderByDescending(i => i.Score).First();
+                                    errorCount++;
+
+                                    System.Diagnostics.Debug.WriteLine($"Icon lookup failed for {game.Name}");
+
+                                    continue;
+                                }
+
+                                if (icons.Count > 0)
+                                {
+                                    SteamGridDbGrid bestIcon = RankIcons(icons).First();
                                     bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false);
 
                                     if (downloaded)
@@ -1769,6 +1789,52 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Orders icons for the picker, and for the fallback used when a game has no square grid.
+        ///
+        /// Deliberately close to the order the API returned. Sorting on Score, as this did, was sorting
+        /// on a constant the API retired, but grading 108 games showed nothing else beat that accidental
+        /// order either: preferring PNG over .ico split 30/29, and preferring SteamGridDB's own
+        /// "official" style over "custom" was actively worse at 8 against 3 - the official icon is often
+        /// the small platform one (128px against a 512px custom upload), so a label was outranking size.
+        ///
+        /// The one rule the grading did support is narrow, so that is all this does: among icons that
+        /// are the same kind - same format, same style - take the largest. Everything else keeps its
+        /// original position. On the graded set that moved 14 picks, 6 onto the preferred artwork and 1
+        /// onto artwork that had been rejected.
+        /// </summary>
+        /// <param name="icons">Icons as returned by the API.</param>
+        private static List<SteamGridDbGrid> RankIcons(IEnumerable<SteamGridDbGrid> icons)
+        {
+            List<SteamGridDbGrid> ordered = icons.ToList();
+
+            // Position of the first icon of each kind, so groups stay where the API put them
+            var firstAppearance = new Dictionary<string, int>();
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                string kind = IconKind(ordered[i]);
+
+                if (!firstAppearance.ContainsKey(kind))
+                {
+                    firstAppearance[kind] = i;
+                }
+            }
+
+            return ordered
+                .OrderBy(i => firstAppearance[IconKind(i)])
+                .ThenByDescending(i => i.Width)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Groups icons that are interchangeable in kind, so only size separates them.
+        /// </summary>
+        private static string IconKind(SteamGridDbGrid icon)
+        {
+            return $"{icon.Mime}|{icon.Style}";
+        }
+
+        /// <summary>
         /// Returns the sort rank of a grid style - title-bearing box art styles first, icon-like styles last.
         /// Title-bearing styles rank equally: preferring one over another proved to mostly surface
         /// mis-tagged fan art while any of them already matches the native Xbox look.
@@ -1909,7 +1975,7 @@ namespace SteamGridDB.Xbox
 
             if (icons != null && icons.Count > 0)
             {
-                sortedArtworks.AddRange(icons.OrderByDescending(i => i.Score));
+                sortedArtworks.AddRange(RankIcons(icons));
             }
 
             if (sortedArtworks.Count == 0)
