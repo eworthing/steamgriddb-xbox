@@ -14,6 +14,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
             get; set;
         }
 
+        /// <summary>
+        /// Community score. Retired by SteamGridDB - the API always returns 0, so this must never be
+        /// used as a ranking signal. Kept because it is still present in the response.
+        /// </summary>
         [DataMember(Name = "score")]
         public int Score
         {
@@ -26,11 +30,42 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
             get; set;
         }
 
+        /// <summary>
+        /// Pixel width of the full-size image. Grids are requested at 512x512 and 1024x1024 together,
+        /// so this is the only way to tell the two apart. Icons in .ico format report 0.
+        /// </summary>
+        [DataMember(Name = "width")]
+        public int Width
+        {
+            get; set;
+        }
+
+        /// <summary>
+        /// Pixel height of the full-size image. See <see cref="Width"/>.
+        /// </summary>
+        [DataMember(Name = "height")]
+        public int Height
+        {
+            get; set;
+        }
+
+        /// <summary>
+        /// Image format: "image/png", "image/jpeg" or "image/webp" for grids; icons are also served as
+        /// "image/vnd.microsoft.icon". The URL extension follows this, and the file is written under the
+        /// game's own extension regardless, so it is worth preferring a format the tile renders natively.
+        /// </summary>
+        [DataMember(Name = "mime")]
+        public string Mime
+        {
+            get; set;
+        }
+
         [DataMember(Name = "url")]
         public string Url
         {
             get; set;
         }
+
 
         [DataMember(Name = "thumb")]
         public string Thumb

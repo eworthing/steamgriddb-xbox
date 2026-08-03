@@ -12,7 +12,8 @@ namespace SteamGridDB.Xbox.Models
         private string thumbUrl;
         private string style;
         private string author;
-        private int score;
+        private int width;
+        private int height;
         private int id;
 
         public string Url
@@ -69,14 +70,28 @@ namespace SteamGridDB.Xbox.Models
             }
         }
 
-        public int Score
+        public int Width
         {
-            get => score;
+            get => width;
             set
             {
-                if (score != value)
+                if (width != value)
                 {
-                    score = value;
+                    width = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(Description));
+                }
+            }
+        }
+
+        public int Height
+        {
+            get => height;
+            set
+            {
+                if (height != value)
+                {
+                    height = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Description));
                 }
@@ -84,10 +99,15 @@ namespace SteamGridDB.Xbox.Models
         }
 
         /// <summary>
-        /// Style, uploader and community score of this artwork, shown as the thumbnail's tooltip so the
-        /// data behind the ordering is visible when picking artwork by hand.
+        /// Style, uploader and resolution of this artwork, shown as the thumbnail's tooltip so the data
+        /// behind the ordering is visible when picking artwork by hand. Community score is deliberately
+        /// absent: SteamGridDB retired it and always reports 0, so showing it implied a ranking signal
+        /// that does not exist. Icons in .ico format report no size, so the resolution line is dropped
+        /// rather than shown as 0x0.
         /// </summary>
-        public string Description => $"Style: {Style}\nAuthor: {Author}\nScore: {Score}";
+        public string Description => Width > 0 && Height > 0
+            ? $"Style: {Style}\nAuthor: {Author}\nSize: {Width}x{Height}"
+            : $"Style: {Style}\nAuthor: {Author}";
 
         public int Id
         {

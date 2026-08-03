@@ -1,0 +1,560 @@
+# Artwork selection — where the quality ceiling actually is
+
+Analysed 2026-08-03 against `30d3354`. **§4.1–§4.2, §4.6 and the console-badge vocabulary are now
+implemented** — see [Status](#status). The remaining proposals are unchanged.
+
+Three evidence sources, all reproducible:
+
+- **The real library.** The Steam entries in the local Xbox app manifests, queried live against
+  SteamGridDB. The first pass covered 134 games / 890 square (512²/1024²) candidates / 1577 icon
+  candidates; a later refresh brought it to 153 games. The full library is Steam + 3 Epic + 1
+  `ubi`; the capitalised `Gog`, `Ubisoft` and `CustomLibraryManagement` manifests each contain
+  **zero** `gameCache` entries, so every statistic below is the Steam library unless stated
+  otherwise.
+- **13 other SteamGridDB clients**, cloned and read: the five official/community libraries and
+  eight applications listed on the SteamGridDB docs page.
+- **Three rounds of per-game grading** against side-by-side renders of every changed pick, with
+  Valve's official capsule shown as a reference. 38 verdicts in total. Every threshold and every
+  reverted idea below traces to one of them.
+
+## Status
+
+| Proposal | State |
+| --- | --- |
+| §4.1 official-artwork gate | **implemented** — 12 graded better, 0 worse |
+| §4.2 `Width`/`Mime` deserialised, dead `Score` retired | **implemented** — resolution tie-break graded 3–1 |
+| §4.2a PNG-over-JPEG tie-break | **tried and reverted** — graded 2 better / 7 worse |
+| §4.6 request-side filters | **implemented** — no behaviour change, by design |
+| console-store badge vocabulary | **implemented** — found by grading, not by analysis |
+| §4.3 icon fallback | outstanding |
+| §4.4 JPEG written to `.png` | outstanding |
+| §4.5 failures reported as misses | outstanding |
+| §4.7–§4.9 | outstanding |
+
+Net effect on the library: **18 of 150 picks change**, none graded worse.
+
+---
+
+## 1. How selection works today
+
+`FixLibraryAsync` (`PrimaryWidget.xaml.cs:935`) per game:
+
+1. `GET /grids/{platform}/{id}?dimensions=512x512,1024x1024` — one page, no other filters (`:1007`).
+2. If page 1 contains no `alternate`/`white_logo`/`blurred` grid, re-request with
+   `styles=` those three (the "rescue" call, `:1009-1012`).
+3. `RankGrids` (`:1586`) — a lexicographic sort, five keys, stable so ties keep API order:
+
+   | # | Key | Effect |
+   | --- | --- | --- |
+   | 1 | mockup vocabulary in notes/tags, **or** edition mismatch vs the game name | demote |
+   | 2 | language is set and not `en` | demote |
+   | 3 | style in `alternate`/`white_logo`/`blurred` | promote |
+   | 4 | "official"/"offical"/store domain in notes/tags | promote |
+   | 5 | `Score` descending | — |
+
+4. `DownloadBestTileFillingImageAsync` (`:1309`) downloads up to the top 5 in order and returns
+   the first whose corners are opaque (`ImageFillsTileAsync`, `:1355`), else the first downloaded.
+5. If there are no grids at all, fall back to `icons.OrderByDescending(i => i.Score).First()`
+   (`:1043`).
+
+Separately, `GetGameByPlatformIdAsync` (`:578`) is already called per game to resolve the name.
+That call matters — see §4.1.
+
+History: `f228cbe` moved ranking client-side, `4a638d4` added the style tier, `02ee6c2` added
+metadata/language/pixel layers, `595eb5b` and `8f07813` tuned the vocabulary from per-game grading,
+`dfa22fb` reverted the press-kit boost. `fd90da6` and `30d3354` then fixed the whole-codebase
+review findings — including the Epic ID bug that §3.4 was written about.
+
+---
+
+## 2. What the library data says
+
+### 2.1 Three of the five ranking keys are dead or near-dead
+
+| Key | Fires on | Note |
+| --- | --- | --- |
+| `Score` descending | **0 of 890 candidates** | every `score`, `upvotes` and `downvotes` in the pool is `0` |
+| language | 5 of 890 | 885 `en`, 3 `ja`, 1 `fa`, 1 `zh` |
+| notes/tags vocabulary | 279 of 890 have notes at all | the `tags` field **does not exist** in v2 grid responses — 0 of 890 |
+
+`Score` is not a sampling artefact. The maintained .NET client annotates it directly:
+
+> `[JsonProperty("score"), Obsolete("This property is marked as obsolete by API developer and left
+> only for backwards compatibility. This property will always return false")]`
+> — `craftersmine/SteamGridDB.NET`, `SteamGridDbObject.cs:26`
+
+`upvotes`, `downvotes` and `lock` carry the same annotation. So `.ThenByDescending(r => r.Grid.Score)`
+at `:1594` never reorders anything, and the icon fallback at `:1043` is just "the first icon the
+API returned".
+
+`GridMetadata` (`:1514`) concatenates `Notes` and `Tags`; the `Tags` half is always null, so the
+vocabulary regexes see notes only, and 69% of candidates have no notes. **Further regex tuning is
+working on 31% of the pool.** That is the ceiling the last three commits were pushing against.
+
+### 2.2 Two thirds of picks are decided by API order alone
+
+Replaying `RankGrids` over the real library:
+
+```
+games with square grids                      131
+  only one candidate (nothing to rank)        21
+  >1 candidate, winner tied with others       84   <- 64%, decided by API order
+  ranking moved the pick off API order        27
+```
+
+For 84 games every ranking key ties across the top group and the stable sort falls through to
+SteamGridDB's own ordering. Inside those tied sets: 33 span more than one style, 31 pick a JPEG
+while a PNG is available, 6 have a higher-resolution candidate available.
+
+These numbers survive `fd90da6`'s `RankedGrid` refactor. That change hoisted the metadata scan out
+of the sort keys, but the key sequence and each key's polarity are unchanged — the new
+`IsForeignLanguage` (`:1557`) is the exact negation of the old inline language key, and `Select`
+preserves input order ahead of the stable sorts. Ordering is identical, so the replay above still
+describes current behaviour.
+
+### 2.3 The corner-transparency gate reaches ~9% of candidates
+
+Measured over the 410 images the downloader would actually consider (top 4 per game):
+
+```
+candidates measured                410
+non-PNG (jpeg)                     165
+actually carrying an alpha channel  38   <- 9%
+```
+
+`ImageFillsTileAsync` can only reject an image that has alpha. Most PNGs in the pool are fully
+opaque, so the gate is inert for 91% of candidates — not just the JPEG half that `02ee6c2`
+already noted.
+
+### 2.4 The icon fallback is in worse shape than the grid path
+
+1577 icon candidates across the library:
+
+```
+mimes    image/png 826    image/vnd.microsoft.icon 751
+styles   official 820     custom 757
+dims     0x0 751 (every .ico reports 0x0)    512² 382    256² 236    1024² 156    128² 52
+```
+
+Three problems, all on the path taken by Make Way, Star Trek: Starfleet Academy and Star Trek:
+Starfleet Command Gold Edition — the three games with no square grid at all:
+
+- **48% of icon candidates are `.ico` files**, and `DownloadAndReplaceImageCoreAsync` writes the
+  bytes to the game's `.png` path. A `.ico` renamed to `.png` is a very different proposition from
+  a JPEG renamed to `.png`.
+- **There is an `official` icon style** (820 of 1577) and the fallback does not ask for it, even
+  though "official" is exactly the signal the grid ranker spends four regexes trying to infer from
+  free text.
+- The fallback sorts by `Score` (`:1043`), which is always 0, so it takes whatever the API returned
+  first.
+
+Note while touching this: `GetSquareIconsByPlatformIdAsync` (`SteamGridDbClient.cs:231`) accepts a
+`dimensions` parameter and then discards it, hardcoding `{128, 256, 512, 1024}` on the next line.
+Harmless today because no caller passes one, but it will silently ignore the argument if one ever
+does.
+
+### 2.5 The pool is already clean of the flags other clients filter on
+
+`nsfw`, `humor`, `epilepsy` and `lock` are false for all 890 candidates — the API applies
+`nsfw=false`/`humor=false` by default. Nothing to gain, but also no risk in being explicit.
+
+Composition, for reference: styles `alternate` 704, `white_logo` 92, `no_logo` 87, `material` 6,
+`blurred` 1. Mimes `image/png` 579, `image/jpeg` 311. Dimensions `1024²` 741, `512²` 149.
+
+### 2.6 The picker now displays the dead score
+
+`30d3354`'s sibling commit added a thumbnail tooltip (`GridImageItem.Description`,
+`PrimaryWidget.xaml:449`) reading `Style / Author / Score`, described as making "the data behind the
+ordering visible when picking artwork by hand". Style and author are genuinely useful. **`Score` is
+`0` for every artwork in the library** (§2.1), so the tooltip currently tells the user that every
+candidate scored zero — and implies that is a real signal being ranked on. Dropping it from the
+tooltip should happen with §4.2.
+
+---
+
+## 3. What the other 13 clients do
+
+Cloned and read: `node-steamgriddb`, `tauri-steamgriddb`, `SteamGridDB.NET`, `steamgriddb_api`,
+`Steam-Art-Manager`, `clear`, `steamtinkerlaunch`, `SteamGridDBMetadata`, `UWPHook`, `GameHub`,
+`steamgrid`, `steam-buddy`, `steam-rom-manager`. (`ZebcoWeb/python-steamgriddb` is gone from
+GitHub.)
+
+**None of them rank candidates client-side.** Every one either pushes filters into the request and
+takes `data[0]`, or renders a picker and lets a human choose — `steamtinkerlaunch` literally
+`jq -r ".data[$i].data[0].url"`, `steam-buddy` and `clear` map the response straight to
+`{thumb, url}`, `UWPHook` and the Playnite extension hand the array to a UI. This project's ranking
+layer is past the state of the art in that ecosystem. The transferable learnings are about *where
+the art comes from*, *what the API will tell you if you ask*, and *what happens when things go
+wrong*.
+
+### 3.1 SteamGridDB is treated as a fallback source, not the source
+
+`boppreh/steamgrid` — the most-used bulk artwork tool — orders its providers
+(`download.go:359-405`):
+
+```
+official Steam CDN  ->  SteamGridDB  ->  IGDB  ->  Google image search
+```
+
+It only asks SteamGridDB when Valve's own art is missing. This is not one project's quirk:
+`PhilipK/steamgriddb_api`, a *SteamGridDB client library*, ships a `SteamStaticUrls` struct as a
+first-class part of its public API (`steam_static.rs`), pre-formatting header, capsule, hero and
+logo URLs off `cdn.cloudflare.steamstatic.com`. The ecosystem consensus is that Valve's own assets
+outrank community uploads.
+
+Our app treats SteamGridDB as the sole source.
+
+### 3.2 The API will hand you Valve's official assets — on a call we already make
+
+`node-steamgriddb/src/index.ts:96` lists `platformdata` among the multi-value query params, and
+nothing in the ecosystem uses it. Passing it to the *game lookup* returns Steam's own store asset
+manifest:
+
+```
+GET /games/steam/1145350?platformdata=steam
+
+data.verified                     true
+data.types                        ["steam"]
+data.external_platform_data.steam[0].id                              "1145350"
+                                 ...metadata.library_capsule_full    {"image":{"english":"2ba1…/library_capsule.jpg"},
+                                                                      "image2x":{"english":"2ba1…/library_capsule_2x.jpg"}}
+                                 ...metadata.library_hero_full       {…}
+                                 ...metadata.library_logo_full       {…}
+                                 ...metadata.header_image_full       {"english":"91ac…/header.jpg"}
+                                 ...metadata.logo_position           {"pinned_position":"BottomLeft", …}
+                                 ...metadata.store_asset_mtime       1758926015
+```
+
+Serve those paths from `https://shared.steamstatic.com/store_item_assets/steam/apps/{appid}/{path}`
+(the `shared.cloudflare.steamstatic.com` host 301s there; the old
+`cdn.cloudflare.steamstatic.com/steam/apps/…` host 404s on the hashed form).
+
+Two consequences:
+
+- **No extra request.** `GetGameByPlatformIdAsync` (`:578`) already runs per game to resolve the
+  name. Adding `?platformdata=steam` and deserialising two more fields costs nothing.
+- **It resolves across stores.** `GET /games/egs/Sugar?platformdata=steam` returns Rocket League
+  *with Steam appid 252950 attached*. So an Epic or GOG game that SteamGridDB has linked to Steam
+  still yields Valve's official capsule.
+
+Coverage over the 134 local games:
+
+```
+verified = true                134 / 134
+library_capsule_full present   130 / 134
+header_image_full present      132 / 134
+library_logo_full present      128 / 134
+neither capsule nor header       2       (Call of Duty: Modern Warfare II, Override)
+```
+
+Better than the 127/134 obtainable by blind-probing `library_600x900_2x.jpg`, and it needs no 404
+probing at all — the field's presence *is* the availability check.
+
+### 3.3 Request parameters we are not using
+
+The full v2 filter set, per the official client: `styles`, `dimensions`, `mimes`, `types`,
+`platformdata` (comma-joined) and `nsfw`, `humor`, `epilepsy`, `oneoftag`, `page` (single).
+
+We send `dimensions` and sometimes `styles`. Everyone else sends more:
+
+| Project | Sends |
+| --- | --- |
+| `steamgrid` | `styles`, `types=static` (default), `nsfw`, `humor`, `dimensions` |
+| `steam-rom-manager` | `types`, `nsfw=false`, `humor=false`, `dimensions`, `styles` |
+| `Steam-Art-Manager` | all of the above **plus `mimes`** and `epilepsy` |
+| `steamtinkerlaunch`, `UWPHook`, Playnite `SGDBMetadata` | `styles`, `dimensions`, `types`, `nsfw`, `humor` |
+
+Verified against the API with this library's IDs — all accepted. `&mimes=image/png` cuts one game's
+23 candidates to 19; `&types=static` is accepted; `&page=1` returns 0 results, so a single page
+covers every game here (largest pool is 25).
+
+Enumerated mime values worth knowing (`steamgriddb_api/src/query_parameters.rs:445-483`): grids are
+`image/png` / `image/jpeg` / `image/webp`; **icons are `image/png` / `image/vnd.microsoft.icon`**.
+Steam Art Manager's shipped capsule defaults are `nsfw: false`, `epilepsy: false`, `humor: true`,
+`untagged: true` (`Defaults.ts:25-56`).
+
+### 3.4 Non-Steam platform IDs — the Epic fix is confirmed, Ubisoft still will not match
+
+The Playnite extension maps platform IDs for Steam only, and has the other cases commented out with
+an explicit rationale (`SGDBMetadataProvider.cs:47-79`):
+
+> `// check for platform "steam""origin""egs""bnet""uplay"`
+> `// only steam is reliable enough on sgdb`
+> `// most games are not linked to other platforms`
+
+It also skips ID matching for Steam entries whose ID exceeds int32 (Steam *mods* use larger
+generated IDs) and for names ending in `" Demo"`, falling back to name search in both cases.
+**Neither of those two cases is handled here** — worth keeping in mind if a Steam mod or demo ever
+turns up matched to the wrong SteamGridDB entry.
+
+`fd90da6` fixed the Epic ID parsing (last segment, not the catalog item ID) and removed
+`XboxPlatformId` so the wrong identifier can no longer reach a fetch. Testing the local non-Steam
+entries against the API confirms that was the right call, and bounds what it buys:
+
+| Lookup | Result |
+| --- | --- |
+| `games/egs/Sugar` | Rocket League — 36 square grids |
+| `games/egs/Fortnite` | Fortnite — 50 square grids |
+| `games/egs/dc9d2e59…` (opaque GUID appName) | miss |
+| `games/uplay/5266` | miss |
+| `games/ubi/5266` | miss |
+
+So two of the three local Epic entries now work. The third has a GUID for an appName and cannot be
+matched by ID. The Ubisoft entry misses under both `uplay` and `ubi` — it needs name search, which
+is the fallback Playnite settled on.
+
+### 3.5 Failure handling everyone else has and we do not
+
+`steam-rom-manager` wraps every provider request in a retry layer (`x-request-wrapper.ts:32-55`):
+3 retries, and on **HTTP 429 it reads `Retry-After` and reschedules** rather than failing.
+`steamtinkerlaunch` passes `--tries="${SGDBRETRIES}"` to wget.
+
+`SteamGridDbClient.GetAsync` (`SteamGridDbClient.cs:309`) still logs a non-200 to `Debug` and
+returns `null`; the wrappers then convert that to an empty list. `FixLibraryAsync` sees no grids,
+falls to the icon branch, sees no icons, and increments `notFoundCount` (`:1057`).
+
+`30d3354` improved the accounting — unsupported platforms are now counted and reported separately
+as `skipped (unsupported platform)` (`:998`, `:1078`). That closes the progress-arithmetic half of
+the problem. The half that remains is the one that matters for artwork quality: **a rate limit or
+transient 5xx is still reported as "had no artwork in the database"** (`:1074`). Nothing
+distinguishes "SteamGridDB does not have art for this game" from "we were throttled".
+
+### 3.6 Two more habits worth copying
+
+- **Record which artwork was chosen.** Steam Art Manager caches the selected grid per app
+  (`CacheController.cacheSelectedGrid` → `userSelectedGrids[appId][type]`) alongside a cached copy
+  of the original asset. We keep the original as `.bak` but never record the chosen grid's ID, so
+  "Re-fix all games" is not idempotent — if SteamGridDB's ordering shifts, picks silently move, and
+  a graded run cannot be reproduced afterwards.
+- **Fuzzy-rank name search results.** `steamgrid` runs `fuzzy.Sort(searchResults, game.Name)`
+  (`download.go:198`) and `steam-rom-manager` uses `fuzzysort` before choosing. Our manual search
+  appends `/search/autocomplete/` results in API order, so "hades" lists Hades, Hades' Star, Hades
+  Ultimate Fighting Ball in whatever order the server chose. The response also carries `verified`
+  and `types` per result, neither of which we surface.
+- **`steam-rom-manager` drops candidates whose URL ends in `?`** (`steamgriddb.worker.ts:47`,
+  comment: "Nintendo Sucks") — malformed CDN URLs. Not present in this library, one-line insurance.
+- **`steamgrid` requests one dimension at a time**, HQ then LQ, because requesting both "will give
+  us scrambled results with no indicator which result has which size" (`download.go:147`). We hit
+  exactly this — we ask for `512x512,1024x1024` together and cannot prefer the 1024, because
+  `width`/`height` are not deserialised. Deserialising is the cheaper fix than a second request.
+
+---
+
+## 4. Proposals, in order of expected gain
+
+None of these were addressed by `fd90da6` or `30d3354`; those commits fixed correctness, memory and
+accounting, and explicitly left ranking behaviour unchanged.
+
+### 4.1 Rank against Valve's official capsule, fetched via `platformdata` — IMPLEMENTED
+
+Shipped as `FindOfficialLookalikeAsync`. What grading changed from the design below:
+
+- **It is a gate, not a ranking key.** Ranking by similarity outright would have moved 73 of 106
+  picks, including several already graded good. Walking the ranked list and vetoing was both safer
+  and cheaper — 17 of 20 replacements sit at rank 2, so it fits inside the existing download loop
+  rather than needing a thumbnail for all 890 candidates up front.
+- **The margin condition is load-bearing.** A first implementation kept only the floor and dropped
+  the ceiling. That let Hi-Fi RUSH move on a similarity gain of 0.57 → 0.616, which is inside the
+  measure's own noise, and it graded worse. Restoring the ceiling removed 5 of the 6 problem cases
+  in that round on its own.
+- **A second, structural measure was needed.** Marvel Rivals graded as "closer to Valve but only in
+  colour, not in actual image" — a failure a colour histogram cannot see. `ArtworkSignature` now
+  carries a contrast-normalised luma grid alongside the histogram, and a replacement must not
+  regress it. That measure scores Marvel Rivals −0.02 → −0.01 (no relationship) and Hi-Fi RUSH
+  +0.60 → +0.53 (the original was structurally better), rejecting both independently.
+- **Replacements must not themselves be demoted.** Without this the gate picked the "PlayStation
+  Hits" upload for LEGO Worlds — it scores highly precisely because it *is* the real cover, with a
+  storefront banner across it. With the guard, LEGO Worlds keeps its current art.
+- **The floor is 0.60, not 0.50.** At 0.50, Mad Max sat on a 0.51 match while four candidates above
+  0.85 went untouched, and graded "both wrong". 0.60 fixes it and changes one other game (Totally
+  Accurate Battlegrounds, 0.59 → 0.87), both improving on colour and layout together.
+
+Final graded result: 12 better, 4 about the same, 0 worse.
+
+The original analysis follows, since the numbers still describe why the approach was chosen.
+
+### 4.1a The original case for the gate
+
+The 64% of games decided by API order cannot be improved by more vocabulary: the metadata is not
+there. The official store capsule is a hard signal, available for 130 of 134 games, and — per §3.2 —
+obtainable from a request the app already makes.
+
+Implementation: add `?platformdata=steam` to `GetGameByPlatformIdAsync` (`:578`), deserialise
+`external_platform_data.steam[0].metadata.library_capsule_full.image2x.english`, fetch that one
+image per game, centre-crop both it and each candidate to square, compare coarse colour signatures.
+
+Tested over the 106 Steam games with ≥2 candidates and an available capsule:
+
+- Similarity spreads well: p10 `0.267`, median `0.825`, p90 `0.983`.
+- Ranking purely by similarity would change **73 of 106** picks — too aggressive to ship blind.
+- A **veto**, applied only when today's pick is visually unrelated to the official art and an
+  alternative clearly is not, changes **10 of 106**:
+
+| Game | today's pick | best alternative |
+| --- | --- | --- |
+| SteamVR | 0.023 | 0.992 |
+| Lossless Scaling | 0.047 | 0.992 |
+| SUPERHOT | 0.081 | 0.970 |
+| BioShock Infinite | 0.105 | 0.949 |
+| Wallpaper Engine | 0.132 | 0.943 |
+| Prince of Persia: The Lost Crown | 0.156 | 0.932 |
+| BeamNG.drive | 0.162 | 0.984 |
+| LEGO Worlds | 0.429 | 0.927 |
+| A Short Hike | 0.434 | 0.994 |
+| Star Wars: Battlefront II | 0.465 | 0.936 |
+
+Gate: pick `< 0.50` and some top-6 alternative `> 0.85`. Loosening to `< 0.60` / `> 0.90` adds one
+game, so the set is not threshold-sensitive. These are exactly the "no metadata to work with" cases
+the last commit deferred — BeamNG.drive is named in `8f07813`.
+
+Cost: one image fetch per game from Valve's CDN (not the SGDB quota), plus decoding candidates the
+app already downloads. Applies to any game SteamGridDB has linked to Steam, including the two Epic
+entries that `fd90da6` just made matchable.
+
+Caveat: a 4×4×4 colour histogram was enough to demonstrate the separation, but it is coarse. If the
+graded result is mixed, a perceptual hash over a downscaled luma image is the next step, not a
+threshold tweak.
+
+### 4.2 Deserialise `width`, `height`, `mime` — then retire the dead `Score` key — IMPLEMENTED
+
+`Width`, `Height` and `Mime` are now on `SteamGridDbGrid`; `Score` is retained with a comment saying
+it is always 0 and must never be ranked on. `RankGrids` ends on `.ThenByDescending(r => r.Grid.Width)`,
+and the picker tooltip shows the size instead of the dead score.
+
+`nsfw`, `humor` and `epilepsy` were deliberately **not** added: §4.6 filters them at request time, so
+deserialising them would add three permanently-false fields.
+
+**The PNG-over-JPEG tie-break was tried and reverted.** It moved 26 picks and graded 2 better against
+7 worse — Among Us, Elden Ring, Terraria and Shadow of War among the losses. Two lessons worth
+keeping: format says nothing about whether the art is the game's real cover, and the justification
+given here ("decodable by the corner gate") was actually backwards — PNGs are the only images that
+*can* have transparent corners, so preferring them surfaces more candidates the gate then rejects.
+The `.png` filename problem is real but belongs to §4.4, at the download, not the ranking.
+
+The resolution tie-break graded 3 better / 1 worse in isolation, and the one loss (The Walking Dead:
+Saints & Sinners) was subsequently fixed by the §4.1 gate.
+
+### 4.3 Fix the icon fallback
+
+Three changes at `:1038-1043`, in the order they matter (§2.4):
+
+1. Request `styles=official` first, falling back to unfiltered — 820 of 1577 icon candidates carry
+   it, and it is the same "official" signal the grid ranker infers from free text. The client
+   already takes a `styles` argument.
+2. Filter or reject `image/vnd.microsoft.icon` — 48% of the pool, currently written verbatim into
+   the game's `.png` path. `mimes=image/png` on the icons request is the one-parameter version.
+3. Replace `OrderByDescending(i => i.Score)` with largest-dimension-first; `.ico` entries report
+   `0x0`, so this also sorts them last for free.
+
+Only 3 games take this path today, but they take it every single run. While in here, fix the
+discarded `dimensions` parameter noted in §2.4.
+
+### 4.4 Stop writing JPEG bytes into a `.png` file
+
+59 of 131 grid picks are `image/jpeg`, written to the game's `.png` path. Windows imaging sniffs
+content so it renders, but the extension is a lie. `fd90da6` fixed the related `.bak`/`.new`
+sibling-naming bug via `Path.ChangeExtension` (`:253`), which makes the naming consistent — but
+nothing anywhere inspects the actual image format. Either prefer PNG in ranking (§4.2), request
+`mimes=image/png` outright, or transcode on save.
+
+`mimes=image/png` is the strongest version and costs nothing — but it drops ~35% of the pool, so it
+should be graded, not assumed.
+
+### 4.5 Distinguish "no artwork" from "the request failed"
+
+Per §3.5, `30d3354` split out unsupported-platform skips but a throttled or failed request is still
+reported as "had no artwork in the database". Minimum viable fix: have `GetAsync` surface the status
+code instead of returning `null` for both cases, and count non-200 as an error in `FixLibraryAsync`
+rather than a miss. Retry with `Retry-After` on 429, as `steam-rom-manager` does, is the fuller
+version.
+
+This matters most for grading: a run whose failures are miscounted as misses cannot be compared
+against the previous run.
+
+### 4.6 Send the filters everyone else sends — IMPLEMENTED
+
+`types=static`, `nsfw=false`, `humor=false`, `epilepsy=false` now go on every request from `BuildUrl`.
+Verified accepted on both the grids and icons endpoints with identical result counts, which is the
+point: zero change today, and an animated or flagged upload appearing later cannot silently become a
+tile.
+
+### 4.6a Console-store badge vocabulary — IMPLEMENTED
+
+Not in the original analysis. It came out of grading: three of six flagged picks in one round had a
+storefront badge burned into otherwise-correct art — a Steam logo, a "PlayStation Hits" banner.
+
+The similarity gate *promotes* these, because the art underneath really is the official cover. The
+existing mockup vocabulary misses them for the same reason — they are not mockups, they are branded
+reissues. But the labels are sitting in the notes: 26 candidates across the library carry terms like
+`PlayStation Hits`, `Switch Icon`, `PS5 dashboard icon`, `Xbox One`. Two of them
+(`Official - Nintendo Switch`) were being *boosted* as official artwork.
+
+`consoleBadgeGridMetadata` now demotes them, and `IsDemotedGrid` is consulted by the gate as well as
+the ranking. `greatest hits` is deliberately excluded — one upload advertises being the *non*-Hits
+version. Xbox terms are included at the user's request, despite this project targeting the native
+Xbox look.
+
+### 4.7 Record the chosen grid ID
+
+Per §3.6. Without it, "Re-fix all games" is not idempotent and a graded run cannot be reproduced.
+A sidecar mapping image path → grid ID would also let the picker show which artwork is currently
+applied — a natural companion to the tooltip added in `30d3354`.
+
+### 4.8 Reconsider the corner gate rather than tune it
+
+At 9% reach it is not doing the job its comment claims. Two options:
+
+- Accept it as a narrow PNG-only guard and say so in the comment.
+- Add a flat-background measure: modal border colour, fraction of the image within tolerance of it.
+  Over the library, only **4 of 131** picks exceed 60% flat background — Skyrim SE (85.7%, with a
+  5.4% alternative at rank 1), SteamVR, Injustice 2, Heavy Rain. Small, and it carries the same
+  false-positive risk against minimalist covers that got the padding detector rejected in `595eb5b`.
+  Worth it only if those four grade as wins.
+
+### 4.9 Loose ends
+
+- **The picker still does not do the rescue fetch.** `LoadGridSelectionPanelAsync:1481` calls
+  `GetSquareGridsByPlatformIdAsync` once; `FixLibraryAsync:1012` follows up with a `styles=`-filtered
+  call when page 1 is all icon-like. The manual picker can therefore show a strictly worse set than
+  auto-fix chose from. (`fd90da6` fixed the ID this call passes, but not the missing second call.)
+- **`IsEditionMismatch` demotes everything when the name is unknown.** `:1535` still treats
+  `IsNullOrEmpty(gameName)` as a mismatch, so for any game whose name did not resolve, every
+  edition-labelled candidate lands in the bottom tier. Returning `false` on an unknown name is the
+  safer reading.
+- **Manual search results are unranked.** Per §3.6 — fuzzy-sort against the search term, and
+  surface `verified` / `types`, both of which the autocomplete response already returns.
+- **3 games have no square grid at all** — Make Way, Star Trek: Starfleet Academy, Star Trek:
+  Starfleet Command Gold Edition — but do have 600×900 art (11, 5 and 6 candidates). Centre-cropping
+  a portrait grid would serve them better than the icon path (§4.3).
+
+Two items from earlier revisions of this document are now **fixed** and have been removed:
+`GridMetadata` calling uncompiled inline `Regex.Replace` (now uses the compiled fields, `:1518-1520`),
+and `FixLibraryAsync` re-implementing the style-tier check instead of calling `GridStylePriority`
+(`:1009`).
+
+---
+
+## Remaining order
+
+1. **§4.3 + §4.5** — the icon path and the failure accounting. Both are correctness rather than
+   taste, and §4.5 is a prerequisite for trusting any graded comparison that follows.
+2. **§4.4** — the `.png` filename problem, now that the ranking-level attempt at it is known not to
+   work. `mimes=image/png` at request time or transcoding on save are the two live options.
+3. **§4.7, §4.8, §4.9** — only if graded results justify them.
+
+## What the grading rounds taught
+
+Worth keeping, because none of it came from analysis:
+
+- **Every plausible-sounding rule needs grading before it ships.** The PNG tie-break read as
+  obviously correct and was 2–7 against.
+- **Thresholds need a margin, not just a level.** Two separate failures — Hi-Fi RUSH moving on a
+  0.046 gain, Mad Max held back by 0.01 — were both edge effects at a hard boundary.
+- **One metric is not enough.** Colour similarity and layout similarity fail in different places;
+  requiring both is what makes the gate safe enough to be narrow.
+- **The user's eye finds signals the data does not surface.** Store badges were invisible in every
+  aggregate statistic and obvious in a side-by-side render — and once named, turned out to be
+  sitting in the notes field all along.
+
+Reproduction scripts (library fetch, rank replay, pixel measures, reference matching) are in the
+session scratchpad; the cloned reference implementations are under `scratchpad/repos/`.

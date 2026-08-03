@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Windows.Data.Json;
 using Windows.Web.Http;
 using Windows.Web.Http.Headers;
 
@@ -22,6 +23,11 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
     {
         private readonly HttpClient httpClient;
         private readonly string baseUrl = "https://www.steamgriddb.com/api/v2";
+
+        // Root for Valve's own store assets. The paths SteamGridDB reports under platformdata are
+        // relative to "<appid>/", and the cloudflare-branded host redirects here.
+        private const string steamStoreAssetsUrl = "https://shared.steamstatic.com/store_item_assets/steam/apps";
+
         private readonly TimeSpan timeout;
         private bool disposed = false;
 
@@ -92,12 +98,109 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
             }
 
-            var url = $"{baseUrl}/games/{platform}/{Uri.EscapeDataString(platformId)}";
-            var response = await GetAsync<SteamGridDbResponse<SteamGridDbGame>>(url, cancellationToken);
+            // platformdata=steam asks SteamGridDB to attach Valve's own store asset manifest, which is
+            // where OfficialCapsuleUrl comes from. It rides along on the lookup the widget already makes
+            // to resolve the game's name, so it costs no extra request.
+            var url = $"{baseUrl}/games/{platform}/{Uri.EscapeDataString(platformId)}?platformdata=steam";
+            var json = await GetStringAsync(url, cancellationToken);
 
-            if (response != null && response.Success)
+            if (json == null)
             {
-                return response.Data;
+                return null;
+            }
+
+            var response = DeserializeJson<SteamGridDbResponse<SteamGridDbGame>>(json);
+
+            if (response == null || !response.Success || response.Data == null)
+            {
+                return null;
+            }
+
+            response.Data.OfficialCapsuleUrl = ParseOfficialCapsuleUrl(json);
+
+            return response.Data;
+        }
+
+        /// <summary>
+        /// Pulls Valve's official library-capsule URL out of a games response fetched with
+        /// platformdata=steam. The paths sit under per-language keys that vary by game
+        /// (external_platform_data.steam[0].metadata.library_capsule_full.image2x.{language}), which
+        /// DataContractJsonSerializer cannot express, so this walks the document instead.
+        /// Falls back to the header image, and returns null when Valve has neither.
+        /// </summary>
+        /// <param name="json">Raw games-endpoint response body.</param>
+        private static string ParseOfficialCapsuleUrl(string json)
+        {
+            try
+            {
+                if (!JsonObject.TryParse(json, out JsonObject root))
+                {
+                    return null;
+                }
+
+                JsonObject data = root.GetNamedObject("data", null);
+                JsonObject platformData = data?.GetNamedObject("external_platform_data", null);
+                JsonArray steamEntries = platformData?.GetNamedArray("steam", null);
+
+                if (steamEntries == null || steamEntries.Count == 0)
+                {
+                    return null;
+                }
+
+                JsonObject entry = steamEntries.GetObjectAt(0);
+                string appId = entry.GetNamedString("id", null);
+                JsonObject metadata = entry.GetNamedObject("metadata", null);
+
+                if (string.IsNullOrEmpty(appId) || metadata == null)
+                {
+                    return null;
+                }
+
+                // Prefer the 2x capsule, then the 1x, then the store header
+                JsonObject capsule = metadata.GetNamedObject("library_capsule_full", null);
+                string path = FirstLocalisedValue(capsule?.GetNamedObject("image2x", null))
+                    ?? FirstLocalisedValue(capsule?.GetNamedObject("image", null))
+                    ?? FirstLocalisedValue(metadata.GetNamedObject("header_image_full", null));
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    return null;
+                }
+
+                return $"{steamStoreAssetsUrl}/{appId}/{path}";
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not read official capsule URL: {ex.Message}");
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Returns the first value of a {language: path} map, preferring English when it is present.
+        /// </summary>
+        private static string FirstLocalisedValue(JsonObject localised)
+        {
+            if (localised == null || localised.Count == 0)
+            {
+                return null;
+            }
+
+            foreach (string preferred in new[] { "english", "en" })
+            {
+                if (localised.ContainsKey(preferred))
+                {
+                    return localised.GetNamedString(preferred, null);
+                }
+            }
+
+            foreach (var pair in localised)
+            {
+                if (pair.Value.ValueType == JsonValueType.String)
+                {
+                    return pair.Value.GetString();
+                }
             }
 
             return null;
@@ -273,7 +376,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         /// <summary>
-        /// Builds an API URL from a path and the optional dimensions/styles filters.
+        /// Builds an API URL from a path and the optional dimensions/styles filters, plus the artwork
+        /// filters every request should carry.
         /// The API expects them comma-separated: ?dimensions=600x900,920x430&amp;styles=alternate,white_logo
         /// </summary>
         /// <param name="path">Path below the API root, already escaped (e.g. "grids/steam/220").</param>
@@ -294,11 +398,17 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 queryParams.Add($"styles={string.Join(",", styles.Select(Uri.EscapeDataString))}");
             }
 
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
+            // Artwork the widget must never install: an animated upload cannot be a static tile, and the
+            // flagged categories are not what someone asking to fix their library is asking for. The API
+            // already excludes nsfw and humor by default, so these change nothing today - they are here so
+            // that a later upload in one of these categories cannot silently become a game's tile.
+            queryParams.Add("types=static");
+            queryParams.Add("nsfw=false");
+            queryParams.Add("humor=false");
+            queryParams.Add("epilepsy=false");
+
+            urlBuilder.Append("?");
+            urlBuilder.Append(string.Join("&", queryParams));
 
             return urlBuilder.ToString();
         }
@@ -307,6 +417,15 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// Generic GET request helper.
         /// </summary>
         private async Task<T> GetAsync<T>(string url, CancellationToken cancellationToken) where T : class
+        {
+            return DeserializeJson<T>(await GetStringAsync(url, cancellationToken));
+        }
+
+        /// <summary>
+        /// GET returning the raw response body, for callers that need to read parts of the document
+        /// the data contracts do not cover. Returns null on any non-success response.
+        /// </summary>
+        private async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
         {
             try
             {
@@ -320,8 +439,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
                     if (response.IsSuccessStatusCode)
                     {
-                        var content = await response.Content.ReadAsStringAsync().AsTask(linkedCts.Token);
-                        return DeserializeJson<T>(content);
+                        return await response.Content.ReadAsStringAsync().AsTask(linkedCts.Token);
                     }
                     else
                     {
@@ -354,6 +472,11 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// </summary>
         private T DeserializeJson<T>(string json) where T : class
         {
+            if (string.IsNullOrEmpty(json))
+            {
+                return null;
+            }
+
             try
             {
                 var serializer = new DataContractJsonSerializer(typeof(T));

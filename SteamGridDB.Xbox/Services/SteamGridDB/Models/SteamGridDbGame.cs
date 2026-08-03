@@ -31,5 +31,15 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
         {
             get; set;
         }
+
+        /// <summary>
+        /// Valve's own library-capsule image for this game, or null when Valve has none. Not a
+        /// serialised member: the client fills it in from the platformdata section of the response,
+        /// whose per-language keys a data contract cannot describe.
+        /// </summary>
+        public string OfficialCapsuleUrl
+        {
+            get; set;
+        }
     }
 }

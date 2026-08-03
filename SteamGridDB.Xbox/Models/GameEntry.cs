@@ -125,6 +125,16 @@ namespace SteamGridDB.Xbox.Models
             }
         }
 
+        /// <summary>
+        /// Valve's own library capsule for this game, resolved during the SteamGridDB name lookup and
+        /// used to sanity-check auto-selected artwork. Null when Valve has no capsule, or when the game
+        /// is not linked to Steam.
+        /// </summary>
+        public string OfficialCapsuleUrl
+        {
+            get; set;
+        }
+
         // Edit button visible when there is a match
         public Visibility EditButtonVisibility => HasSteamGridDBMatch ? Visibility.Visible : Visibility.Collapsed;
 

@@ -49,6 +49,20 @@ namespace SteamGridDB.Xbox
         // hold tens of megabytes of bitmaps for a large library. 160px covers 2x display scaling.
         private const int thumbnailDecodePixelWidth = 160;
 
+        // How far down the ranked candidates the downloader will look. Five covered the tile-filling
+        // check; the official-artwork gate occasionally has to reach further to find its replacement.
+        private const int maxArtworkCandidates = 8;
+
+        // Colour-match band for the official-artwork gate (see FindOfficialLookalikeAsync). Graded over
+        // the whole library: the winner must be below the floor and the replacement above the ceiling.
+        // Dropping the ceiling and keeping only the floor was tried and rejected - it let artwork move
+        // on differences of a few hundredths, which is inside the measure's own noise. The gap the two
+        // leave between them is that guard: nothing moves unless the replacement is a quarter better.
+        // The floor was 0.50 for one grading round, which left Mad Max on a 0.51 match while four
+        // candidates above 0.85 sat untouched - a hundredth of slack either side of a hard edge.
+        private const double officialArtworkFloor = 0.60;
+        private const double officialArtworkCeiling = 0.85;
+
         // Grid styles that normally carry the game's title artwork, matching the look of native Xbox app tiles.
         // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
         private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
@@ -56,6 +70,13 @@ namespace SteamGridDB.Xbox
         // Notes/tags vocabulary of physical-media mockups (word-bounded, so "Xbox" never matches "box").
         // "icon" is deliberately absent - it appears in legitimate source notes like "PS icon" too often.
         private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro|custom|wallpapers?|iisu|game icons|wallhaven|artstation|deviantart)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Console-store artwork: the game's real cover with a storefront badge burned into it
+        // ("PlayStation Hits" banner, a Switch or PS5 dashboard icon, an Xbox generation stamp).
+        // The art underneath is usually right, which is why the similarity gate rates these highly and
+        // why the vocabulary above misses them - they are not mockups, they are branded reissues.
+        // "greatest hits" is deliberately absent: one upload advertises being the *non*-Hits version.
+        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
         // or citing an official platform-store domain. Press-kit mentions were tried and rejected:
@@ -567,6 +588,7 @@ namespace SteamGridDB.Xbox
                                     }
 
                                     bool hasSteamGridDBMatch = false;
+                                    string officialCapsuleUrl = null;
 
                                     // Try to fetch game name from SteamGridDB API
                                     try
@@ -581,6 +603,9 @@ namespace SteamGridDB.Xbox
                                             {
                                                 gameName = gameInfo.Name;
                                                 hasSteamGridDBMatch = true;
+
+                                                // Comes back on this same lookup; see the official-artwork gate
+                                                officialCapsuleUrl = gameInfo.OfficialCapsuleUrl;
                                             }
                                         }
                                     }
@@ -653,7 +678,8 @@ namespace SteamGridDB.Xbox
                                         AddedDate = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).LocalDateTime,
                                         Image = image,
                                         HasBackup = hasBackup,
-                                        HasSteamGridDBMatch = hasSteamGridDBMatch
+                                        HasSteamGridDBMatch = hasSteamGridDBMatch,
+                                        OfficialCapsuleUrl = officialCapsuleUrl
                                     });
                                 }
                             }
@@ -1020,7 +1046,7 @@ namespace SteamGridDB.Xbox
                             if (grids != null && grids.Count > 0)
                             {
                                 // Rank candidates, then take the best one whose art actually fills the tile
-                                IBuffer imageBytes = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name));
+                                IBuffer imageBytes = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name), game.Name, game.OfficialCapsuleUrl);
                                 bool downloaded = imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, false);
 
                                 if (downloaded)
@@ -1304,33 +1330,23 @@ namespace SteamGridDB.Xbox
         /// <summary>
         /// Downloads the best-ranked grid that fills the square tile, skipping uploads with transparent
         /// corners (rounded icon-style art and physical case mockups that metadata cannot identify).
-        /// Returns the first passing grid's image bytes, or the best-ranked grid's bytes when none pass.
+        /// When the winner looks nothing like the game's official store artwork, a later candidate that
+        /// clearly does is taken instead - see <see cref="FindOfficialLookalikeAsync"/>.
+        /// Returns the chosen grid's image bytes, or the best-ranked grid's bytes when none pass.
         /// </summary>
-        private async Task<IBuffer> DownloadBestTileFillingImageAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids)
+        /// <param name="rankedGrids">Candidates in ranking order.</param>
+        /// <param name="gameName">Game name, for the demotion check on replacement candidates.</param>
+        /// <param name="officialCapsuleUrl">Valve's own artwork for this game, or null when it has none.</param>
+        private async Task<IBuffer> DownloadBestTileFillingImageAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, string gameName, string officialCapsuleUrl)
         {
-            const int maxCandidates = 5;
-
             IBuffer fallback = null;
 
-            for (int i = 0; i < rankedGrids.Count && i < maxCandidates; i++)
+            for (int i = 0; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
             {
-                IBuffer imageBytes;
+                IBuffer imageBytes = await DownloadArtworkAsync(rankedGrids[i].Url);
 
-                try
+                if (imageBytes == null)
                 {
-                    HttpResponseMessage response = await sharedHttpClient.GetAsync(new Uri(rankedGrids[i].Url));
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        continue;
-                    }
-
-                    imageBytes = await response.Content.ReadAsBufferAsync();
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Error downloading grid candidate {rankedGrids[i].Url}: {ex.Message}");
-
                     continue;
                 }
 
@@ -1341,11 +1357,268 @@ namespace SteamGridDB.Xbox
 
                 if (await ImageFillsTileAsync(imageBytes))
                 {
-                    return imageBytes;
+                    return await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl) ?? imageBytes;
                 }
             }
 
             return fallback;
+        }
+
+        /// <summary>
+        /// Downloads one artwork, returning null rather than throwing when it cannot be fetched.
+        /// </summary>
+        private async Task<IBuffer> DownloadArtworkAsync(string url)
+        {
+            try
+            {
+                HttpResponseMessage response = await sharedHttpClient.GetAsync(new Uri(url));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                return await response.Content.ReadAsBufferAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error downloading artwork {url}: {ex.Message}");
+
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Rescues the cases the notes cannot: when two thirds of games have every ranking key tied, the
+        /// winner is whatever SteamGridDB happened to return first, and sometimes that is art for the
+        /// wrong game entirely. Valve's own store capsule says what the cover really looks like.
+        ///
+        /// Deliberately a narrow veto, not a ranking key. Ranking by similarity outright was tried and
+        /// moved most of the library, including picks that had already been graded as good. The
+        /// replacement must clear every one of these, or the original stands:
+        ///   - the chosen artwork barely resembles the official capsule at all
+        ///   - the replacement resembles it strongly, not merely more
+        ///   - the replacement's layout is no worse, so a colour-only coincidence cannot win
+        ///   - the replacement is not itself demoted, or a badged console reissue would score highly
+        ///     and win precisely because it is the real cover with a storefront banner on it
+        /// </summary>
+        /// <param name="rankedGrids">Candidates in ranking order.</param>
+        /// <param name="chosenIndex">Index of the candidate that won on ranking alone.</param>
+        /// <param name="chosenBytes">Image bytes of that candidate.</param>
+        /// <param name="gameName">Game name, for the demotion check.</param>
+        /// <param name="officialCapsuleUrl">Valve's own artwork, or null when it has none.</param>
+        /// <returns>Replacement image bytes, or null to keep the original choice.</returns>
+        private async Task<IBuffer> FindOfficialLookalikeAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, int chosenIndex, IBuffer chosenBytes, string gameName, string officialCapsuleUrl)
+        {
+            if (string.IsNullOrEmpty(officialCapsuleUrl))
+            {
+                return null;
+            }
+
+            IBuffer officialBytes = await DownloadArtworkAsync(officialCapsuleUrl);
+            ArtworkSignature official = await ArtworkSignature.CreateAsync(officialBytes);
+            ArtworkSignature chosen = await ArtworkSignature.CreateAsync(chosenBytes);
+
+            if (official == null || chosen == null || official.ColourMatch(chosen) >= officialArtworkFloor)
+            {
+                return null;
+            }
+
+            for (int i = 0; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
+            {
+                if (i == chosenIndex || IsDemotedGrid(rankedGrids[i], gameName))
+                {
+                    continue;
+                }
+
+                IBuffer candidateBytes = await DownloadArtworkAsync(rankedGrids[i].Url);
+                ArtworkSignature candidate = await ArtworkSignature.CreateAsync(candidateBytes);
+
+                if (candidate == null || official.ColourMatch(candidate) <= officialArtworkCeiling)
+                {
+                    continue;
+                }
+
+                if (official.LayoutMatch(candidate) < official.LayoutMatch(chosen))
+                {
+                    continue;
+                }
+
+                if (!await ImageFillsTileAsync(candidateBytes))
+                {
+                    continue;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Official-artwork gate replaced grid {rankedGrids[chosenIndex].Id} with {rankedGrids[i].Id}");
+
+                return candidateBytes;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Compact description of an image used to compare artwork against Valve's official capsule.
+        /// Both measures work on the centre square so a 600x900 capsule and a 1024x1024 grid compare
+        /// directly, and both are cheap enough to run on a handful of candidates per game.
+        /// </summary>
+        private sealed class ArtworkSignature
+        {
+            // 4x4x4 RGB histogram: "is this the same palette". Coarse on purpose - it has to survive
+            // recompression, crops and overlaid logos.
+            private const int colourGridSize = 32;
+            private const int colourBuckets = 64;
+
+            // Contrast-normalised greyscale grid: "is this the same picture". A palette match with no
+            // layout match is a coincidence, which is the failure the colour histogram alone cannot see.
+            private const int layoutGridSize = 12;
+
+            private readonly double[] colour;
+            private readonly double[] layout;
+
+            private ArtworkSignature(double[] colour, double[] layout)
+            {
+                this.colour = colour;
+                this.layout = layout;
+            }
+
+            /// <summary>
+            /// Builds a signature, or returns null when the image cannot be decoded.
+            /// </summary>
+            /// <param name="imageBytes">Encoded image, or null.</param>
+            public static async Task<ArtworkSignature> CreateAsync(IBuffer imageBytes)
+            {
+                if (imageBytes == null)
+                {
+                    return null;
+                }
+
+                try
+                {
+                    using (var stream = new InMemoryRandomAccessStream())
+                    {
+                        await stream.WriteAsync(imageBytes);
+                        stream.Seek(0);
+
+                        BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+
+                        // Centre square, so aspect ratio cannot skew the comparison
+                        uint side = Math.Min(decoder.PixelWidth, decoder.PixelHeight);
+                        var bounds = new BitmapBounds
+                        {
+                            X = (decoder.PixelWidth - side) / 2,
+                            Y = (decoder.PixelHeight - side) / 2,
+                            Width = side,
+                            Height = side
+                        };
+
+                        byte[] pixels = await ScaledPixelsAsync(decoder, bounds, colourGridSize);
+
+                        return new ArtworkSignature(ColourHistogram(pixels), LayoutGrid(await ScaledPixelsAsync(decoder, bounds, layoutGridSize)));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not build artwork signature: {ex.Message}");
+
+                    return null;
+                }
+            }
+
+            private static async Task<byte[]> ScaledPixelsAsync(BitmapDecoder decoder, BitmapBounds bounds, uint size)
+            {
+                var transform = new BitmapTransform
+                {
+                    Bounds = bounds,
+                    ScaledWidth = size,
+                    ScaledHeight = size,
+                    InterpolationMode = BitmapInterpolationMode.Fant
+                };
+
+                PixelDataProvider data = await decoder.GetPixelDataAsync(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Ignore,
+                    transform,
+                    ExifOrientationMode.IgnoreExifOrientation,
+                    ColorManagementMode.DoNotColorManage);
+
+                return data.DetachPixelData();
+            }
+
+            private static double[] ColourHistogram(byte[] pixels)
+            {
+                var histogram = new double[colourBuckets];
+
+                for (int i = 0; i + 3 < pixels.Length; i += 4)
+                {
+                    // BGRA in memory order
+                    int bucket = ((pixels[i + 2] / 64) * 16) + ((pixels[i + 1] / 64) * 4) + (pixels[i] / 64);
+                    histogram[bucket]++;
+                }
+
+                double magnitude = Math.Sqrt(histogram.Sum(v => v * v));
+
+                if (magnitude > 0)
+                {
+                    for (int i = 0; i < histogram.Length; i++)
+                    {
+                        histogram[i] /= magnitude;
+                    }
+                }
+
+                return histogram;
+            }
+
+            private static double[] LayoutGrid(byte[] pixels)
+            {
+                int cells = pixels.Length / 4;
+                var luma = new double[cells];
+
+                for (int i = 0; i < cells; i++)
+                {
+                    int p = i * 4;
+                    luma[i] = (0.114 * pixels[p]) + (0.587 * pixels[p + 1]) + (0.299 * pixels[p + 2]);
+                }
+
+                // Normalise out brightness and contrast so only the arrangement of light and dark counts
+                double mean = luma.Average();
+                double deviation = Math.Sqrt(luma.Sum(v => (v - mean) * (v - mean)) / cells);
+
+                if (deviation <= 0)
+                {
+                    deviation = 1;
+                }
+
+                for (int i = 0; i < cells; i++)
+                {
+                    luma[i] = (luma[i] - mean) / deviation;
+                }
+
+                return luma;
+            }
+
+            /// <summary>
+            /// Palette agreement, 0 (nothing in common) to 1 (identical distribution).
+            /// </summary>
+            public double ColourMatch(ArtworkSignature other)
+            {
+                return colour.Zip(other.colour, (a, b) => a * b).Sum();
+            }
+
+            /// <summary>
+            /// Agreement on where the light and dark areas sit, -1 (inverted) to 1 (identical).
+            /// </summary>
+            public double LayoutMatch(ArtworkSignature other)
+            {
+                int cells = Math.Min(layout.Length, other.layout.Length);
+
+                if (cells == 0)
+                {
+                    return 0;
+                }
+
+                return layout.Take(cells).Zip(other.layout.Take(cells), (a, b) => a * b).Sum() / cells;
+            }
         }
 
         /// <summary>
@@ -1542,6 +1815,24 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// True when the artwork's notes/tags mark it as something other than the game's plain cover:
+        /// a physical-media mockup, art for an edition the game is not, or a console-store reissue with
+        /// a storefront badge on it. Such artwork is ranked last and is never accepted as a replacement
+        /// by the official-artwork gate, which would otherwise rate a badged cover highly for matching
+        /// the real one.
+        /// </summary>
+        /// <param name="grid">Artwork to test.</param>
+        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
+        private static bool IsDemotedGrid(SteamGridDbGrid grid, string gameName)
+        {
+            string metadata = GridMetadata(grid);
+
+            return demotedGridMetadata.IsMatch(metadata)
+                || consoleBadgeGridMetadata.IsMatch(metadata)
+                || IsEditionMismatch(metadata, gameName);
+        }
+
+        /// <summary>
         /// A grid with its ranking signals worked out once. Evaluating them inside the sort keys instead
         /// would rebuild and re-scan the same notes text three times for every candidate.
         /// </summary>
@@ -1552,7 +1843,7 @@ namespace SteamGridDB.Xbox
                 string metadata = GridMetadata(grid);
 
                 Grid = grid;
-                IsDemoted = demotedGridMetadata.IsMatch(metadata) || IsEditionMismatch(metadata, gameName);
+                IsDemoted = IsDemotedGrid(grid, gameName);
                 IsBoosted = boostedGridMetadata.IsMatch(metadata);
                 IsForeignLanguage = !string.IsNullOrEmpty(grid.Language) && grid.Language != "en";
             }
@@ -1581,7 +1872,7 @@ namespace SteamGridDB.Xbox
         /// <summary>
         /// Ranks grids for auto-selection: mockup/icon-labelled and wrong-edition uploads last,
         /// English (or untagged) language first, official store artwork boosted, then style
-        /// preference and community score. Ties keep SteamGridDB's canonical ordering (stable sort).
+        /// preference, resolution and format. Ties keep SteamGridDB's canonical ordering (stable sort).
         /// </summary>
         private static List<SteamGridDbGrid> RankGrids(IEnumerable<SteamGridDbGrid> grids, string gameName)
         {
@@ -1591,7 +1882,12 @@ namespace SteamGridDB.Xbox
                 .ThenBy(r => r.IsForeignLanguage ? 1 : 0)
                 .ThenBy(r => GridStylePriority(r.Grid.Style))
                 .ThenByDescending(r => r.IsBoosted ? 1 : 0)
-                .ThenByDescending(r => r.Grid.Score)
+                // 512x512 and 1024x1024 are requested together, so the sharper upload has to be picked
+                // out here. Preferring PNG over JPEG was tried as a further tie-break and reverted: it
+                // moved 26 picks and graded 2 better against 7 worse, because format says nothing about
+                // whether the art is the game's real cover. The tile's filename claim is a separate
+                // problem and belongs with the download, not the ranking.
+                .ThenByDescending(r => r.Grid.Width)
                 .Select(r => r.Grid)
                 .ToList();
         }
@@ -1633,7 +1929,8 @@ namespace SteamGridDB.Xbox
                     ThumbUrl = artwork.Thumb ?? artwork.Url,
                     Author = artwork.Author?.Name ?? unknownName,
                     Style = artwork.Style ?? "default",
-                    Score = artwork.Score
+                    Width = artwork.Width,
+                    Height = artwork.Height
                 });
             }
 
