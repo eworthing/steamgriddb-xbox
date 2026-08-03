@@ -737,13 +737,21 @@ namespace SteamGridDB.Xbox
                                 continue;
                             }
 
-                            // Prefer grids with title artwork so tiles match the native Xbox app look,
-                            // falling back to any grid style, then icons as a last resort
-                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId, textBearingGridStyles);
+                            // Prefer grids with title artwork so tiles match the native Xbox app look.
+                            // Rank the unfiltered results client-side: tied scores are common, and the stable
+                            // sort keeps SteamGridDB's canonical ordering for ties (the same image the site
+                            // shows first, typically the official box art).
+                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
 
-                            if (grids == null || grids.Count == 0)
+                            if (grids != null && grids.Count > 0 && !grids.Any(g => Array.IndexOf(textBearingGridStyles, g.Style) >= 0))
                             {
-                                grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                                // First page is all icon-like styles - ask the server for title-bearing ones beyond it
+                                List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId, textBearingGridStyles);
+
+                                if (textBearingGrids != null && textBearingGrids.Count > 0)
+                                {
+                                    grids = textBearingGrids;
+                                }
                             }
 
                             if (grids != null && grids.Count > 0)
