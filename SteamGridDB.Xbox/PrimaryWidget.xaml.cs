@@ -43,6 +43,7 @@ namespace SteamGridDB.Xbox
         private const string backupImageExtension = ".bak";
         private const string newImageExtension = ".new";
         private const string manifestFileExtension = ".manifest";
+        private const string busyStatusText = "Another library operation is still running - please wait for it to finish";
 
         // Artwork is shown in an 80px list thumbnail; decoding the 512-1024px source at full size would
         // hold tens of megabytes of bitmaps for a large library. 160px covers 2x display scaling.
@@ -86,6 +87,10 @@ namespace SteamGridDB.Xbox
         // Guards the library-wide operations against each other: they all rewrite the same files and
         // rebuild the same collection, so overlapping runs duplicate entries or race on disk.
         private bool isLibraryOperationRunning;
+
+        // Whitespace counts as missing, matching SteamGridDbClient's own validation - a key that fails
+        // this test would otherwise sail past the guards and throw out of the client's constructor.
+        private bool HasSteamGridDbApiKey => !string.IsNullOrWhiteSpace(steamGridDbApiKey);
 
         private GameEntry currentSelectedGame;
         public GameEntry CurrentSelectedGame
@@ -145,21 +150,20 @@ namespace SteamGridDB.Xbox
 
         private async void PrimaryWidget_Loaded(object sender, RoutedEventArgs e)
         {
-            if (!TryBeginLibraryOperation())
+            if (TryBeginLibraryOperation())
             {
-                return;
+                try
+                {
+                    await LoadGameEntriesAsync();
+                }
+                finally
+                {
+                    EndLibraryOperation();
+                }
             }
 
-            try
-            {
-                await LoadGameEntriesAsync();
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
-
-            // Set default focus to Fix my library button for controller navigation
+            // Set default focus to Fix my library button for controller navigation. Outside the guard
+            // so a repeat Loaded - Game Bar re-parenting the widget - still lands focus somewhere.
             FixLibraryButton.Focus(FocusState.Programmatic);
         }
 
@@ -188,6 +192,23 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// True while a library-wide operation is in flight. The per-game buttons check this because
+        /// disabling the header is not enough: restoring or replacing one game's artwork from a row
+        /// while a bulk pass is rewriting the same files is the same concurrent-writer race.
+        /// </summary>
+        private bool IsLibraryOperationBlocking()
+        {
+            if (!isLibraryOperationRunning)
+            {
+                return false;
+            }
+
+            StatusText.Text = busyStatusText;
+
+            return true;
+        }
+
+        /// <summary>
         /// Marks the start of a library-wide operation and disables the header buttons for its duration.
         /// Returns false when another operation is already running.
         /// </summary>
@@ -195,6 +216,8 @@ namespace SteamGridDB.Xbox
         {
             if (isLibraryOperationRunning)
             {
+                StatusText.Text = busyStatusText;
+
                 return false;
             }
 
@@ -241,33 +264,52 @@ namespace SteamGridDB.Xbox
         private async Task<BitmapImage> CreateThumbnailAsync(StorageFile file)
         {
             IRandomAccessStream imageStream = await file.OpenReadAsync();
-            TaskCompletionSource<BitmapImage> decoded = new TaskCompletionSource<BitmapImage>();
 
-            // BitmapImage must be created and sourced on the UI thread because it is owned by it
-            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () =>
+            try
             {
-                try
+                // Every caller reaches this from a UI event handler, so decoding happens inline - no
+                // dispatcher round trip that could leave the await hanging if the handler never runs
+                if (Dispatcher.HasThreadAccess)
                 {
-                    BitmapImage image = new BitmapImage { DecodePixelWidth = thumbnailDecodePixelWidth };
-
-                    await image.SetSourceAsync(imageStream);
-
-                    decoded.TrySetResult(image);
+                    return await DecodeThumbnailAsync(file, imageStream);
                 }
-                catch (Exception ex)
+
+                // BitmapImage must be created and sourced on the UI thread because it is owned by it
+                TaskCompletionSource<BitmapImage> decoded = new TaskCompletionSource<BitmapImage>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () =>
                 {
-                    System.Diagnostics.Debug.WriteLine($"Could not decode {file.Name}: {ex.Message}");
+                    decoded.TrySetResult(await DecodeThumbnailAsync(file, imageStream));
+                });
 
-                    // TrySet: this handler is async void, so a second SetResult would crash the widget
-                    decoded.TrySetResult(null);
-                }
-                finally
-                {
-                    imageStream.Dispose();
-                }
-            });
+                return await decoded.Task;
+            }
+            finally
+            {
+                imageStream.Dispose();
+            }
+        }
 
-            return await decoded.Task;
+        /// <summary>
+        /// Decodes an already-open image stream at thumbnail size. Must run on the UI thread.
+        /// </summary>
+        /// <returns>The decoded image, or null when it could not be decoded.</returns>
+        private static async Task<BitmapImage> DecodeThumbnailAsync(StorageFile file, IRandomAccessStream imageStream)
+        {
+            try
+            {
+                BitmapImage image = new BitmapImage { DecodePixelWidth = thumbnailDecodePixelWidth };
+
+                await image.SetSourceAsync(imageStream);
+
+                return image;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not decode {file.Name}: {ex.Message}");
+
+                return null;
+            }
         }
 
         /// <summary>
@@ -351,7 +393,7 @@ namespace SteamGridDB.Xbox
 
                 // Without an API key the library still loads - names stay "Unknown" and artwork cannot be
                 // fetched, but the list, the backups and the restore/revert buttons all keep working
-                bool canQuerySteamGridDb = !string.IsNullOrEmpty(steamGridDbApiKey);
+                bool canQuerySteamGridDb = HasSteamGridDbApiKey;
                 SteamGridDbClient sgdbClient = canQuerySteamGridDb ? new SteamGridDbClient(steamGridDbApiKey) : null;
 
                 try
@@ -894,7 +936,7 @@ namespace SteamGridDB.Xbox
         {
             try
             {
-                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                if (!HasSteamGridDbApiKey)
                 {
                     await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                     {
@@ -931,6 +973,7 @@ namespace SteamGridDB.Xbox
 
                 int successCount = 0;
                 int notFoundCount = 0;
+                int skippedCount = 0;
                 int errorCount = 0;
 
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
@@ -941,7 +984,7 @@ namespace SteamGridDB.Xbox
                         {
                             await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                             {
-                                StatusText.Text = $"Fixing {game.Name} ({successCount + notFoundCount + errorCount + 1}/{eligibleGames.Count})...";
+                                StatusText.Text = $"Fixing {game.Name} ({successCount + notFoundCount + skippedCount + errorCount + 1}/{eligibleGames.Count})...";
                             });
 
                             // Get the platform string for SteamGridDB API
@@ -951,8 +994,8 @@ namespace SteamGridDB.Xbox
                             {
                                 System.Diagnostics.Debug.WriteLine($"Skipping {game.Name}: unsupported platform");
 
-                                // Counted so the progress and the final summary still add up to the total
-                                notFoundCount++;
+                                // Counted separately from "no artwork found": nothing was looked up at all
+                                skippedCount++;
 
                                 continue;
                             }
@@ -1028,7 +1071,16 @@ namespace SteamGridDB.Xbox
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                 {
-                    StatusText.Text = $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database, {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
+                    string summary = $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database";
+
+                    if (skippedCount > 0)
+                    {
+                        summary += $", {skippedCount} skipped (unsupported platform)";
+                    }
+
+                    summary += $", {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
+
+                    StatusText.Text = summary;
                 });
             }
             catch (Exception ex)
@@ -1368,6 +1420,11 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void EditGameImage_Click(object sender, RoutedEventArgs e)
         {
+            if (IsLibraryOperationBlocking())
+            {
+                return;
+            }
+
             Button button = sender as Button;
 
             if (button?.Tag is GameEntry gameEntry)
@@ -1409,7 +1466,7 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
-                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                if (!HasSteamGridDbApiKey)
                 {
                     GridPanelStatus.Text = "SteamGridDB API key is not set";
                     GridLoadingRing.IsActive = false;
@@ -1720,6 +1777,11 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void SearchGameImage_Click(object sender, RoutedEventArgs e)
         {
+            if (IsLibraryOperationBlocking())
+            {
+                return;
+            }
+
             Button button = sender as Button;
 
             if (button?.Tag is GameEntry gameEntry)
@@ -1766,7 +1828,7 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
-                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                if (!HasSteamGridDbApiKey)
                 {
                     SearchPanelStatus.Text = "SteamGridDB API key is not set";
 
@@ -1842,7 +1904,7 @@ namespace SteamGridDB.Xbox
                 GridImagesView.Items.Clear();
                 GridPanelStatus.Text = $"Loading artworks for {game.Name}...";
 
-                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                if (!HasSteamGridDbApiKey)
                 {
                     GridPanelStatus.Text = "SteamGridDB API key is not set";
                     GridLoadingRing.IsActive = false;
@@ -1986,6 +2048,11 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void RestoreBackup_Click(object sender, RoutedEventArgs e)
         {
+            if (IsLibraryOperationBlocking())
+            {
+                return;
+            }
+
             Button button = sender as Button;
 
             if (button?.Tag is GameEntry gameEntry)
