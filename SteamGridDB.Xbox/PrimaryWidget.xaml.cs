@@ -686,10 +686,11 @@ namespace SteamGridDB.Xbox
 
                                         // A name is enough to find the game even when no store ID
                                         // matches - SteamGridDB has entries linked to no store at all.
-                                        // Custom entries are excluded: they are local executables the
-                                        // user pointed at, they never had a store lookup to fail, and
-                                        // searching them would add a request where there was none.
-                                        if (canQuerySteamGridDb && gameName != unknownName && platform != GamePlatform.Custom)
+                                        // Custom entries are included deliberately, despite being the
+                                        // one kind that made no store request before: someone adding a
+                                        // shortcut by hand wants artwork for it more than most, not
+                                        // less. The result cache keeps the cost to once per name.
+                                        if (canQuerySteamGridDb && gameName != unknownName)
                                         {
                                             steamGridDbGameId = await FindGameByNameAsync(sgdbClient, gameName);
                                             hasSteamGridDBMatch = steamGridDbGameId > 0;
