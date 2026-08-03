@@ -116,6 +116,18 @@
                             Glyph="&#xE7A6;" />
                     </Button>
                     <Button
+                        x:Name="RevertDefaultsButton"
+                        Width="40"
+                        Height="40"
+                        Click="RevertDefaultsButton_Click"
+                        Style="{StaticResource FluentIconButton}"
+                        ToolTipService.ToolTip="Revert all to Xbox default artwork">
+                        <FontIcon
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="16"
+                            Glyph="&#xE81C;" />
+                    </Button>
+                    <Button
                         Width="40"
                         Height="40"
                         Click="RefreshButton_Click"

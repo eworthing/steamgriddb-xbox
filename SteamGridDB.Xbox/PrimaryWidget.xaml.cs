@@ -46,6 +46,13 @@ namespace SteamGridDB.Xbox
         // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
         private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
 
+        private enum RestoreBackupResult
+        {
+            Restored,
+            BackupMissing,
+            Error
+        }
+
         private static Dictionary<string, string> ubisoftGameLookupCache = null;
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -511,13 +518,15 @@ namespace SteamGridDB.Xbox
             ContentDialog confirmDialog = new ContentDialog
             {
                 Title = "Fix my library",
-                Content = "This will automatically download the highest-scored artwork from SteamGridDB for all games that have a direct SteamGridDB match and have not been manually modified yet.\n\n" +
-                          "Original images will be backed up and can be restored later.\n\n" +
-                          "Do you want to continue?",
-                PrimaryButtonText = "Fix my library",
+                Content = "This will automatically download the best artwork from SteamGridDB for all games that have a direct SteamGridDB match.\n\n" +
+                          "\"Fix new games\" only processes games that have not been modified yet. \"Re-fix all games\" also re-downloads artwork for games customised earlier, replacing their current images.\n\n" +
+                          "Original Xbox app images are backed up and can always be restored later.",
+                PrimaryButtonText = "Fix new games",
+                SecondaryButtonText = "Re-fix all games",
                 CloseButtonText = "Cancel",
                 Style = Resources["DarkContentDialogStyle"] as Style,
                 PrimaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
+                SecondaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
                 CloseButtonStyle = Resources["ContentDialogButtonStyle"] as Style
             };
 
@@ -529,10 +538,13 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            // Only proceed if user clicked the primary button
             if (result == ContentDialogResult.Primary)
             {
-                await FixLibraryAsync();
+                await FixLibraryAsync(false);
+            }
+            else if (result == ContentDialogResult.Secondary)
+            {
+                await FixLibraryAsync(true);
             }
         }
 
@@ -563,21 +575,133 @@ namespace SteamGridDB.Xbox
             }
         }
 
+        private async void RevertDefaultsButton_Click(object sender, RoutedEventArgs e)
+        {
+            ContentDialog confirmDialog = new ContentDialog
+            {
+                Title = "Revert to Xbox defaults",
+                Content = "This will restore the original Xbox app artwork for all customised games and remove the SteamGridDB artwork applied to them.\n\n" +
+                          "Do you want to continue?",
+                PrimaryButtonText = "Revert all",
+                CloseButtonText = "Cancel",
+                Style = Resources["DarkContentDialogStyle"] as Style,
+                PrimaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
+                CloseButtonStyle = Resources["ContentDialogButtonStyle"] as Style
+            };
+
+            if (Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 8))
+            {
+                confirmDialog.XamlRoot = Content.XamlRoot;
+            }
+
+            ContentDialogResult result = await confirmDialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary)
+            {
+                await RevertAllToDefaultAsync();
+            }
+        }
+
         /// <summary>
-        /// Automatically downloads the highest-scored artwork for games with a match in SteamGridDB and no backup.
+        /// Restores the original Xbox app artwork from backups for all customised games.
         /// </summary>
-        private async Task FixLibraryAsync()
+        private async Task RevertAllToDefaultAsync()
         {
             try
             {
-                // Get eligible games: there is a match in SteamGridDB and no backup
-                List<GameEntry> eligibleGames = GameEntries.Where(g => g.HasSteamGridDBMatch && !g.HasBackup).ToList();
+                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once
+                List<GameEntry> customisedGames = GameEntries
+                    .Where(g => g.HasBackup)
+                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                if (customisedGames.Count == 0)
+                {
+                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    {
+                        StatusText.Text = "No customised games to revert";
+                    });
+
+                    return;
+                }
+
+                int successCount = 0;
+                int skippedCount = 0;
+                int errorCount = 0;
+
+                foreach (GameEntry game in customisedGames)
+                {
+                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    {
+                        StatusText.Text = $"Reverting {(game.Name == unknownName ? Path.GetFileName(game.ImageFilePath) : game.Name)} ({successCount + skippedCount + errorCount + 1}/{customisedGames.Count})...";
+                    });
+
+                    switch (await RestoreBackupCoreAsync(game, false))
+                    {
+                        case RestoreBackupResult.Restored:
+                            successCount++;
+                            break;
+                        case RestoreBackupResult.BackupMissing:
+                            skippedCount++;
+                            break;
+                        default:
+                            errorCount++;
+                            break;
+                    }
+                }
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    string summary = $"Revert complete: {successCount} restored to Xbox defaults";
+
+                    if (skippedCount > 0)
+                    {
+                        summary += $", {skippedCount} skipped (no backup)";
+                    }
+
+                    if (errorCount > 0)
+                    {
+                        summary += $", {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
+                    }
+
+                    StatusText.Text = summary;
+                });
+            }
+            catch (Exception ex)
+            {
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    StatusText.Text = $"Error reverting to defaults: {ex.Message}";
+                });
+
+                System.Diagnostics.Debug.WriteLine($"Error in RevertAllToDefaultAsync: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Automatically downloads the best artwork for games with a match in SteamGridDB.
+        /// </summary>
+        /// <param name="refixCustomised">When true, also re-downloads artwork for games that were customised before (their original backups are preserved).</param>
+        private async Task FixLibraryAsync(bool refixCustomised = false)
+        {
+            try
+            {
+                // Get eligible games: there is a match in SteamGridDB and, unless re-fixing, no backup yet.
+                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once.
+                List<GameEntry> eligibleGames = GameEntries
+                    .Where(g => g.HasSteamGridDBMatch && (refixCustomised || !g.HasBackup))
+                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
 
                 if (eligibleGames.Count == 0)
                 {
                     await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                     {
-                        StatusText.Text = "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)";
+                        StatusText.Text = refixCustomised
+                            ? "No eligible artworks to fix (no games have a match in SteamGridDB)"
+                            : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)";
                     });
 
                     return;
@@ -706,7 +830,13 @@ namespace SteamGridDB.Xbox
                 int noArtworkCount = 0;
                 int errorCount = 0;
 
-                foreach (GameEntry game in GameEntries)
+                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once
+                List<GameEntry> uniqueGames = GameEntries
+                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g.First())
+                    .ToList();
+
+                foreach (GameEntry game in uniqueGames)
                 {
                     string imageFileName = Path.GetFileName(game.ImageFilePath);
                     string gameName = game.Name == unknownName ? imageFileName : game.Name;
@@ -715,7 +845,7 @@ namespace SteamGridDB.Xbox
                     {
                         await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                         {
-                            StatusText.Text = $"Restoring {gameName} ({successCount + noArtworkCount + errorCount + 1}/{GameEntries.Count})...";
+                            StatusText.Text = $"Restoring {gameName} ({successCount + noArtworkCount + errorCount + 1}/{uniqueGames.Count})...";
                         });
 
                         string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
@@ -1429,72 +1559,7 @@ namespace SteamGridDB.Xbox
                     StatusText.Text = $"Restoring backup for {backupGameName}...";
                 });
 
-                string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
-                string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
-
-                // Delete current image if it exists
-                try
-                {
-                    StorageFile currentImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-
-                    await currentImageFile.DeleteAsync();
-
-                    StorageFile newImageFile = await game.ImageFolder.GetFileAsync(newFileName);
-
-                    await newImageFile.DeleteAsync();
-                }
-                catch (FileNotFoundException)
-                {
-                    // Current and/or new image don't exist, that's okay
-                }
-
-                // Rename backup to become the main image
-                try
-                {
-                    StorageFile backupFile = await game.ImageFolder.GetFileAsync(backupFileName);
-
-                    await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
-
-                    // Reload the image in the UI - open stream before dispatching to UI thread
-                    StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-                    var stream = await imageFile.OpenReadAsync();
-
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        try
-                        {
-                            BitmapImage restoredImage = new BitmapImage();
-                            // Fire-and-forget: async call will complete in background
-                            var _ = restoredImage.SetSourceAsync(stream);
-
-                            game.Image = restoredImage;
-                            game.ImageFileName = imageFileName;
-                            game.HasBackup = false; // Backup no longer exists
-
-                            StatusText.Text = $"Backup restored for {backupGameName}";
-                        }
-                        catch
-                        {
-                            stream?.Dispose();
-                        }
-                    });
-                }
-                catch (FileNotFoundException)
-                {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = $"Backup file not found for {backupGameName}";
-                    });
-                }
-                catch (Exception ex)
-                {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = $"Error restoring backup for {backupGameName}: {ex.Message}";
-                    });
-
-                    System.Diagnostics.Debug.WriteLine($"Error restoring backup for {backupGameName}: {ex.Message}");
-                }
+                await RestoreBackupCoreAsync(game, true);
             }
             catch (Exception ex)
             {
@@ -1504,6 +1569,113 @@ namespace SteamGridDB.Xbox
                 });
 
                 System.Diagnostics.Debug.WriteLine($"Error in RestoreBackupAsync for {backupGameName}: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Restores the original Xbox app artwork from the backup file, removing the applied customisation.
+        /// </summary>
+        /// <param name="game">The game to restore</param>
+        /// <param name="updateStatusText">Whether to report the outcome in the status bar</param>
+        /// <returns>Whether the backup was restored, was missing, or failed to restore.</returns>
+        private async Task<RestoreBackupResult> RestoreBackupCoreAsync(GameEntry game, bool updateStatusText = true)
+        {
+            string imageFileName = Path.GetFileName(game.ImageFilePath);
+            string backupGameName = game.Name != unknownName ? game.Name : imageFileName;
+            string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
+            string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
+
+            try
+            {
+                // Locate the backup first so a missing backup never leaves the game without an image
+                StorageFile backupFile;
+
+                try
+                {
+                    backupFile = await game.ImageFolder.GetFileAsync(backupFileName);
+                }
+                catch (FileNotFoundException)
+                {
+                    if (updateStatusText)
+                    {
+                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                        {
+                            StatusText.Text = $"Backup file not found for {backupGameName}";
+                        });
+                    }
+
+                    return RestoreBackupResult.BackupMissing;
+                }
+
+                // Delete current image if it exists
+                try
+                {
+                    StorageFile currentImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
+
+                    await currentImageFile.DeleteAsync();
+                }
+                catch (FileNotFoundException)
+                {
+                    // Current image doesn't exist, that's okay
+                }
+
+                // Delete saved customisation if it exists
+                try
+                {
+                    StorageFile newImageFile = await game.ImageFolder.GetFileAsync(newFileName);
+
+                    await newImageFile.DeleteAsync();
+                }
+                catch (FileNotFoundException)
+                {
+                    // Saved customisation doesn't exist, that's okay
+                }
+
+                // Rename backup to become the main image
+                await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
+
+                // Reload the image in the UI - open stream before dispatching to UI thread
+                StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
+                var stream = await imageFile.OpenReadAsync();
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    try
+                    {
+                        BitmapImage restoredImage = new BitmapImage();
+                        // Fire-and-forget: async call will complete in background
+                        var _ = restoredImage.SetSourceAsync(stream);
+
+                        game.Image = restoredImage;
+                        game.ImageFileName = imageFileName;
+                        game.HasBackup = false; // Backup no longer exists
+
+                        if (updateStatusText)
+                        {
+                            StatusText.Text = $"Backup restored for {backupGameName}";
+                        }
+                    }
+                    catch
+                    {
+                        stream?.Dispose();
+                    }
+                });
+
+                return RestoreBackupResult.Restored;
+            }
+            catch (Exception ex)
+            {
+                if (updateStatusText)
+                {
+                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    {
+                        StatusText.Text = $"Error restoring backup for {backupGameName}: {ex.Message}";
+                    });
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Error restoring backup for {backupGameName}: {ex.Message}");
+
+                return RestoreBackupResult.Error;
             }
         }
 
