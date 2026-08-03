@@ -24,11 +24,20 @@ namespace SteamGridDB.Xbox.Services.Stores
     /// </summary>
     internal static class EpicLibrary
     {
+        // Not Environment.SpecialFolder.CommonApplicationData: inside an app container that resolves to
+        // the app's own LocalState, so it built a path within the sandbox that can never exist. The
+        // environment variable is not redirected.
         private static readonly string manifestFolder = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            Environment.GetEnvironmentVariable("ProgramData") ?? @"C:\ProgramData",
             @"Epic\EpicGamesLauncher\Data\Manifests");
 
         private static Dictionary<string, string> names;
+
+        /// <summary>
+        /// What the manifest read found, for the library-load log. A name that fails to resolve is
+        /// indistinguishable from Epic not being installed unless this says which.
+        /// </summary>
+        public static string LoadSummary { get; private set; } = "not read yet";
 
         // The load runs from inside the per-game loop, so two entries can reach it at once
         private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
@@ -86,6 +95,7 @@ namespace SteamGridDB.Xbox.Services.Stores
             try
             {
                 StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(manifestFolder);
+                int manifestCount = 0;
 
                 foreach (StorageFile file in await folder.GetFilesAsync())
                 {
@@ -108,6 +118,8 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                     // Indexed under both identifiers, because which one the Xbox entry is keyed on
                     // depends on how the entry was parsed
+                    manifestCount++;
+
                     foreach (string key in new[] { JsonRead.String(manifest, "AppName"), JsonRead.String(manifest, "CatalogItemId") })
                     {
                         if (!string.IsNullOrEmpty(key))
@@ -116,10 +128,13 @@ namespace SteamGridDB.Xbox.Services.Stores
                         }
                     }
                 }
+
+                LoadSummary = $"{manifestCount} manifests from {manifestFolder}";
             }
             catch (Exception ex)
             {
                 // Epic not installed, or the folder is unreadable - names simply stay unresolved
+                LoadSummary = $"{ex.GetType().Name} reading {manifestFolder}: {ex.Message}";
                 System.Diagnostics.Debug.WriteLine($"Could not read Epic manifests: {ex.Message}");
             }
 

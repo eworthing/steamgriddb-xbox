@@ -21,16 +21,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
     /// </summary>
     internal static class FixLog
     {
-        private const string fileName = "last-fix.log";
-
         private static readonly List<string> lines = new List<string>();
+
+        private static string fileName = "last-fix.log";
 
         /// <summary>
         /// Begins a new run, discarding whatever the previous one recorded.
         /// </summary>
         /// <param name="what">Short description of the operation, for the header.</param>
-        public static void Start(string what)
+        /// <param name="file">File to write to, so a library load and a fix do not overwrite each other.</param>
+        public static void Start(string what, string file = "last-fix.log")
         {
+            fileName = file;
             lines.Clear();
             lines.Add($"{what} - {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
         }

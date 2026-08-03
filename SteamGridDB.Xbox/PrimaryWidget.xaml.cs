@@ -368,6 +368,8 @@ namespace SteamGridDB.Xbox
                     // a second copy of the library to the list
                     GameEntries.Clear();
 
+                    FixLog.Start("Library load", "last-load.log");
+
                     StatusText.Text = $"Attempting to access ThirdPartyLibraries...";
                     InstructionsPanel.Visibility = Visibility.Collapsed;
                     GameEntriesListView.Visibility = Visibility.Visible;
@@ -692,6 +694,10 @@ namespace SteamGridDB.Xbox
                                             steamGridDbGameId = await FindGameByNameAsync(sgdbClient, gameName);
                                             hasSteamGridDBMatch = steamGridDbGameId > 0;
                                         }
+
+                                        FixLog.Write($"unmatched {platform}/{externalPlatformId}"
+                                            + (platform == GamePlatform.Epic ? $" catalog={epicCatalogItemId ?? "none"} epic=[{EpicLibrary.LoadSummary}]" : string.Empty)
+                                            + $" name={gameName} sgdbId={steamGridDbGameId}");
                                     }
 
                                     // Add to temporary list instead of directly to GameEntries
@@ -736,6 +742,8 @@ namespace SteamGridDB.Xbox
                     .OrderBy(g => g.Name == unknownName ? 1 : 0)
                     .ThenBy(g => g.Name)
                     .ToList();
+
+                await FixLog.SaveAsync();
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                 {
