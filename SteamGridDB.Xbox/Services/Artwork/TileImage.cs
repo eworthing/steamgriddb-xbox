@@ -1,0 +1,346 @@
+using System;
+using System.Threading.Tasks;
+
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
+
+namespace SteamGridDB.Xbox.Services.Artwork
+{
+    /// <summary>
+    /// Image work needed to turn a downloaded artwork into a tile: reading pixels, judging whether an
+    /// image suits a square tile, cropping portrait box art to one, and making the bytes match the .png
+    /// name the Xbox app owns.
+    ///
+    /// Separate from the widget because none of it touches the page, its dispatcher or its state, and
+    /// because the platform decode/encode boilerplate is easy to get subtly inconsistent when it is
+    /// spread across a UI file.
+    /// </summary>
+    internal static class TileImage
+    {
+        // The image is reduced to this many columns before its rows are measured for detail. Small
+        // enough that a full-size grid costs nothing to profile, large enough to see a title.
+        private const int cropProfileWidth = 64;
+
+        /// <summary>
+        /// Decodes an image and hands the decoder to <paramref name="read"/>, returning
+        /// <paramref name="onError"/> if it cannot be decoded or the read throws.
+        /// </summary>
+        /// <param name="imageBytes">Encoded image, or null.</param>
+        /// <param name="read">Work to do with the decoder, before its backing stream closes.</param>
+        /// <param name="onError">Value to return when the image cannot be read.</param>
+        /// <param name="describeFailure">Prefix for the debug message on failure.</param>
+        public static async Task<T> WithDecoderAsync<T>(IBuffer imageBytes, Func<BitmapDecoder, Task<T>> read, T onError, string describeFailure)
+        {
+            if (imageBytes == null)
+            {
+                return onError;
+            }
+
+            try
+            {
+                using (var stream = new InMemoryRandomAccessStream())
+                {
+                    await stream.WriteAsync(imageBytes);
+                    stream.Seek(0);
+
+                    return await read(await BitmapDecoder.CreateAsync(stream));
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"{describeFailure}: {ex.Message}");
+
+                return onError;
+            }
+        }
+
+        /// <summary>
+        /// Reads an image as BGRA at the requested size, optionally from a sub-rectangle.
+        /// </summary>
+        /// <param name="decoder">Decoder for the image.</param>
+        /// <param name="bounds">Region to read, or null for the whole image.</param>
+        /// <param name="width">Width to scale to.</param>
+        /// <param name="height">Height to scale to.</param>
+        /// <param name="alphaMode">How to treat the alpha channel.</param>
+        public static async Task<byte[]> ScaledPixelsAsync(BitmapDecoder decoder, BitmapBounds? bounds, uint width, uint height, BitmapAlphaMode alphaMode)
+        {
+            var transform = new BitmapTransform
+            {
+                ScaledWidth = width,
+                ScaledHeight = height,
+                InterpolationMode = BitmapInterpolationMode.Fant
+            };
+
+            if (bounds.HasValue)
+            {
+                transform.Bounds = bounds.Value;
+            }
+
+            PixelDataProvider data = await decoder.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8,
+                alphaMode,
+                transform,
+                ExifOrientationMode.IgnoreExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+
+            return data.DetachPixelData();
+        }
+
+        /// <summary>
+        /// Perceived brightness of each pixel of a BGRA buffer.
+        /// </summary>
+        public static double[] Luma(byte[] bgra)
+        {
+            var luma = new double[bgra.Length / 4];
+
+            for (int i = 0; i < luma.Length; i++)
+            {
+                int p = i * 4;
+
+                luma[i] = (0.114 * bgra[p]) + (0.587 * bgra[p + 1]) + (0.299 * bgra[p + 2]);
+            }
+
+            return luma;
+        }
+
+        /// <summary>
+        /// Encodes a bitmap as PNG.
+        /// </summary>
+        public static async Task<IBuffer> EncodePngAsync(SoftwareBitmap bitmap)
+        {
+            using (var target = new InMemoryRandomAccessStream())
+            {
+                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, target);
+
+                encoder.SetSoftwareBitmap(bitmap);
+
+                await encoder.FlushAsync();
+                target.Seek(0);
+
+                var encoded = new Windows.Storage.Streams.Buffer((uint)target.Size);
+
+                await target.ReadAsync(encoded, (uint)target.Size, InputStreamOptions.None);
+
+                return encoded;
+            }
+        }
+
+        /// <summary>
+        /// Returns the image as PNG, re-encoding it when it is anything else.
+        ///
+        /// Roughly 45% of auto-selected artwork is served as JPEG, and about half of all icons are
+        /// .ico, but the Xbox app's own filenames are always .png and it owns those names - so the
+        /// bytes have to match the extension rather than the other way round. Windows imaging happens
+        /// to sniff content, which is why this has worked so far; that is luck, not a contract, and
+        /// the mismatched files also flow into the .bak and .new siblings.
+        ///
+        /// Format has twice graded as no guide to artwork quality, so this deliberately converts
+        /// rather than influencing which artwork gets picked.
+        /// </summary>
+        /// <param name="imageBytes">Encoded image in any format the platform can decode.</param>
+        /// <returns>PNG bytes, or the original bytes when they are already PNG or cannot be decoded.</returns>
+        public static async Task<IBuffer> EnsurePngAsync(IBuffer imageBytes)
+        {
+            // Most artwork already is a PNG. Checking the signature avoids copying every one of those
+            // into a stream and standing up a decoder only to discover there is nothing to do.
+            if (imageBytes == null || IsPng(imageBytes))
+            {
+                return imageBytes;
+            }
+
+            // Better a mislabelled tile that renders than no tile at all, hence the original bytes on failure
+            return await WithDecoderAsync(imageBytes, async decoder =>
+            {
+                using (SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
+                    BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied))
+                {
+                    return await EncodePngAsync(bitmap);
+                }
+            }, imageBytes, "Could not convert artwork to PNG, writing as-is");
+        }
+
+        /// <summary>
+        /// True when the buffer starts with the PNG signature.
+        /// </summary>
+        private static bool IsPng(IBuffer imageBytes)
+        {
+            byte[] signature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+
+            if (imageBytes.Length < signature.Length)
+            {
+                return false;
+            }
+
+            using (var reader = DataReader.FromBuffer(imageBytes))
+            {
+                byte[] head = new byte[signature.Length];
+
+                reader.ReadBytes(head);
+
+                for (int i = 0; i < signature.Length; i++)
+                {
+                    if (head[i] != signature[i])
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// True when the image is opaque in its corners. Case mockups and rounded icon-style uploads
+        /// have transparent corners; legitimate box art fills the whole square.
+        /// </summary>
+        public static async Task<bool> FillsTileAsync(IBuffer imageBytes)
+        {
+            // Undecodable here - accept and let the normal pipeline handle it
+            return await WithDecoderAsync(imageBytes, async decoder =>
+            {
+                byte[] pixels = await ScaledPixelsAsync(decoder, null, 32, 32, BitmapAlphaMode.Straight);
+
+                // Sample a 6x6 block in each corner of the 32x32 image; a corner counts as
+                // transparent when over 40% of its pixels have near-zero alpha
+                int transparentCorners = 0;
+
+                foreach (var corner in new[] { (X: 0, Y: 0), (X: 26, Y: 0), (X: 0, Y: 26), (X: 26, Y: 26) })
+                {
+                    int transparentPixels = 0;
+
+                    for (int y = corner.Y; y < corner.Y + 6; y++)
+                    {
+                        for (int x = corner.X; x < corner.X + 6; x++)
+                        {
+                            if (pixels[(((y * 32) + x) * 4) + 3] < 64)
+                            {
+                                transparentPixels++;
+                            }
+                        }
+                    }
+
+                    if (transparentPixels > 14)
+                    {
+                        transparentCorners++;
+                    }
+                }
+
+                return transparentCorners < 2;
+            }, true, "Error inspecting image corners");
+        }
+
+        /// <summary>
+        /// Crops portrait box art down to the square the tile needs, choosing the vertical window that
+        /// carries the most detail.
+        ///
+        /// The width is already right, so the only question is how far down to take the square. A fixed
+        /// offset cannot answer it - titles sit at the top on some covers, across the middle on others,
+        /// and along the bottom on a few - so the window is placed by content: the image is reduced to a
+        /// per-row measure of edge energy and the square is put where that sums highest. Text and logos
+        /// are high-contrast, so they pull the window onto themselves.
+        ///
+        /// Graded across 35 covers against fixed offsets of 0%, 10%, 15%, 20% and centre: this won 23,
+        /// the best fixed offset won 7. A top-weighted variant was tried, because every one of the 11
+        /// losses wanted a higher crop than this chose, and it was rejected - it lowered mean error by
+        /// shrinking misses on covers that had already been rejected, while agreeing with fewer picks.
+        /// </summary>
+        /// <param name="imageBytes">Encoded portrait image.</param>
+        /// <returns>Square PNG bytes, or null when the image cannot be read or is not portrait.</returns>
+        public static async Task<IBuffer> CropPortraitToTileAsync(IBuffer imageBytes)
+        {
+            return await WithDecoderAsync<IBuffer>(imageBytes, async decoder =>
+            {
+                uint width = decoder.PixelWidth;
+                uint height = decoder.PixelHeight;
+
+                if (height <= width)
+                {
+                    return null;
+                }
+
+                double offset = await BestVerticalCropAsync(decoder);
+                var bounds = new BitmapBounds
+                {
+                    X = 0,
+                    Y = (uint)Math.Round((height - width) * offset),
+                    Width = width,
+                    Height = width
+                };
+
+                using (SoftwareBitmap cropped = await decoder.GetSoftwareBitmapAsync(
+                    BitmapPixelFormat.Bgra8,
+                    BitmapAlphaMode.Premultiplied,
+                    new BitmapTransform { Bounds = bounds },
+                    ExifOrientationMode.IgnoreExifOrientation,
+                    ColorManagementMode.DoNotColorManage))
+                {
+                    return await EncodePngAsync(cropped);
+                }
+            }, null, "Could not crop portrait artwork");
+        }
+
+        /// <summary>
+        /// Where to place the square window down a portrait image, as a fraction of the spare height.
+        /// </summary>
+        /// <param name="decoder">Decoder for the portrait image.</param>
+        private static async Task<double> BestVerticalCropAsync(BitmapDecoder decoder)
+        {
+            // Truncated, not rounded, to match the offsets the crop was graded against
+            int profileHeight = Math.Max(
+                cropProfileWidth + 1,
+                (int)(cropProfileWidth * (double)decoder.PixelHeight / decoder.PixelWidth));
+
+            double[] luma = Luma(await ScaledPixelsAsync(
+                decoder, null, cropProfileWidth, (uint)profileHeight, BitmapAlphaMode.Ignore));
+
+            // Laplacian per row. The border is left out rather than clamped: an edge filter that reads
+            // its own border ends up scoring the outermost rows on brightness instead of edge strength,
+            // which drags the window to whichever end of the cover happens to be brightest.
+            var rowEnergy = new double[profileHeight];
+
+            for (int y = 1; y < profileHeight - 1; y++)
+            {
+                double sum = 0;
+
+                for (int x = 1; x < cropProfileWidth - 1; x++)
+                {
+                    int c = (y * cropProfileWidth) + x;
+                    double v = (8 * luma[c])
+                        - luma[c - cropProfileWidth - 1] - luma[c - cropProfileWidth] - luma[c - cropProfileWidth + 1]
+                        - luma[c - 1] - luma[c + 1]
+                        - luma[c + cropProfileWidth - 1] - luma[c + cropProfileWidth] - luma[c + cropProfileWidth + 1];
+
+                    sum += Math.Min(255, Math.Max(0, v));
+                }
+
+                rowEnergy[y] = sum / (cropProfileWidth - 2);
+            }
+
+            // Sliding window the height of the square, in profile space. profileHeight is at least
+            // cropProfileWidth + 1, so there is always at least one position to slide to.
+            double running = 0;
+
+            for (int y = 0; y < cropProfileWidth; y++)
+            {
+                running += rowEnergy[y];
+            }
+
+            double best = running;
+            int bestTop = 0;
+            int span = profileHeight - cropProfileWidth;
+
+            for (int top = 1; top <= span; top++)
+            {
+                running += rowEnergy[top + cropProfileWidth - 1] - rowEnergy[top - 1];
+
+                if (running > best)
+                {
+                    best = running;
+                    bestTop = top;
+                }
+            }
+
+            return (double)bestTop / span;
+        }
+    }
+}

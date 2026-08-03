@@ -8,7 +8,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
-using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Core;
@@ -20,6 +19,7 @@ using Windows.UI.Xaml.Media.Imaging;
 using Windows.Web.Http;
 
 using SteamGridDB.Xbox.Models;
+using SteamGridDB.Xbox.Services.Artwork;
 using SteamGridDB.Xbox.Services.SteamGridDB;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
 
@@ -1030,7 +1030,7 @@ namespace SteamGridDB.Xbox
                             // Rank the unfiltered results client-side: tied scores are common, and the stable
                             // sort keeps SteamGridDB's canonical ordering for ties (the same image the site
                             // shows first, typically the official box art).
-                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+                            List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, platformString, game.ExternalPlatformId);
 
                             if (grids == null)
                             {
@@ -1042,17 +1042,6 @@ namespace SteamGridDB.Xbox
                                 System.Diagnostics.Debug.WriteLine($"Artwork lookup failed for {game.Name}");
 
                                 continue;
-                            }
-
-                            if (grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
-                            {
-                                // First page is all icon-like styles - ask the server for title-bearing ones beyond it
-                                List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId, textBearingGridStyles);
-
-                                if (textBearingGrids != null && textBearingGrids.Count > 0)
-                                {
-                                    grids = textBearingGrids;
-                                }
                             }
 
                             if (grids.Count > 0)
@@ -1252,25 +1241,9 @@ namespace SteamGridDB.Xbox
         /// <returns>True if successful, false otherwise</returns>
         private async Task<bool> DownloadAndReplaceImageCoreAsync(GameEntry game, string imageUrl, bool updateStatusText = true)
         {
-            try
-            {
-                HttpResponseMessage response = await sharedHttpClient.GetAsync(new Uri(imageUrl));
+            IBuffer imageBytes = await DownloadArtworkAsync(imageUrl);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    return false;
-                }
-
-                var imageBytes = await response.Content.ReadAsBufferAsync();
-
-                return await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in DownloadAndReplaceImageCoreAsync for {game.Name}: {ex.Message}");
-
-                return false;
-            }
+            return imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
         }
 
         /// <summary>
@@ -1317,7 +1290,7 @@ namespace SteamGridDB.Xbox
 
                 // The Xbox app names every tile .png and we cannot rename its files, so anything that
                 // is not already a PNG is re-encoded rather than written under a lying extension
-                IBuffer tileBytes = await EnsurePngAsync(imageBytes);
+                IBuffer tileBytes = await TileImage.EnsurePngAsync(imageBytes);
 
                 // Save the new image (replaces current)
                 StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
@@ -1383,7 +1356,7 @@ namespace SteamGridDB.Xbox
                     fallback = imageBytes;
                 }
 
-                if (await ImageFillsTileAsync(imageBytes))
+                if (await TileImage.FillsTileAsync(imageBytes))
                 {
                     return await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl) ?? imageBytes;
                 }
@@ -1443,8 +1416,7 @@ namespace SteamGridDB.Xbox
                 return null;
             }
 
-            IBuffer officialBytes = await DownloadArtworkAsync(officialCapsuleUrl);
-            ArtworkSignature official = await ArtworkSignature.CreateAsync(officialBytes);
+            ArtworkSignature official = await ArtworkSignature.CreateAsync(await DownloadArtworkAsync(officialCapsuleUrl));
             ArtworkSignature chosen = await ArtworkSignature.CreateAsync(chosenBytes);
 
             if (official == null || chosen == null || official.ColourMatch(chosen) >= officialArtworkFloor)
@@ -1452,9 +1424,13 @@ namespace SteamGridDB.Xbox
                 return null;
             }
 
-            for (int i = 0; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
+            double chosenLayout = official.LayoutMatch(chosen);
+
+            // Everything before chosenIndex already failed the tile-fill check on the way here, so it
+            // can only fail it again - starting past the winner saves re-fetching and re-decoding them.
+            for (int i = chosenIndex + 1; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
             {
-                if (i == chosenIndex || IsDemotedGrid(rankedGrids[i], gameName))
+                if (IsDemotedGrid(rankedGrids[i], gameName))
                 {
                     continue;
                 }
@@ -1462,17 +1438,10 @@ namespace SteamGridDB.Xbox
                 IBuffer candidateBytes = await DownloadArtworkAsync(rankedGrids[i].Url);
                 ArtworkSignature candidate = await ArtworkSignature.CreateAsync(candidateBytes);
 
-                if (candidate == null || official.ColourMatch(candidate) <= officialArtworkCeiling)
-                {
-                    continue;
-                }
-
-                if (official.LayoutMatch(candidate) < official.LayoutMatch(chosen))
-                {
-                    continue;
-                }
-
-                if (!await ImageFillsTileAsync(candidateBytes))
+                if (candidate == null
+                    || official.ColourMatch(candidate) <= officialArtworkCeiling
+                    || official.LayoutMatch(candidate) < chosenLayout
+                    || !await TileImage.FillsTileAsync(candidateBytes))
                 {
                     continue;
                 }
@@ -1483,170 +1452,6 @@ namespace SteamGridDB.Xbox
             }
 
             return null;
-        }
-
-        /// <summary>
-        /// Compact description of an image used to compare artwork against Valve's official capsule.
-        /// Both measures work on the centre square so a 600x900 capsule and a 1024x1024 grid compare
-        /// directly, and both are cheap enough to run on a handful of candidates per game.
-        /// </summary>
-        private sealed class ArtworkSignature
-        {
-            // 4x4x4 RGB histogram: "is this the same palette". Coarse on purpose - it has to survive
-            // recompression, crops and overlaid logos.
-            private const int colourGridSize = 32;
-            private const int colourBuckets = 64;
-
-            // Contrast-normalised greyscale grid: "is this the same picture". A palette match with no
-            // layout match is a coincidence, which is the failure the colour histogram alone cannot see.
-            private const int layoutGridSize = 12;
-
-            private readonly double[] colour;
-            private readonly double[] layout;
-
-            private ArtworkSignature(double[] colour, double[] layout)
-            {
-                this.colour = colour;
-                this.layout = layout;
-            }
-
-            /// <summary>
-            /// Builds a signature, or returns null when the image cannot be decoded.
-            /// </summary>
-            /// <param name="imageBytes">Encoded image, or null.</param>
-            public static async Task<ArtworkSignature> CreateAsync(IBuffer imageBytes)
-            {
-                if (imageBytes == null)
-                {
-                    return null;
-                }
-
-                try
-                {
-                    using (var stream = new InMemoryRandomAccessStream())
-                    {
-                        await stream.WriteAsync(imageBytes);
-                        stream.Seek(0);
-
-                        BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-
-                        // Centre square, so aspect ratio cannot skew the comparison
-                        uint side = Math.Min(decoder.PixelWidth, decoder.PixelHeight);
-                        var bounds = new BitmapBounds
-                        {
-                            X = (decoder.PixelWidth - side) / 2,
-                            Y = (decoder.PixelHeight - side) / 2,
-                            Width = side,
-                            Height = side
-                        };
-
-                        byte[] pixels = await ScaledPixelsAsync(decoder, bounds, colourGridSize);
-
-                        return new ArtworkSignature(ColourHistogram(pixels), LayoutGrid(await ScaledPixelsAsync(decoder, bounds, layoutGridSize)));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Could not build artwork signature: {ex.Message}");
-
-                    return null;
-                }
-            }
-
-            private static async Task<byte[]> ScaledPixelsAsync(BitmapDecoder decoder, BitmapBounds bounds, uint size)
-            {
-                var transform = new BitmapTransform
-                {
-                    Bounds = bounds,
-                    ScaledWidth = size,
-                    ScaledHeight = size,
-                    InterpolationMode = BitmapInterpolationMode.Fant
-                };
-
-                PixelDataProvider data = await decoder.GetPixelDataAsync(
-                    BitmapPixelFormat.Bgra8,
-                    BitmapAlphaMode.Ignore,
-                    transform,
-                    ExifOrientationMode.IgnoreExifOrientation,
-                    ColorManagementMode.DoNotColorManage);
-
-                return data.DetachPixelData();
-            }
-
-            private static double[] ColourHistogram(byte[] pixels)
-            {
-                var histogram = new double[colourBuckets];
-
-                for (int i = 0; i + 3 < pixels.Length; i += 4)
-                {
-                    // BGRA in memory order
-                    int bucket = ((pixels[i + 2] / 64) * 16) + ((pixels[i + 1] / 64) * 4) + (pixels[i] / 64);
-                    histogram[bucket]++;
-                }
-
-                double magnitude = Math.Sqrt(histogram.Sum(v => v * v));
-
-                if (magnitude > 0)
-                {
-                    for (int i = 0; i < histogram.Length; i++)
-                    {
-                        histogram[i] /= magnitude;
-                    }
-                }
-
-                return histogram;
-            }
-
-            private static double[] LayoutGrid(byte[] pixels)
-            {
-                int cells = pixels.Length / 4;
-                var luma = new double[cells];
-
-                for (int i = 0; i < cells; i++)
-                {
-                    int p = i * 4;
-                    luma[i] = (0.114 * pixels[p]) + (0.587 * pixels[p + 1]) + (0.299 * pixels[p + 2]);
-                }
-
-                // Normalise out brightness and contrast so only the arrangement of light and dark counts
-                double mean = luma.Average();
-                double deviation = Math.Sqrt(luma.Sum(v => (v - mean) * (v - mean)) / cells);
-
-                if (deviation <= 0)
-                {
-                    deviation = 1;
-                }
-
-                for (int i = 0; i < cells; i++)
-                {
-                    luma[i] = (luma[i] - mean) / deviation;
-                }
-
-                return luma;
-            }
-
-            /// <summary>
-            /// Palette agreement, 0 (nothing in common) to 1 (identical distribution).
-            /// </summary>
-            public double ColourMatch(ArtworkSignature other)
-            {
-                return colour.Zip(other.colour, (a, b) => a * b).Sum();
-            }
-
-            /// <summary>
-            /// Agreement on where the light and dark areas sit, -1 (inverted) to 1 (identical).
-            /// </summary>
-            public double LayoutMatch(ArtworkSignature other)
-            {
-                int cells = Math.Min(layout.Length, other.layout.Length);
-
-                if (cells == 0)
-                {
-                    return 0;
-                }
-
-                return layout.Take(cells).Zip(other.layout.Take(cells), (a, b) => a * b).Sum() / cells;
-            }
         }
 
         /// <summary>
@@ -1670,7 +1475,7 @@ namespace SteamGridDB.Xbox
 
             foreach (SteamGridDbGrid candidate in RankGrids(portraits, game.Name).Take(maxArtworkCandidates))
             {
-                IBuffer cropped = await CropPortraitToTileAsync(await DownloadArtworkAsync(candidate.Url));
+                IBuffer cropped = await TileImage.CropPortraitToTileAsync(await DownloadArtworkAsync(candidate.Url));
 
                 if (cropped != null && await ReplaceImageCoreAsync(game, cropped, false))
                 {
@@ -1681,311 +1486,6 @@ namespace SteamGridDB.Xbox
             }
 
             return false;
-        }
-
-        /// <summary>
-        /// Crops portrait box art down to the square the tile needs, choosing the vertical window that
-        /// carries the most detail.
-        ///
-        /// The width is already right, so the only question is how far down to take the square. A fixed
-        /// offset cannot answer it - titles sit at the top on some covers, across the middle on others,
-        /// and along the bottom on a few - so the window is placed by content: the image is reduced to a
-        /// per-row measure of edge energy and the square is put where that sums highest. Text and logos
-        /// are high-contrast, so they pull the window onto themselves.
-        ///
-        /// Graded across 35 covers against fixed offsets of 0%, 10%, 15%, 20% and centre: this won 23,
-        /// the best fixed offset won 7. A top-weighted variant was tried, because every one of the 11
-        /// losses wanted a higher crop than this chose, and it was rejected - it lowered mean error by
-        /// shrinking misses on covers that had already been rejected, while agreeing with fewer picks.
-        /// </summary>
-        /// <param name="imageBytes">Encoded portrait image.</param>
-        /// <returns>Square PNG bytes, or null when the image cannot be read or is not portrait.</returns>
-        private static async Task<IBuffer> CropPortraitToTileAsync(IBuffer imageBytes)
-        {
-            if (imageBytes == null)
-            {
-                return null;
-            }
-
-            try
-            {
-                using (var source = new InMemoryRandomAccessStream())
-                {
-                    await source.WriteAsync(imageBytes);
-                    source.Seek(0);
-
-                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(source);
-
-                    uint width = decoder.PixelWidth;
-                    uint height = decoder.PixelHeight;
-
-                    if (height <= width)
-                    {
-                        return null;
-                    }
-
-                    double offset = await BestVerticalCropAsync(decoder, width, height);
-                    uint top = (uint)Math.Round((height - width) * offset);
-
-                    var transform = new BitmapTransform
-                    {
-                        Bounds = new BitmapBounds { X = 0, Y = top, Width = width, Height = width }
-                    };
-
-                    SoftwareBitmap cropped = await decoder.GetSoftwareBitmapAsync(
-                        BitmapPixelFormat.Bgra8,
-                        BitmapAlphaMode.Premultiplied,
-                        transform,
-                        ExifOrientationMode.IgnoreExifOrientation,
-                        ColorManagementMode.DoNotColorManage);
-
-                    using (var target = new InMemoryRandomAccessStream())
-                    {
-                        BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, target);
-
-                        encoder.SetSoftwareBitmap(cropped);
-
-                        await encoder.FlushAsync();
-                        target.Seek(0);
-
-                        var result = new Windows.Storage.Streams.Buffer((uint)target.Size);
-
-                        await target.ReadAsync(result, (uint)target.Size, InputStreamOptions.None);
-
-                        return result;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Could not crop portrait artwork: {ex.Message}");
-
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Where to place the square window down a portrait image, as a fraction of the spare height.
-        /// </summary>
-        /// <param name="decoder">Decoder for the portrait image.</param>
-        /// <param name="width">Full pixel width.</param>
-        /// <param name="height">Full pixel height.</param>
-        private static async Task<double> BestVerticalCropAsync(BitmapDecoder decoder, uint width, uint height)
-        {
-            const int profileWidth = 64;
-
-            // Truncated, not rounded, to match the offsets the crop was graded against
-            int profileHeight = Math.Max(profileWidth + 1, (int)(profileWidth * (double)height / width));
-
-            var transform = new BitmapTransform
-            {
-                ScaledWidth = profileWidth,
-                ScaledHeight = (uint)profileHeight,
-                InterpolationMode = BitmapInterpolationMode.Fant
-            };
-
-            PixelDataProvider data = await decoder.GetPixelDataAsync(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Ignore,
-                transform,
-                ExifOrientationMode.IgnoreExifOrientation,
-                ColorManagementMode.DoNotColorManage);
-
-            byte[] pixels = data.DetachPixelData();
-            var luma = new double[profileWidth * profileHeight];
-
-            for (int i = 0; i < luma.Length; i++)
-            {
-                int p = i * 4;
-
-                luma[i] = (0.114 * pixels[p]) + (0.587 * pixels[p + 1]) + (0.299 * pixels[p + 2]);
-            }
-
-            // Laplacian per row. The border is left out rather than clamped: an edge filter that reads
-            // its own border ends up scoring the outermost rows on brightness instead of edge strength,
-            // which drags the window to whichever end of the cover happens to be brightest.
-            var rowEnergy = new double[profileHeight];
-
-            for (int y = 1; y < profileHeight - 1; y++)
-            {
-                double sum = 0;
-
-                for (int x = 1; x < profileWidth - 1; x++)
-                {
-                    int c = (y * profileWidth) + x;
-                    double v = (8 * luma[c])
-                        - luma[c - profileWidth - 1] - luma[c - profileWidth] - luma[c - profileWidth + 1]
-                        - luma[c - 1] - luma[c + 1]
-                        - luma[c + profileWidth - 1] - luma[c + profileWidth] - luma[c + profileWidth + 1];
-
-                    sum += Math.Min(255, Math.Max(0, v));
-                }
-
-                rowEnergy[y] = sum / (profileWidth - 2);
-            }
-
-            int span = profileHeight - profileWidth;
-
-            if (span <= 0)
-            {
-                return 0;
-            }
-
-            // Sliding window the height of the square, in profile space
-            double best = -1;
-            int bestTop = 0;
-            double running = 0;
-
-            for (int y = 0; y < profileWidth; y++)
-            {
-                running += rowEnergy[y];
-            }
-
-            best = running;
-
-            for (int top = 1; top <= span; top++)
-            {
-                running += rowEnergy[top + profileWidth - 1] - rowEnergy[top - 1];
-
-                if (running > best)
-                {
-                    best = running;
-                    bestTop = top;
-                }
-            }
-
-            return (double)bestTop / span;
-        }
-
-        /// <summary>
-        /// Returns the image as PNG, re-encoding it when it is anything else.
-        ///
-        /// Roughly 45% of auto-selected artwork is served as JPEG, and about half of all icons are
-        /// .ico, but the Xbox app's own filenames are always .png and it owns those names - so the
-        /// bytes have to match the extension rather than the other way round. Windows imaging happens
-        /// to sniff content, which is why this has worked so far; that is luck, not a contract, and
-        /// the mismatched files also flow into the .bak and .new siblings.
-        ///
-        /// Format has twice graded as no guide to artwork quality, so this deliberately converts
-        /// rather than influencing which artwork gets picked.
-        /// </summary>
-        /// <param name="imageBytes">Encoded image in any format the platform can decode.</param>
-        /// <returns>PNG bytes, or the original bytes when they are already PNG or cannot be decoded.</returns>
-        private static async Task<IBuffer> EnsurePngAsync(IBuffer imageBytes)
-        {
-            if (imageBytes == null)
-            {
-                return null;
-            }
-
-            try
-            {
-                using (var source = new InMemoryRandomAccessStream())
-                {
-                    await source.WriteAsync(imageBytes);
-                    source.Seek(0);
-
-                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(source);
-
-                    if (decoder.DecoderInformation.CodecId == BitmapDecoder.PngDecoderId)
-                    {
-                        return imageBytes;
-                    }
-
-                    SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
-                        BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
-
-                    using (var target = new InMemoryRandomAccessStream())
-                    {
-                        BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, target);
-
-                        encoder.SetSoftwareBitmap(bitmap);
-
-                        await encoder.FlushAsync();
-                        target.Seek(0);
-
-                        var converted = new Windows.Storage.Streams.Buffer((uint)target.Size);
-
-                        await target.ReadAsync(converted, (uint)target.Size, InputStreamOptions.None);
-
-                        return converted;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                // Better a mislabelled tile that renders than no tile at all
-                System.Diagnostics.Debug.WriteLine($"Could not convert artwork to PNG, writing as-is: {ex.Message}");
-
-                return imageBytes;
-            }
-        }
-
-        /// <summary>
-        /// True when the image is opaque in its corners. Case mockups and rounded icon-style uploads
-        /// have transparent corners; legitimate box art fills the whole square.
-        /// </summary>
-        private static async Task<bool> ImageFillsTileAsync(IBuffer imageBytes)
-        {
-            try
-            {
-                using (var stream = new InMemoryRandomAccessStream())
-                {
-                    await stream.WriteAsync(imageBytes);
-                    stream.Seek(0);
-
-                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
-
-                    var transform = new BitmapTransform
-                    {
-                        ScaledWidth = 32,
-                        ScaledHeight = 32,
-                        InterpolationMode = BitmapInterpolationMode.Fant
-                    };
-
-                    PixelDataProvider pixelData = await decoder.GetPixelDataAsync(
-                        BitmapPixelFormat.Bgra8,
-                        BitmapAlphaMode.Straight,
-                        transform,
-                        ExifOrientationMode.IgnoreExifOrientation,
-                        ColorManagementMode.DoNotColorManage);
-
-                    byte[] pixels = pixelData.DetachPixelData();
-
-                    // Sample a 6x6 block in each corner of the 32x32 image; a corner counts as
-                    // transparent when over 40% of its pixels have near-zero alpha
-                    int transparentCorners = 0;
-
-                    foreach (var corner in new[] { (X: 0, Y: 0), (X: 26, Y: 0), (X: 0, Y: 26), (X: 26, Y: 26) })
-                    {
-                        int transparentPixels = 0;
-
-                        for (int y = corner.Y; y < corner.Y + 6; y++)
-                        {
-                            for (int x = corner.X; x < corner.X + 6; x++)
-                            {
-                                if (pixels[((y * 32) + x) * 4 + 3] < 64)
-                                {
-                                    transparentPixels++;
-                                }
-                            }
-                        }
-
-                        if (transparentPixels > 14)
-                        {
-                            transparentCorners++;
-                        }
-                    }
-
-                    return transparentCorners < 2;
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error inspecting image corners: {ex.Message}");
-
-                return true; // undecodable here - accept and let the normal pipeline handle it
-            }
         }
 
         /// <summary>
@@ -2050,20 +1550,18 @@ namespace SteamGridDB.Xbox
                 // Fetch grids and icons from SteamGridDB
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
-                    // Fetch both grids and icons by the store's own game ID
-                    List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
-                    List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+                    // Icons do not depend on the grids result, so the two round trips overlap
+                    Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+                    List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, platformString, game.ExternalPlatformId);
+                    List<SteamGridDbGrid> icons = await iconsTask;
 
-                    // Same rescue call auto-fix makes: without it the picker can offer a strictly worse
-                    // set than the one auto-fix chose from, which reads as the picker being broken
-                    if (grids != null && grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
+                    if (grids == null && icons == null)
                     {
-                        List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId, textBearingGridStyles);
+                        // Distinguishing this from "no artwork" is the whole point of the null contract
+                        GridPanelStatus.Text = "Could not reach SteamGridDB - try again";
+                        GridLoadingRing.IsActive = false;
 
-                        if (textBearingGrids != null && textBearingGrids.Count > 0)
-                        {
-                            grids = textBearingGrids;
-                        }
+                        return;
                     }
 
                     PopulateGridSelectionPanel(grids, icons);
@@ -2097,33 +1595,37 @@ namespace SteamGridDB.Xbox
         /// <param name="icons">Icons as returned by the API.</param>
         private static List<SteamGridDbGrid> RankIcons(IEnumerable<SteamGridDbGrid> icons)
         {
-            List<SteamGridDbGrid> ordered = icons.ToList();
-
-            // Position of the first icon of each kind, so groups stay where the API put them
-            var firstAppearance = new Dictionary<string, int>();
-
-            for (int i = 0; i < ordered.Count; i++)
-            {
-                string kind = IconKind(ordered[i]);
-
-                if (!firstAppearance.ContainsKey(kind))
-                {
-                    firstAppearance[kind] = i;
-                }
-            }
-
-            return ordered
-                .OrderBy(i => firstAppearance[IconKind(i)])
-                .ThenByDescending(i => i.Width)
+            // GroupBy yields groups in first-appearance order, so kinds stay where the API put them
+            return icons
+                .GroupBy(i => (i.Mime, i.Style))
+                .SelectMany(kind => kind.OrderByDescending(i => i.Width))
                 .ToList();
         }
 
         /// <summary>
-        /// Groups icons that are interchangeable in kind, so only size separates them.
+        /// The square grids worth showing for a game: one page, and if that page happens to hold nothing
+        /// but icon-like styles, a second request restricted to the title-bearing ones.
+        ///
+        /// Both the auto-fixer and the manual picker need this. When only the fixer made the second
+        /// call, opening the picker on such a game offered a strictly worse set than the fixer had
+        /// already chosen from - which reads as the picker being broken.
         /// </summary>
-        private static string IconKind(SteamGridDbGrid icon)
+        /// <param name="client">Client to fetch with.</param>
+        /// <param name="platform">SteamGridDB platform key.</param>
+        /// <param name="platformId">The store's own game ID.</param>
+        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
+        private static async Task<List<SteamGridDbGrid>> GetTitleBearingGridsAsync(SteamGridDbClient client, string platform, string platformId)
         {
-            return $"{icon.Mime}|{icon.Style}";
+            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platform, platformId);
+
+            if (grids == null || grids.Count == 0 || grids.Any(g => GridStylePriority(g.Style) == 0))
+            {
+                return grids;
+            }
+
+            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsByPlatformIdAsync(platform, platformId, textBearingGridStyles);
+
+            return textBearing != null && textBearing.Count > 0 ? textBearing : grids;
         }
 
         /// <summary>
@@ -2190,8 +1692,16 @@ namespace SteamGridDB.Xbox
         /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
         private static bool IsDemotedGrid(SteamGridDbGrid grid, string gameName)
         {
-            string metadata = GridMetadata(grid);
+            return IsDemotedMetadata(GridMetadata(grid), gameName);
+        }
 
+        /// <summary>
+        /// As <see cref="IsDemotedGrid"/>, for callers that have already built the metadata text.
+        /// </summary>
+        /// <param name="metadata">Cleaned notes/tags text from <see cref="GridMetadata"/>.</param>
+        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
+        private static bool IsDemotedMetadata(string metadata, string gameName)
+        {
             return demotedGridMetadata.IsMatch(metadata)
                 || consoleBadgeGridMetadata.IsMatch(metadata)
                 || IsEditionMismatch(metadata, gameName);
@@ -2208,7 +1718,7 @@ namespace SteamGridDB.Xbox
                 string metadata = GridMetadata(grid);
 
                 Grid = grid;
-                IsDemoted = IsDemotedGrid(grid, gameName);
+                IsDemoted = IsDemotedMetadata(metadata, gameName);
                 IsBoosted = boostedGridMetadata.IsMatch(metadata);
                 IsForeignLanguage = !string.IsNullOrEmpty(grid.Language) && grid.Language != "en";
             }
@@ -2577,9 +2087,18 @@ namespace SteamGridDB.Xbox
                 // Fetch grids and icons from SteamGridDB by game ID
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
-                    // Fetch both grids and icons by game ID
+                    // Independent requests, so they overlap
+                    Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsByGameIdAsync(game.Id);
                     List<SteamGridDbGrid> grids = await client.GetSquareGridsByGameIdAsync(game.Id);
-                    List<SteamGridDbGrid> icons = await client.GetSquareIconsByGameIdAsync(game.Id);
+                    List<SteamGridDbGrid> icons = await iconsTask;
+
+                    if (grids == null && icons == null)
+                    {
+                        GridPanelStatus.Text = "Could not reach SteamGridDB - try again";
+                        GridLoadingRing.IsActive = false;
+
+                        return;
+                    }
 
                     PopulateGridSelectionPanel(grids, icons);
                 }

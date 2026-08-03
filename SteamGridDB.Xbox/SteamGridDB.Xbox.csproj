@@ -115,6 +115,8 @@
       <DependentUpon>PrimaryWidget.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Services\Artwork\ArtworkSignature.cs" />
+    <Compile Include="Services\Artwork\TileImage.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbGrid.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbResponse.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbAuthor.cs" />

@@ -31,6 +31,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         // Icon sizes worth using for a tile. Smaller sizes exist down to 8px and are never wanted here.
         private static readonly string[] squareIconDimensions = { "128", "256", "512", "1024" };
 
+        // The two square shapes SteamGridDB offers. Requested together, which is why ranking has to
+        // pick the sharper of the two client-side.
+        private static readonly string[] squareGridDimensions = { "512x512", "1024x1024" };
+
         // Portrait box art, used only when a game has no square artwork at all and would otherwise
         // fall back to an icon. Cropped to a square before it becomes a tile.
         private static readonly string[] portraitGridDimensions = { "600x900", "342x482", "660x930" };
@@ -110,12 +114,6 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             // to resolve the game's name, so it costs no extra request.
             var url = $"{baseUrl}/games/{platform}/{Uri.EscapeDataString(platformId)}?platformdata=steam";
             var json = await GetStringAsync(url, cancellationToken);
-
-            if (json == null)
-            {
-                return null;
-            }
-
             var response = DeserializeJson<SteamGridDbResponse<SteamGridDbGame>>(json);
 
             if (response == null || !response.Success || response.Data == null)
@@ -189,17 +187,16 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// </summary>
         private static string FirstLocalisedValue(JsonObject localised)
         {
-            if (localised == null || localised.Count == 0)
+            if (localised == null)
             {
                 return null;
             }
 
-            foreach (string preferred in new[] { "english", "en" })
+            string preferred = localised.GetNamedString("english", null) ?? localised.GetNamedString("en", null);
+
+            if (preferred != null)
             {
-                if (localised.ContainsKey(preferred))
-                {
-                    return localised.GetNamedString(preferred, null);
-                }
+                return preferred;
             }
 
             foreach (var pair in localised)
@@ -235,16 +232,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
 
             var url = BuildUrl($"grids/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
-
-            if (response == null || !response.Success)
-            {
-                // Request failed. Null rather than an empty list so callers can tell "SteamGridDB has
-                // no artwork for this game" from "we could not ask".
-                return null;
-            }
-
-            return response.Data ?? new List<SteamGridDbGrid>();
+            return await GetArtworkListAsync(url, cancellationToken);
         }
 
         /// <summary>
@@ -257,7 +245,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// <returns>List of square grids only.</returns>
         public async Task<List<SteamGridDbGrid>> GetSquareGridsByPlatformIdAsync(string platform, string platformId, string[] styles = null, CancellationToken cancellationToken = default)
         {
-            return await GetGridsByPlatformIdAsync(platform, platformId, new[] { "512x512", "1024x1024" }, styles, cancellationToken);
+            return await GetGridsByPlatformIdAsync(platform, platformId, squareGridDimensions, styles, cancellationToken);
         }
 
         /// <summary>
@@ -276,16 +264,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
 
             var url = BuildUrl($"grids/game/{gameId}", dimensions, styles);
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
-
-            if (response == null || !response.Success)
-            {
-                // Request failed. Null rather than an empty list so callers can tell "SteamGridDB has
-                // no artwork for this game" from "we could not ask".
-                return null;
-            }
-
-            return response.Data ?? new List<SteamGridDbGrid>();
+            return await GetArtworkListAsync(url, cancellationToken);
         }
 
         /// <summary>
@@ -297,7 +276,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// <returns>List of square grids only.</returns>
         public async Task<List<SteamGridDbGrid>> GetSquareGridsByGameIdAsync(int gameId, string[] styles = null, CancellationToken cancellationToken = default)
         {
-            return await GetGridsByGameIdAsync(gameId, new[] { "512x512", "1024x1024" }, styles, cancellationToken);
+            return await GetGridsByGameIdAsync(gameId, squareGridDimensions, styles, cancellationToken);
         }
 
         /// <summary>
@@ -322,24 +301,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
 
             var url = BuildUrl($"icons/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
-
-            if (response == null || !response.Success)
-            {
-                // Request failed. Null rather than an empty list so callers can tell "SteamGridDB has
-                // no artwork for this game" from "we could not ask".
-                return null;
-            }
-
-            return response.Data ?? new List<SteamGridDbGrid>();
+            return await GetArtworkListAsync(url, cancellationToken);
         }
 
-        /// <summary>
-        /// Gets square icons for a game by platform ID - convenience method.
-        /// Icons are typically square, but this ensures only 1:1 ratio icons are returned.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
         /// <summary>
         /// Gets portrait box art for a game by platform ID - the shapes SteamGridDB uses for store
         /// capsules. Only useful once cropped to a square; see the tile crop in the widget.
@@ -353,6 +317,12 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             return await GetGridsByPlatformIdAsync(platform, platformId, portraitGridDimensions, null, cancellationToken);
         }
 
+        /// <summary>
+        /// Gets square icons for a game by platform ID - convenience method.
+        /// Icons are typically square, but this ensures only 1:1 ratio icons are returned.
+        /// </summary>
+        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
+        /// <param name="platformId">Platform-specific game ID.</param>
         /// <param name="styles">Styles to filter by. Use null for all styles.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
         /// <returns>List of square icons only.</returns>
@@ -377,16 +347,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
 
             var url = BuildUrl($"icons/game/{gameId}", dimensions, styles);
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
-
-            if (response == null || !response.Success)
-            {
-                // Request failed. Null rather than an empty list so callers can tell "SteamGridDB has
-                // no artwork for this game" from "we could not ask".
-                return null;
-            }
-
-            return response.Data ?? new List<SteamGridDbGrid>();
+            return await GetArtworkListAsync(url, cancellationToken);
         }
 
         /// <summary>
@@ -438,6 +399,25 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             urlBuilder.Append(string.Join("&", queryParams));
 
             return urlBuilder.ToString();
+        }
+
+        /// <summary>
+        /// Fetches a list of artwork. Returns null when the request itself failed and an empty list
+        /// when SteamGridDB simply has none, so callers can tell "there is no artwork for this game"
+        /// from "we could not ask" - a throttled run would otherwise look like an empty library.
+        /// </summary>
+        /// <param name="url">Fully built request URL.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        private async Task<List<SteamGridDbGrid>> GetArtworkListAsync(string url, CancellationToken cancellationToken)
+        {
+            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
+
+            if (response == null || !response.Success)
+            {
+                return null;
+            }
+
+            return response.Data ?? new List<SteamGridDbGrid>();
         }
 
         /// <summary>

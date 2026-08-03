@@ -14,16 +14,6 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
             get; set;
         }
 
-        /// <summary>
-        /// Community score. Retired by SteamGridDB - the API always returns 0, so this must never be
-        /// used as a ranking signal. Kept because it is still present in the response.
-        /// </summary>
-        [DataMember(Name = "score")]
-        public int Score
-        {
-            get; set;
-        }
-
         [DataMember(Name = "style")]
         public string Style
         {
@@ -51,8 +41,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
 
         /// <summary>
         /// Image format: "image/png", "image/jpeg" or "image/webp" for grids; icons are also served as
-        /// "image/vnd.microsoft.icon". The URL extension follows this, and the file is written under the
-        /// game's own extension regardless, so it is worth preferring a format the tile renders natively.
+        /// "image/vnd.microsoft.icon". Not a quality signal - preferring one format over another graded
+        /// worse for grids and made no difference for icons. Used only to group icons of the same kind
+        /// so that size can separate them, and to decide whether a tile needs re-encoding on save.
         /// </summary>
         [DataMember(Name = "mime")]
         public string Mime
@@ -65,7 +56,6 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB.Models
         {
             get; set;
         }
-
 
         [DataMember(Name = "thumb")]
         public string Thumb
