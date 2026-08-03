@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Windows.UI.Xaml;
 using System.Runtime.CompilerServices;
 
 namespace SteamGridDB.Xbox.Models
@@ -15,6 +16,7 @@ namespace SteamGridDB.Xbox.Models
         private int width;
         private int height;
         private int id;
+        private bool isApplied;
 
         public string Url
         {
@@ -121,6 +123,29 @@ namespace SteamGridDB.Xbox.Models
                 }
             }
         }
+
+        /// <summary>
+        /// True when this is the artwork currently on the game's tile. Nothing on disk records that, so
+        /// it comes from what the widget remembered when it wrote the image.
+        /// </summary>
+        public bool IsApplied
+        {
+            get => isApplied;
+            set
+            {
+                if (isApplied != value)
+                {
+                    isApplied = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(AppliedVisibility));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Shows the "in use" marker on the thumbnail.
+        /// </summary>
+        public Visibility AppliedVisibility => IsApplied ? Visibility.Visible : Visibility.Collapsed;
 
         public event PropertyChangedEventHandler PropertyChanged;
 

@@ -31,7 +31,8 @@ Three evidence sources, all reproducible:
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
 | §4.9 picker rescue fetch, edition-mismatch bug | **implemented** |
 | §4.9 portrait crop for grid-less games | **implemented** — content-placed crop, won 23 of 34 |
-| §4.7 record chosen grid ID, §4.8 corner gate | outstanding |
+| §4.7 record the applied artwork ID | **implemented** |
+| §4.8 corner gate at 9% reach | outstanding, no evidence calls for it |
 
 Net effect on the library: **18 of 150 picks change**, none graded worse.
 
@@ -516,11 +517,20 @@ the ranking. `greatest hits` is deliberately excluded — one upload advertises 
 version. Xbox terms are included at the user's request, despite this project targeting the native
 Xbox look.
 
-### 4.7 Record the chosen grid ID
+### 4.7 Record the applied artwork ID — IMPLEMENTED
 
-Per §3.6. Without it, "Re-fix all games" is not idempotent and a graded run cannot be reproduced.
-A sidecar mapping image path → grid ID would also let the picker show which artwork is currently
-applied — a natural companion to the tooltip added in `30d3354`.
+`AppliedArtworkStore` keeps a path → artwork-ID map in the widget's local data, written whenever a
+tile is replaced and cleared when the Xbox app's original is restored.
+
+Once a tile is written it is just a PNG — the artwork it came from is unrecoverable from disk. That
+had three costs, and the third is the one that actually hurt during this work: the picker could not
+show which artwork was in use, re-fixing silently reshuffled picks whenever SteamGridDB's ordering
+moved, and **every grading round in this document had to rebuild its comparison from scratch**
+because nothing knew what the previous run had chosen.
+
+The picker now marks the applied artwork with an "in use" badge. Keyed by image path, matching what
+the bulk operations already deduplicate on — stale Xbox app manifests list one image under several
+entries.
 
 ### 4.8 Reconsider the corner gate rather than tune it
 

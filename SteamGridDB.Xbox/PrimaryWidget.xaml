@@ -452,6 +452,20 @@
                                             <RectangleGeometry Rect="0,0,128,128" />
                                         </Grid.Clip>
                                         <Image Source="{x:Bind ThumbUrl, Mode=OneWay}" Stretch="UniformToFill" />
+                                        <Border
+                                            Margin="0,0,0,0"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Bottom"
+                                            Background="#CC107C10"
+                                            Visibility="{x:Bind AppliedVisibility, Mode=OneWay}">
+                                            <TextBlock
+                                                Margin="0,3"
+                                                HorizontalAlignment="Center"
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="White"
+                                                Text="In use" />
+                                        </Border>
                                     </Grid>
                                 </DataTemplate>
                             </GridView.ItemTemplate>

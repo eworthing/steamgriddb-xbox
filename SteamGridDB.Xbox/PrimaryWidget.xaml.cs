@@ -1047,8 +1047,8 @@ namespace SteamGridDB.Xbox
                             if (grids.Count > 0)
                             {
                                 // Rank candidates, then take the best one whose art actually fills the tile
-                                IBuffer imageBytes = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name), game.Name, game.OfficialCapsuleUrl);
-                                bool downloaded = imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, false);
+                                (IBuffer Bytes, int ArtworkId) best = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name), game.Name, game.OfficialCapsuleUrl);
+                                bool downloaded = best.Bytes != null && await ReplaceImageCoreAsync(game, best.Bytes, false, best.ArtworkId);
 
                                 if (downloaded)
                                 {
@@ -1080,7 +1080,7 @@ namespace SteamGridDB.Xbox
                                 if (icons.Count > 0)
                                 {
                                     SteamGridDbGrid bestIcon = RankIcons(icons).First();
-                                    bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false);
+                                    bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false, bestIcon.Id);
 
                                     if (downloaded)
                                     {
@@ -1239,17 +1239,17 @@ namespace SteamGridDB.Xbox
         /// <param name="imageUrl">The URL of the image to download</param>
         /// <param name="updateStatusText">Whether to update the main status text</param>
         /// <returns>True if successful, false otherwise</returns>
-        private async Task<bool> DownloadAndReplaceImageCoreAsync(GameEntry game, string imageUrl, bool updateStatusText = true)
+        private async Task<bool> DownloadAndReplaceImageCoreAsync(GameEntry game, string imageUrl, bool updateStatusText = true, int appliedArtworkId = 0)
         {
             IBuffer imageBytes = await DownloadArtworkAsync(imageUrl);
 
-            return imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
+            return imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, updateStatusText, appliedArtworkId);
         }
 
         /// <summary>
         /// Replaces a game's image with the provided image bytes, backing up the original first.
         /// </summary>
-        private async Task<bool> ReplaceImageCoreAsync(GameEntry game, IBuffer imageBytes, bool updateStatusText = true)
+        private async Task<bool> ReplaceImageCoreAsync(GameEntry game, IBuffer imageBytes, bool updateStatusText = true, int appliedArtworkId = 0)
         {
             try
             {
@@ -1300,6 +1300,9 @@ namespace SteamGridDB.Xbox
                 StorageFile newFile = await game.ImageFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteBufferAsync(newFile, tileBytes);
 
+                // Nothing on disk says which artwork a tile came from, so remember it
+                await AppliedArtworkStore.SetAsync(game.ImageFilePath, appliedArtworkId);
+
                 // Reload the image in the UI
                 BitmapImage newImage = await CreateThumbnailAsync(imageFile);
 
@@ -1338,9 +1341,10 @@ namespace SteamGridDB.Xbox
         /// <param name="rankedGrids">Candidates in ranking order.</param>
         /// <param name="gameName">Game name, for the demotion check on replacement candidates.</param>
         /// <param name="officialCapsuleUrl">Valve's own artwork for this game, or null when it has none.</param>
-        private async Task<IBuffer> DownloadBestTileFillingImageAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, string gameName, string officialCapsuleUrl)
+        private async Task<(IBuffer Bytes, int ArtworkId)> DownloadBestTileFillingImageAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, string gameName, string officialCapsuleUrl)
         {
             IBuffer fallback = null;
+            int fallbackId = 0;
 
             for (int i = 0; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
             {
@@ -1354,15 +1358,18 @@ namespace SteamGridDB.Xbox
                 if (fallback == null)
                 {
                     fallback = imageBytes;
+                    fallbackId = rankedGrids[i].Id;
                 }
 
                 if (await TileImage.FillsTileAsync(imageBytes))
                 {
-                    return await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl) ?? imageBytes;
+                    (IBuffer Bytes, int ArtworkId) replacement = await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl);
+
+                    return replacement.Bytes != null ? replacement : (imageBytes, rankedGrids[i].Id);
                 }
             }
 
-            return fallback;
+            return (fallback, fallbackId);
         }
 
         /// <summary>
@@ -1408,12 +1415,12 @@ namespace SteamGridDB.Xbox
         /// <param name="chosenBytes">Image bytes of that candidate.</param>
         /// <param name="gameName">Game name, for the demotion check.</param>
         /// <param name="officialCapsuleUrl">Valve's own artwork, or null when it has none.</param>
-        /// <returns>Replacement image bytes, or null to keep the original choice.</returns>
-        private async Task<IBuffer> FindOfficialLookalikeAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, int chosenIndex, IBuffer chosenBytes, string gameName, string officialCapsuleUrl)
+        /// <returns>Replacement bytes and artwork ID, or a null buffer to keep the original choice.</returns>
+        private async Task<(IBuffer Bytes, int ArtworkId)> FindOfficialLookalikeAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids, int chosenIndex, IBuffer chosenBytes, string gameName, string officialCapsuleUrl)
         {
             if (string.IsNullOrEmpty(officialCapsuleUrl))
             {
-                return null;
+                return (null, 0);
             }
 
             ArtworkSignature official = await ArtworkSignature.CreateAsync(await DownloadArtworkAsync(officialCapsuleUrl));
@@ -1421,7 +1428,7 @@ namespace SteamGridDB.Xbox
 
             if (official == null || chosen == null || official.ColourMatch(chosen) >= officialArtworkFloor)
             {
-                return null;
+                return (null, 0);
             }
 
             double chosenLayout = official.LayoutMatch(chosen);
@@ -1448,10 +1455,10 @@ namespace SteamGridDB.Xbox
 
                 System.Diagnostics.Debug.WriteLine($"Official-artwork gate replaced grid {rankedGrids[chosenIndex].Id} with {rankedGrids[i].Id}");
 
-                return candidateBytes;
+                return (candidateBytes, rankedGrids[i].Id);
             }
 
-            return null;
+            return (null, 0);
         }
 
         /// <summary>
@@ -1477,7 +1484,7 @@ namespace SteamGridDB.Xbox
             {
                 IBuffer cropped = await TileImage.CropPortraitToTileAsync(await DownloadArtworkAsync(candidate.Url));
 
-                if (cropped != null && await ReplaceImageCoreAsync(game, cropped, false))
+                if (cropped != null && await ReplaceImageCoreAsync(game, cropped, false, candidate.Id))
                 {
                     System.Diagnostics.Debug.WriteLine($"Used cropped portrait art {candidate.Id} for {game.Name}");
 
@@ -1564,7 +1571,7 @@ namespace SteamGridDB.Xbox
                         return;
                     }
 
-                    PopulateGridSelectionPanel(grids, icons);
+                    await PopulateGridSelectionPanelAsync(grids, icons);
                 }
 
                 GridLoadingRing.IsActive = false;
@@ -1772,8 +1779,11 @@ namespace SteamGridDB.Xbox
         /// </summary>
         /// <param name="grids">Collection of grid artworks</param>
         /// <param name="icons">Collection of icon artworks</param>
-        private void PopulateGridSelectionPanel(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons)
+        private async Task PopulateGridSelectionPanelAsync(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons)
         {
+            // Which of these, if any, is already on the tile
+            int? appliedArtworkId = await AppliedArtworkStore.GetAsync(CurrentSelectedGame?.ImageFilePath);
+
             // Combine grids and icons - ranked grids first (style, language, metadata), then icons
             List<SteamGridDbGrid> sortedArtworks = new List<SteamGridDbGrid>();
 
@@ -1805,7 +1815,8 @@ namespace SteamGridDB.Xbox
                     Author = artwork.Author?.Name ?? unknownName,
                     Style = artwork.Style ?? "default",
                     Width = artwork.Width,
-                    Height = artwork.Height
+                    Height = artwork.Height,
+                    IsApplied = artwork.Id == appliedArtworkId
                 });
             }
 
@@ -1852,7 +1863,7 @@ namespace SteamGridDB.Xbox
                 GridLoadingRing.IsActive = true;
 
                 // Use the core download and replace logic
-                bool success = await DownloadAndReplaceImageCoreAsync(CurrentSelectedGame, gridItem.Url);
+                bool success = await DownloadAndReplaceImageCoreAsync(CurrentSelectedGame, gridItem.Url, true, gridItem.Id);
 
                 if (success)
                 {
@@ -2100,7 +2111,7 @@ namespace SteamGridDB.Xbox
                         return;
                     }
 
-                    PopulateGridSelectionPanel(grids, icons);
+                    await PopulateGridSelectionPanelAsync(grids, icons);
                 }
 
                 GridLoadingRing.IsActive = false;
@@ -2320,6 +2331,9 @@ namespace SteamGridDB.Xbox
                 // Rename backup to become the main image. ReplaceExisting overwrites the current image,
                 // so it is never deleted up front - a failed rename would leave the game with no image.
                 await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
+
+                // The Xbox app's own artwork is back, so no SteamGridDB artwork applies any more
+                await AppliedArtworkStore.ClearAsync(game.ImageFilePath);
 
                 // Reload the image in the UI
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
