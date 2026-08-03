@@ -1426,7 +1426,17 @@ namespace SteamGridDB.Xbox
             ArtworkSignature official = await ArtworkSignature.CreateAsync(await DownloadArtworkAsync(officialCapsuleUrl));
             ArtworkSignature chosen = await ArtworkSignature.CreateAsync(chosenBytes);
 
-            if (official == null || chosen == null || official.ColourMatch(chosen) >= officialArtworkFloor)
+            if (official == null || chosen == null)
+            {
+                // Distinct from "the artwork already matches": this is the gate unable to run at all,
+                // which is indistinguishable from it declining unless it says so. It reported nothing
+                // for an entire library once, because a bad crop transform made every signature fail.
+                System.Diagnostics.Debug.WriteLine($"Official-artwork gate could not compare {gameName} - capsule or candidate unreadable");
+
+                return (null, 0);
+            }
+
+            if (official.ColourMatch(chosen) >= officialArtworkFloor)
             {
                 return (null, 0);
             }

@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 
-using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
 namespace SteamGridDB.Xbox.Services.Artwork
@@ -40,21 +39,11 @@ namespace SteamGridDB.Xbox.Services.Artwork
         {
             return await TileImage.WithDecoderAsync<ArtworkSignature>(imageBytes, async decoder =>
             {
-                // Centre square, so aspect ratio cannot skew the comparison
-                uint side = Math.Min(decoder.PixelWidth, decoder.PixelHeight);
-                var bounds = new BitmapBounds
-                {
-                    X = (decoder.PixelWidth - side) / 2,
-                    Y = (decoder.PixelHeight - side) / 2,
-                    Width = side,
-                    Height = side
-                };
+                double[] histogram = ColourHistogram(
+                    await TileImage.CentreSquarePixelsAsync(decoder, colourGridSize));
 
-                double[] histogram = ColourHistogram(await TileImage.ScaledPixelsAsync(
-                    decoder, bounds, colourGridSize, colourGridSize, BitmapAlphaMode.Ignore));
-
-                double[] grid = LayoutGrid(await TileImage.ScaledPixelsAsync(
-                    decoder, bounds, layoutGridSize, layoutGridSize, BitmapAlphaMode.Ignore));
+                double[] grid = LayoutGrid(
+                    await TileImage.CentreSquarePixelsAsync(decoder, layoutGridSize));
 
                 return new ArtworkSignature(histogram, grid);
             }, null, "Could not build artwork signature");

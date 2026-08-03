@@ -87,6 +87,41 @@ namespace SteamGridDB.Xbox.Services.Artwork
         }
 
         /// <summary>
+        /// Reads the centre square of an image as a <paramref name="size"/> x <paramref name="size"/>
+        /// BGRA buffer, so that images of different aspect ratios can be compared directly.
+        ///
+        /// The crop is done here rather than through BitmapTransform.Bounds because that is applied
+        /// *after* scaling, so bounds have to be given in the scaled image's coordinates. Passing
+        /// full-resolution bounds alongside a scale silently throws, which is how the official-artwork
+        /// gate came to fail on every game while looking like it was simply declining to act.
+        /// </summary>
+        /// <param name="decoder">Decoder for the image.</param>
+        /// <param name="size">Width and height of the square to return.</param>
+        public static async Task<byte[]> CentreSquarePixelsAsync(BitmapDecoder decoder, uint size)
+        {
+            // Scale the whole image so its short side is exactly the square we want, then take the
+            // middle out of the result. No dependency on the order the platform applies transforms.
+            double scale = (double)size / Math.Min(decoder.PixelWidth, decoder.PixelHeight);
+            uint scaledWidth = Math.Max(size, (uint)Math.Round(decoder.PixelWidth * scale));
+            uint scaledHeight = Math.Max(size, (uint)Math.Round(decoder.PixelHeight * scale));
+
+            byte[] scaled = await ScaledPixelsAsync(decoder, null, scaledWidth, scaledHeight, BitmapAlphaMode.Ignore);
+
+            uint left = (scaledWidth - size) / 2;
+            uint top = (scaledHeight - size) / 2;
+            var square = new byte[size * size * 4];
+
+            for (uint y = 0; y < size; y++)
+            {
+                uint source = (((top + y) * scaledWidth) + left) * 4;
+
+                Array.Copy(scaled, source, square, y * size * 4, size * 4);
+            }
+
+            return square;
+        }
+
+        /// <summary>
         /// Perceived brightness of each pixel of a BGRA buffer.
         /// </summary>
         public static double[] Luma(byte[] bgra)
