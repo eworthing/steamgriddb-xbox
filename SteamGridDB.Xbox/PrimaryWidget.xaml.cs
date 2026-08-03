@@ -50,10 +50,10 @@ namespace SteamGridDB.Xbox
 
         // Notes/tags vocabulary of physical-media mockups (word-bounded, so "Xbox" never matches "box").
         // "icon" is deliberately absent - it appears in legitimate source notes like "PS icon" too often.
-        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro|custom|wallpapers?)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-        // Uploads labelled as sourced from official store artwork
-        private static readonly Regex boostedGridMetadata = new Regex(@"\bofficial\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
+        private static readonly Regex boostedGridMetadata = new Regex(@"\b(official|offical)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         // Edition markers in notes/tags; art is demoted when the marker is absent from the game's own name
         private static readonly Regex editionGridMetadata = new Regex(@"\b(deluxe|goty|game of the year|definitive|ultimate|premium|collector'?s?|complete|anniversary|remaster(ed)?|enhanced|legendary|gold)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -1300,8 +1300,8 @@ namespace SteamGridDB.Xbox
             return grids
                 .OrderBy(g => demotedGridMetadata.IsMatch(GridMetadata(g)) || IsEditionMismatch(g, gameName) ? 1 : 0)
                 .ThenBy(g => string.IsNullOrEmpty(g.Language) || g.Language == "en" ? 0 : 1)
-                .ThenByDescending(g => boostedGridMetadata.IsMatch(GridMetadata(g)) ? 1 : 0)
                 .ThenBy(g => GridStylePriority(g.Style))
+                .ThenByDescending(g => boostedGridMetadata.IsMatch(GridMetadata(g)) ? 1 : 0)
                 .ThenByDescending(g => g.Score)
                 .ToList();
         }
