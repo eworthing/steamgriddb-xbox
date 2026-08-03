@@ -25,10 +25,28 @@ $msix = Get-ChildItem "$root\SteamGridDB.Xbox\AppPackages\*_${Platform}_${Config
 & $signtool sign /fd SHA256 /sha1 $CertThumbprint $msix
 if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
 
-foreach ($existing in @(Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev)) {
-    Remove-AppxPackage $existing.PackageFullName
+# Update in place rather than uninstall and reinstall, so LocalState survives - that is where
+# applied-artwork.json and last-fix.log live, and wiping them on every deploy destroys exactly the
+# state a redeploy-then-rerun cycle exists to compare against. The version never changes during
+# development, so the update needs -ForceUpdateFromAnyVersion to be allowed at all.
+# (-PreserveApplicationData is not an option here: it only applies to development-mode registrations,
+# and Game Bar only lists fully installed packages.)
+$updated = $false
+if (Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev) {
+    try {
+        Add-AppxPackage -Path $msix -ForceUpdateFromAnyVersion -ForceApplicationShutdown -ErrorAction Stop
+        $updated = $true
+    } catch {
+        Write-Host "In-place update failed ($($_.Exception.Message.Split([Environment]::NewLine)[0])) - reinstalling, local state will be lost" -ForegroundColor Yellow
+    }
 }
-Add-AppxPackage -Path $msix
+
+if (-not $updated) {
+    foreach ($existing in @(Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev)) {
+        Remove-AppxPackage $existing.PackageFullName
+    }
+    Add-AppxPackage -Path $msix
+}
 
 Get-Process -Name GameBar, GameBarFTServer, XboxGameBarWidgets -ErrorAction SilentlyContinue | Stop-Process -Force
 Write-Host "Deployed $(Split-Path $msix -Leaf) - Game Bar restarted, widget list will refresh on next Win+G" -ForegroundColor Green
