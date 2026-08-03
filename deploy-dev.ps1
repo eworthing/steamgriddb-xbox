@@ -12,8 +12,11 @@ param(
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 
-$msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
+$msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+if (-not $msbuild) { throw "MSBuild not found - is Visual Studio with the MSBuild component installed?" }
+
 $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+if (-not $signtool) { throw "signtool.exe not found - install the Windows SDK signing tools" }
 
 & $msbuild "$root\SteamGridDB.Xbox.sln" /p:Configuration=$Configuration /p:Platform=$Platform /p:AppxBundle=Never /v:minimal /nologo
 if ($LASTEXITCODE -ne 0) { throw "Build failed" }
@@ -22,8 +25,9 @@ $msix = Get-ChildItem "$root\SteamGridDB.Xbox\AppPackages\*_${Platform}_${Config
 & $signtool sign /fd SHA256 /sha1 $CertThumbprint $msix
 if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
 
-$existing = Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev
-if ($existing) { Remove-AppxPackage $existing.PackageFullName }
+foreach ($existing in @(Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev)) {
+    Remove-AppxPackage $existing.PackageFullName
+}
 Add-AppxPackage -Path $msix
 
 Get-Process -Name GameBar, GameBarFTServer, XboxGameBarWidgets -ErrorAction SilentlyContinue | Stop-Process -Force

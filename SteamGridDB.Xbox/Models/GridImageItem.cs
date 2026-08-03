@@ -50,6 +50,7 @@ namespace SteamGridDB.Xbox.Models
                 {
                     style = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(Description));
                 }
             }
         }
@@ -63,6 +64,7 @@ namespace SteamGridDB.Xbox.Models
                 {
                     author = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(Description));
                 }
             }
         }
@@ -76,9 +78,16 @@ namespace SteamGridDB.Xbox.Models
                 {
                     score = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(Description));
                 }
             }
         }
+
+        /// <summary>
+        /// Style, uploader and community score of this artwork, shown as the thumbnail's tooltip so the
+        /// data behind the ordering is visible when picking artwork by hand.
+        /// </summary>
+        public string Description => $"Style: {Style}\nAuthor: {Author}\nScore: {Score}";
 
         public int Id
         {

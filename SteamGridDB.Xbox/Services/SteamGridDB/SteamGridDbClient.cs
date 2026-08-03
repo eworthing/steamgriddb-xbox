@@ -124,28 +124,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
             }
 
-            var urlBuilder = new StringBuilder($"{baseUrl}/grids/{platform}/{Uri.EscapeDataString(platformId)}");
-            var queryParams = new List<string>();
-
-            if (dimensions != null && dimensions.Length > 0)
-            {
-                // API expects comma-separated: ?dimensions=600x900,920x430
-                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(d => Uri.EscapeDataString(d)))}");
-            }
-
-            if (styles != null && styles.Length > 0)
-            {
-                // API expects comma-separated: ?styles=alternate,white_logo
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
+            var url = BuildUrl($"grids/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
+            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
 
             if (response != null && response.Success && response.Data != null)
             {
@@ -183,26 +163,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 throw new ArgumentException("Game ID must be greater than 0", nameof(gameId));
             }
 
-            var urlBuilder = new StringBuilder($"{baseUrl}/grids/game/{gameId}");
-            var queryParams = new List<string>();
-
-            if (dimensions != null && dimensions.Length > 0)
-            {
-                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(d => Uri.EscapeDataString(d)))}");
-            }
-
-            if (styles != null && styles.Length > 0)
-            {
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
+            var url = BuildUrl($"grids/game/{gameId}", dimensions, styles);
+            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
 
             if (response != null && response.Success && response.Data != null)
             {
@@ -222,100 +184,6 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         public async Task<List<SteamGridDbGrid>> GetSquareGridsByGameIdAsync(int gameId, string[] styles = null, CancellationToken cancellationToken = default)
         {
             return await GetGridsByGameIdAsync(gameId, new[] { "512x512", "1024x1024" }, styles, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets heroes (wide banners) for a game by platform ID.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="dimensions">Preferred dimensions (e.g., new[] { "1920x620", "3840x1240" }).</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "alternate", "blurred" }).</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available heroes.</returns>
-        public async Task<List<SteamGridDbGrid>> GetHeroesByPlatformIdAsync(string platform, string platformId, string[] dimensions = null, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(platform))
-            {
-                throw new ArgumentException("Platform cannot be empty", nameof(platform));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId))
-            {
-                throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
-            }
-
-            var urlBuilder = new StringBuilder($"{baseUrl}/heroes/{platform}/{Uri.EscapeDataString(platformId)}");
-            var queryParams = new List<string>();
-
-            if (dimensions != null && dimensions.Length > 0)
-            {
-                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(d => Uri.EscapeDataString(d)))}");
-            }
-
-            if (styles != null && styles.Length > 0)
-            {
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
-
-            if (response != null && response.Success && response.Data != null)
-            {
-                return response.Data;
-            }
-
-            return new List<SteamGridDbGrid>();
-        }
-
-        /// <summary>
-        /// Gets logos for a game by platform ID.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "official", "white", "black" }).</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available logos.</returns>
-        public async Task<List<SteamGridDbGrid>> GetLogosByPlatformIdAsync(string platform, string platformId, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(platform))
-            {
-                throw new ArgumentException("Platform cannot be empty", nameof(platform));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId))
-            {
-                throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
-            }
-
-            var urlBuilder = new StringBuilder($"{baseUrl}/logos/{platform}/{Uri.EscapeDataString(platformId)}");
-            var queryParams = new List<string>();
-
-            if (styles != null && styles.Length > 0)
-            {
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
-
-            if (response != null && response.Success && response.Data != null)
-            {
-                return response.Data;
-            }
-
-            return new List<SteamGridDbGrid>();
         }
 
         /// <summary>
@@ -339,26 +207,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
             }
 
-            var urlBuilder = new StringBuilder($"{baseUrl}/icons/{platform}/{Uri.EscapeDataString(platformId)}");
-            var queryParams = new List<string>();
-
-            if (dimensions != null && dimensions.Length > 0)
-            {
-                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(d => Uri.EscapeDataString(d)))}");
-            }
-
-            if (styles != null && styles.Length > 0)
-            {
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
+            var url = BuildUrl($"icons/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
+            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
 
             if (response != null && response.Success && response.Data != null)
             {
@@ -398,26 +248,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 throw new ArgumentException("Game ID must be greater than 0", nameof(gameId));
             }
 
-            var urlBuilder = new StringBuilder($"{baseUrl}/icons/game/{gameId}");
-            var queryParams = new List<string>();
-
-            if (dimensions != null && dimensions.Length > 0)
-            {
-                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(d => Uri.EscapeDataString(d)))}");
-            }
-
-            if (styles != null && styles.Length > 0)
-            {
-                queryParams.Add($"styles={string.Join(",", styles.Select(s => Uri.EscapeDataString(s)))}");
-            }
-
-            if (queryParams.Count > 0)
-            {
-                urlBuilder.Append("?");
-                urlBuilder.Append(string.Join("&", queryParams));
-            }
-
-            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(urlBuilder.ToString(), cancellationToken);
+            var url = BuildUrl($"icons/game/{gameId}", dimensions, styles);
+            var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGrid>>>(url, cancellationToken);
 
             if (response != null && response.Success && response.Data != null)
             {
@@ -438,6 +270,37 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         public async Task<List<SteamGridDbGrid>> GetSquareIconsByGameIdAsync(int gameId, string[] styles = null, CancellationToken cancellationToken = default)
         {
             return await GetIconsByGameIdAsync(gameId, new[] { "128", "256", "512", "1024" }, styles, cancellationToken);
+        }
+
+        /// <summary>
+        /// Builds an API URL from a path and the optional dimensions/styles filters.
+        /// The API expects them comma-separated: ?dimensions=600x900,920x430&amp;styles=alternate,white_logo
+        /// </summary>
+        /// <param name="path">Path below the API root, already escaped (e.g. "grids/steam/220").</param>
+        /// <param name="dimensions">Dimensions to filter by, or null for all.</param>
+        /// <param name="styles">Styles to filter by, or null for all.</param>
+        private string BuildUrl(string path, string[] dimensions = null, string[] styles = null)
+        {
+            var urlBuilder = new StringBuilder($"{baseUrl}/{path}");
+            var queryParams = new List<string>();
+
+            if (dimensions != null && dimensions.Length > 0)
+            {
+                queryParams.Add($"dimensions={string.Join(",", dimensions.Select(Uri.EscapeDataString))}");
+            }
+
+            if (styles != null && styles.Length > 0)
+            {
+                queryParams.Add($"styles={string.Join(",", styles.Select(Uri.EscapeDataString))}");
+            }
+
+            if (queryParams.Count > 0)
+            {
+                urlBuilder.Append("?");
+                urlBuilder.Append(string.Join("&", queryParams));
+            }
+
+            return urlBuilder.ToString();
         }
 
         /// <summary>

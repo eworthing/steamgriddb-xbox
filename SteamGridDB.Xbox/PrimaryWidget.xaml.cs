@@ -44,6 +44,10 @@ namespace SteamGridDB.Xbox
         private const string newImageExtension = ".new";
         private const string manifestFileExtension = ".manifest";
 
+        // Artwork is shown in an 80px list thumbnail; decoding the 512-1024px source at full size would
+        // hold tens of megabytes of bitmaps for a large library. 160px covers 2x display scaling.
+        private const int thumbnailDecodePixelWidth = 160;
+
         // Grid styles that normally carry the game's title artwork, matching the look of native Xbox app tiles.
         // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
         private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
@@ -60,6 +64,11 @@ namespace SteamGridDB.Xbox
         // Edition markers in notes/tags; art is demoted when the marker is absent from the game's own name
         private static readonly Regex editionGridMetadata = new Regex(@"\b(deluxe|goty|game of the year|definitive|ultimate|premium|collector'?s?|complete|anniversary|remaster(ed)?|enhanced|legendary|gold)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // Markdown/URL noise stripped from notes before keyword matching (see GridMetadata)
+        private static readonly Regex crossReferenceLink = new Regex(@"\[>[^\]]*\]\s*\([^)]*\)", RegexOptions.Compiled);
+        private static readonly Regex markdownLink = new Regex(@"\[([^\]]*)\]\s*\([^)]*\)", RegexOptions.Compiled);
+        private static readonly Regex bareUrl = new Regex(@"https?://(?:www\.)?([^/\s)\]]+)\S*", RegexOptions.Compiled);
+
         private enum RestoreBackupResult
         {
             Restored,
@@ -73,6 +82,10 @@ namespace SteamGridDB.Xbox
         private static readonly HttpClient sharedHttpClient = new HttpClient();
 
         private Button lastFocusedButton;
+
+        // Guards the library-wide operations against each other: they all rewrite the same files and
+        // rebuild the same collection, so overlapping runs duplicate entries or race on disk.
+        private bool isLibraryOperationRunning;
 
         private GameEntry currentSelectedGame;
         public GameEntry CurrentSelectedGame
@@ -132,7 +145,19 @@ namespace SteamGridDB.Xbox
 
         private async void PrimaryWidget_Loaded(object sender, RoutedEventArgs e)
         {
-            await LoadGameEntriesAsync();
+            if (!TryBeginLibraryOperation())
+            {
+                return;
+            }
+
+            try
+            {
+                await LoadGameEntriesAsync();
+            }
+            finally
+            {
+                EndLibraryOperation();
+            }
 
             // Set default focus to Fix my library button for controller navigation
             FixLibraryButton.Focus(FocusState.Programmatic);
@@ -162,12 +187,118 @@ namespace SteamGridDB.Xbox
             }
         }
 
+        /// <summary>
+        /// Marks the start of a library-wide operation and disables the header buttons for its duration.
+        /// Returns false when another operation is already running.
+        /// </summary>
+        private bool TryBeginLibraryOperation()
+        {
+            if (isLibraryOperationRunning)
+            {
+                return false;
+            }
+
+            isLibraryOperationRunning = true;
+            SetHeaderButtonsEnabled(false);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Marks the end of a library-wide operation and re-enables the header buttons.
+        /// </summary>
+        private void EndLibraryOperation()
+        {
+            isLibraryOperationRunning = false;
+            SetHeaderButtonsEnabled(true);
+        }
+
+        private void SetHeaderButtonsEnabled(bool enabled)
+        {
+            FixLibraryButton.IsEnabled = enabled;
+            RestoreChangesButton.IsEnabled = enabled;
+            RevertDefaultsButton.IsEnabled = enabled;
+            RefreshButton.IsEnabled = enabled;
+        }
+
+        /// <summary>
+        /// Returns the name a sibling artefact (.bak/.new) takes for the given image file.
+        /// Path.ChangeExtension rather than a string replace: a replace rewrites every occurrence of
+        /// ".png" in the name and silently does nothing for images that are not .png at all, which
+        /// would make the backup name equal the image name and overwrite the original unrecoverably.
+        /// </summary>
+        private static string GetSiblingFileName(string imageFileName, string extension)
+        {
+            return Path.ChangeExtension(imageFileName, extension);
+        }
+
+        /// <summary>
+        /// Decodes a game image at list-thumbnail size on the UI thread and releases the file handle
+        /// as soon as decoding finishes.
+        /// </summary>
+        /// <param name="file">Image file to decode.</param>
+        /// <returns>The decoded image, or null when it could not be decoded.</returns>
+        private async Task<BitmapImage> CreateThumbnailAsync(StorageFile file)
+        {
+            IRandomAccessStream imageStream = await file.OpenReadAsync();
+            TaskCompletionSource<BitmapImage> decoded = new TaskCompletionSource<BitmapImage>();
+
+            // BitmapImage must be created and sourced on the UI thread because it is owned by it
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () =>
+            {
+                try
+                {
+                    BitmapImage image = new BitmapImage { DecodePixelWidth = thumbnailDecodePixelWidth };
+
+                    await image.SetSourceAsync(imageStream);
+
+                    decoded.TrySetResult(image);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not decode {file.Name}: {ex.Message}");
+
+                    // TrySet: this handler is async void, so a second SetResult would crash the widget
+                    decoded.TrySetResult(null);
+                }
+                finally
+                {
+                    imageStream.Dispose();
+                }
+            });
+
+            return await decoded.Task;
+        }
+
+        /// <summary>
+        /// All entries backed by the same image file. Stale Xbox app manifests list one image under
+        /// several entries, and the bulk operations process each image once - without this the
+        /// duplicate rows keep showing the previous artwork and buttons until the next refresh.
+        /// </summary>
+        private List<GameEntry> EntriesSharingImage(GameEntry game)
+        {
+            List<GameEntry> shared = GameEntries
+                .Where(g => string.Equals(g.ImageFilePath, game.ImageFilePath, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (shared.Count == 0)
+            {
+                shared.Add(game);
+            }
+
+            return shared;
+        }
+
         private async Task LoadGameEntriesAsync()
         {
             try
             {
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                 {
+                    // Clear here rather than in the callers so that a repeated load can never append
+                    // a second copy of the library to the list
+                    GameEntries.Clear();
+
                     StatusText.Text = $"Attempting to access ThirdPartyLibraries...";
                     InstructionsPanel.Visibility = Visibility.Collapsed;
                     GameEntriesListView.Visibility = Visibility.Visible;
@@ -214,13 +345,16 @@ namespace SteamGridDB.Xbox
                 // Temporary list to collect games before sorting
                 List<GameEntry> tmpGameList = new List<GameEntry>();
 
-                // Check if API key is available
-                if (string.IsNullOrEmpty(steamGridDbApiKey))
-                {
-                    StatusText.Text = "Error: SteamGridDB API key is not set.";
-                }
+                // Manifest entries the Xbox app left behind for removed games: no image and no backup,
+                // so there is nothing to show and nothing any of the buttons could act on
+                int staleEntryCount = 0;
 
-                using (SteamGridDbClient sgdbClient = new SteamGridDbClient(steamGridDbApiKey))
+                // Without an API key the library still loads - names stay "Unknown" and artwork cannot be
+                // fetched, but the list, the backups and the restore/revert buttons all keep working
+                bool canQuerySteamGridDb = !string.IsNullOrEmpty(steamGridDbApiKey);
+                SteamGridDbClient sgdbClient = canQuerySteamGridDb ? new SteamGridDbClient(steamGridDbApiKey) : null;
+
+                try
                 {
                     foreach (StorageFolder folder in folders)
                     {
@@ -299,8 +433,20 @@ namespace SteamGridDB.Xbox
                                     if (platform == GamePlatform.Custom) // Custom contains full path for the image filename
                                     {
                                         imageFilePath = entryObject.GetNamedString("imagePath");
-                                        imageFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(imageFilePath));
 
+                                        try
+                                        {
+                                            imageFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(imageFilePath));
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            // Folder of a removed custom game - skip this entry, not the whole manifest
+                                            System.Diagnostics.Debug.WriteLine($"Skipping custom entry {entryId}: {ex.Message}");
+
+                                            staleEntryCount++;
+
+                                            continue;
+                                        }
                                     }
                                     else // Image filename is based on ID
                                     {
@@ -309,7 +455,7 @@ namespace SteamGridDB.Xbox
                                     }
 
                                     string imageFileName = Path.GetFileName(imageFilePath);
-                                    string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
+                                    string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
 
                                     BitmapImage image = null;
                                     bool hasBackup = false;
@@ -326,60 +472,54 @@ namespace SteamGridDB.Xbox
                                         // Backup doesn't exist, that's okay
                                     }
 
-                                    // Load image on background thread, create BitmapImage on UI thread
-                                    IRandomAccessStream imageStream = null;
                                     try
                                     {
                                         StorageFile imageFile = await imageFolder.GetFileAsync(imageFileName);
-                                        imageStream = await imageFile.OpenReadAsync();
 
-                                        // Create and set BitmapImage on UI thread because it has to be owned by it
-                                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                                        {
-                                            try
-                                            {
-                                                image = new BitmapImage();
-                                                // Fire-and-forget: async call will complete in background
-                                                var _ = image.SetSourceAsync(imageStream);
-                                            }
-                                            catch
-                                            {
-                                                // Image loading failed, will be handled below
-                                                image = null;
-                                                imageStream?.Dispose();
-                                            }
-                                        });
+                                        image = await CreateThumbnailAsync(imageFile);
                                     }
                                     catch (FileNotFoundException)
                                     {
-                                        // Image doesn't exist, that's okay
+                                        if (!hasBackup)
+                                        {
+                                            // Nothing on disk for this entry: either a game the Xbox app removed but
+                                            // left in the manifest, or one of the legacy store folders it abandoned
+                                            // (their images use a different naming scheme and it no longer reads them)
+                                            staleEntryCount++;
+
+                                            continue;
+                                        }
+
+                                        // Image is gone but the backup is not - keep the row so it can be restored
                                         imageFileName = "Not found";
-                                        imageStream?.Dispose();
                                     }
 
                                     string gameName = unknownName;
-                                    string xboxPlatformId;
+
+                                    // The store's own game ID, as SteamGridDB knows it. There is deliberately
+                                    // no second "Xbox-side" ID on the entry: the two are equal for every store
+                                    // except Epic, where reaching for the wrong one silently breaks lookups.
                                     string externalPlatformId;
 
                                     if (platform == GamePlatform.Custom)
                                     {
                                         gameName = entryObject.GetNamedString("title");
-                                        xboxPlatformId = entryId;
                                         externalPlatformId = Path.Combine(entryObject.GetNamedString("installLocation"), entryObject.GetNamedString("executableName"));
                                     }
                                     else
                                     {
-                                        xboxPlatformId = entryId.Substring(entryId.IndexOf(':') + 1);
-                                        externalPlatformId = xboxPlatformId;
+                                        externalPlatformId = entryId.Substring(entryId.IndexOf(':') + 1);
 
                                         if (platform == GamePlatform.Epic)
                                         {
-                                            // For Epic, entryId format is "epic:namespace:ID"
+                                            // Xbox stores Epic entries as "epic:<namespace>:<catalogItemId>:<appName>".
+                                            // SteamGridDB's egs identifier is the appName - the last segment
+                                            // (for example "Sugar" for Rocket League), not the catalog item ID.
                                             string[] parts = entryId.Split(':');
 
                                             if (parts.Length >= 3)
                                             {
-                                                externalPlatformId = parts[2];
+                                                externalPlatformId = parts[parts.Length - 1];
                                             }
                                         }
                                     }
@@ -391,7 +531,7 @@ namespace SteamGridDB.Xbox
                                     {
                                         string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(platform);
 
-                                        if (!string.IsNullOrEmpty(platformString))
+                                        if (canQuerySteamGridDb && !string.IsNullOrEmpty(platformString))
                                         {
                                             SteamGridDbGame gameInfo = await sgdbClient.GetGameByPlatformIdAsync(platformString, externalPlatformId);
 
@@ -463,7 +603,6 @@ namespace SteamGridDB.Xbox
                                     tmpGameList.Add(new GameEntry
                                     {
                                         Name = gameName,
-                                        XboxPlatformId = xboxPlatformId,
                                         ExternalPlatformId = externalPlatformId,
                                         ImageFileName = imageFileName,
                                         ImageFilePath = imageFilePath,
@@ -490,6 +629,10 @@ namespace SteamGridDB.Xbox
                         }
                     }
                 }
+                finally
+                {
+                    sgdbClient?.Dispose();
+                }
 
                 // Sort games alphabetically by name, with "Unknown" at the end
                 List<GameEntry> sortedGames = tmpGameList
@@ -504,7 +647,19 @@ namespace SteamGridDB.Xbox
                         GameEntries.Add(game);
                     }
 
-                    StatusText.Text = $"Found {GameEntries.Count} game{(GameEntries.Count == 1 ? string.Empty : "s")}";
+                    string summary = $"Found {GameEntries.Count} game{(GameEntries.Count == 1 ? string.Empty : "s")}";
+
+                    if (staleEntryCount > 0)
+                    {
+                        summary += $", skipped {staleEntryCount} stale manifest entr{(staleEntryCount == 1 ? "y" : "ies")}";
+                    }
+
+                    if (!canQuerySteamGridDb)
+                    {
+                        summary += " - SteamGridDB API key is not set, artwork cannot be fetched";
+                    }
+
+                    StatusText.Text = summary;
                 });
             }
             catch (Exception ex)
@@ -518,9 +673,19 @@ namespace SteamGridDB.Xbox
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            GameEntries.Clear();
+            if (!TryBeginLibraryOperation())
+            {
+                return;
+            }
 
-            await LoadGameEntriesAsync();
+            try
+            {
+                await LoadGameEntriesAsync();
+            }
+            finally
+            {
+                EndLibraryOperation();
+            }
         }
 
         /// <summary>
@@ -552,13 +717,23 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            if (result == ContentDialogResult.Primary)
+            if (result != ContentDialogResult.Primary && result != ContentDialogResult.Secondary)
             {
-                await FixLibraryAsync(false);
+                return;
             }
-            else if (result == ContentDialogResult.Secondary)
+
+            if (!TryBeginLibraryOperation())
             {
-                await FixLibraryAsync(true);
+                return;
+            }
+
+            try
+            {
+                await FixLibraryAsync(result == ContentDialogResult.Secondary);
+            }
+            finally
+            {
+                EndLibraryOperation();
             }
         }
 
@@ -583,9 +758,18 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            if (result == ContentDialogResult.Primary)
+            if (result != ContentDialogResult.Primary || !TryBeginLibraryOperation())
+            {
+                return;
+            }
+
+            try
             {
                 await RestoreAllChangesAsync();
+            }
+            finally
+            {
+                EndLibraryOperation();
             }
         }
 
@@ -610,9 +794,18 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            if (result == ContentDialogResult.Primary)
+            if (result != ContentDialogResult.Primary || !TryBeginLibraryOperation())
+            {
+                return;
+            }
+
+            try
             {
                 await RevertAllToDefaultAsync();
+            }
+            finally
+            {
+                EndLibraryOperation();
             }
         }
 
@@ -701,6 +894,16 @@ namespace SteamGridDB.Xbox
         {
             try
             {
+                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                {
+                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    {
+                        StatusText.Text = "SteamGridDB API key is not set - artwork cannot be downloaded";
+                    });
+
+                    return;
+                }
+
                 // Get eligible games: there is a match in SteamGridDB and, unless re-fixing, no backup yet.
                 // Stale Xbox app manifests can list the same image under multiple entries - process each image only once.
                 List<GameEntry> eligibleGames = GameEntries
@@ -748,6 +951,9 @@ namespace SteamGridDB.Xbox
                             {
                                 System.Diagnostics.Debug.WriteLine($"Skipping {game.Name}: unsupported platform");
 
+                                // Counted so the progress and the final summary still add up to the total
+                                notFoundCount++;
+
                                 continue;
                             }
 
@@ -755,12 +961,12 @@ namespace SteamGridDB.Xbox
                             // Rank the unfiltered results client-side: tied scores are common, and the stable
                             // sort keeps SteamGridDB's canonical ordering for ties (the same image the site
                             // shows first, typically the official box art).
-                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
-                            if (grids != null && grids.Count > 0 && !grids.Any(g => Array.IndexOf(textBearingGridStyles, g.Style) >= 0))
+                            if (grids != null && grids.Count > 0 && !grids.Any(g => GridStylePriority(g.Style) == 0))
                             {
                                 // First page is all icon-like styles - ask the server for title-bearing ones beyond it
-                                List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId, textBearingGridStyles);
+                                List<SteamGridDbGrid> textBearingGrids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId, textBearingGridStyles);
 
                                 if (textBearingGrids != null && textBearingGrids.Count > 0)
                                 {
@@ -786,7 +992,7 @@ namespace SteamGridDB.Xbox
                             else
                             {
                                 // If no grids, try icons
-                                List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                                List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
                                 if (icons != null && icons.Count > 0)
                                 {
@@ -870,9 +1076,9 @@ namespace SteamGridDB.Xbox
                             StatusText.Text = $"Restoring {gameName} ({successCount + noArtworkCount + errorCount + 1}/{uniqueGames.Count})...";
                         });
 
-                        string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
+                        string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
 
-                        StorageFile newFile = null;
+                        StorageFile newFile;
 
                         try
                         {
@@ -886,32 +1092,23 @@ namespace SteamGridDB.Xbox
                             continue;
                         }
 
-                        if (newFile != null)
+                        var imageBytes = await FileIO.ReadBufferAsync(newFile);
+
+                        StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
+                        await FileIO.WriteBufferAsync(imageFile, imageBytes);
+
+                        BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
+
+                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                         {
-                            var imageBytes = await FileIO.ReadBufferAsync(newFile);
-
-                            StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-                            await FileIO.WriteBufferAsync(imageFile, imageBytes);
-
-                            var stream = await imageFile.OpenReadAsync();
-
-                            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                            foreach (GameEntry entry in EntriesSharingImage(game))
                             {
-                                try
-                                {
-                                    BitmapImage restoredImage = new BitmapImage();
-                                    var _ = restoredImage.SetSourceAsync(stream);
-                                    game.Image = restoredImage;
-                                    game.ImageFileName = imageFileName;
-                                }
-                                catch
-                                {
-                                    stream?.Dispose();
-                                }
-                            });
+                                entry.Image = restoredImage;
+                                entry.ImageFileName = imageFileName;
+                            }
+                        });
 
-                            successCount++;
-                        }
+                        successCount++;
                     }
                     catch (Exception ex)
                     {
@@ -955,20 +1152,16 @@ namespace SteamGridDB.Xbox
         {
             try
             {
-                // Download the image
-                using (HttpClient httpClient = new HttpClient())
+                HttpResponseMessage response = await sharedHttpClient.GetAsync(new Uri(imageUrl));
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    HttpResponseMessage response = await httpClient.GetAsync(new Uri(imageUrl));
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        return false;
-                    }
-
-                    var imageBytes = await response.Content.ReadAsBufferAsync();
-
-                    return await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
+                    return false;
                 }
+
+                var imageBytes = await response.Content.ReadAsBufferAsync();
+
+                return await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
             }
             catch (Exception ex)
             {
@@ -985,83 +1178,72 @@ namespace SteamGridDB.Xbox
         {
             try
             {
+                // Generate the filenames
+                string imageFileName = Path.GetFileName(game.ImageFilePath);
+                string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
+                string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
+
+                // Create backup of ORIGINAL image ONLY if backup doesn't already exist
+                bool backupExists = false;
+
+                try
                 {
-                    // Generate the filenames
-                    string imageFileName = Path.GetFileName(game.ImageFilePath);
-                    string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
-                    string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
+                    await game.ImageFolder.GetFileAsync(backupFileName);
 
-                    // Create backup of ORIGINAL image ONLY if backup doesn't already exist
-                    bool backupExists = false;
-
+                    backupExists = true;
+                }
+                catch (FileNotFoundException)
+                {
+                    // Backup doesn't exist, create it from current image
                     try
                     {
-                        await game.ImageFolder.GetFileAsync(backupFileName);
+                        StorageFile existingImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
+
+                        // Backup the ORIGINAL image by copying to preserve it
+                        StorageFile backupFile = await game.ImageFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
+                        var existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
+
+                        await FileIO.WriteBufferAsync(backupFile, existingBuffer);
 
                         backupExists = true;
                     }
                     catch (FileNotFoundException)
                     {
-                        // Backup doesn't exist, create it from current image
-                        try
-                        {
-                            StorageFile existingImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
+                        // No existing image to backup
+                    }
+                }
 
-                            // Backup the ORIGINAL image by copying to preserve it
-                            StorageFile backupFile = await game.ImageFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
-                            var existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
+                // Save the new image (replaces current)
+                StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteBufferAsync(imageFile, imageBytes);
 
-                            await FileIO.WriteBufferAsync(backupFile, existingBuffer);
+                // Save a copy of the new image as .new file
+                StorageFile newFile = await game.ImageFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteBufferAsync(newFile, imageBytes);
 
-                            backupExists = true;
-                        }
-                        catch (FileNotFoundException)
-                        {
-                            // No existing image to backup
-                        }
+                // Reload the image in the UI
+                BitmapImage newImage = await CreateThumbnailAsync(imageFile);
+
+                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    foreach (GameEntry entry in EntriesSharingImage(game))
+                    {
+                        entry.Image = newImage;
+                        entry.ImageFileName = imageFileName;
+                        entry.HasBackup = backupExists;
                     }
 
-                    // Save the new image (replaces current)
-                    StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-                    await FileIO.WriteBufferAsync(imageFile, imageBytes);
-
-                    // Save a copy of the new image as .new file
-                    StorageFile newFile = await game.ImageFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
-                    await FileIO.WriteBufferAsync(newFile, imageBytes);
-
-                    // Reload the image in the UI - open stream before dispatching to UI thread
-                    var stream = await imageFile.OpenReadAsync();
-
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    if (updateStatusText)
                     {
-                        try
-                        {
-                            BitmapImage newImage = new BitmapImage();
+                        StatusText.Text = game.Name == unknownName ? $"Artwork {imageFileName} updated successfully" : $"Artwork for {game.Name} updated successfully";
+                    }
+                });
 
-                            // Fire-and-forget: async call will complete in background
-                            var _ = newImage.SetSourceAsync(stream);
-
-                            game.Image = newImage;
-                            game.ImageFileName = imageFileName;
-                            game.HasBackup = backupExists;
-
-                            if (updateStatusText)
-                            {
-                                StatusText.Text = game.Name == unknownName ? $"Artwork {imageFileName} updated successfully" : $"Artwork for {game.Name} updated successfully";
-                            }
-                        }
-                        catch
-                        {
-                            stream?.Dispose();
-                        }
-                    });
-
-                    return true;
-                }
+                return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error in DownloadAndReplaceImageAsync for {game.Name}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error in ReplaceImageCoreAsync for {game.Name}: {ex.Message}");
 
                 return false;
             }
@@ -1206,7 +1388,7 @@ namespace SteamGridDB.Xbox
             try
             {
                 // Update panel header with game info
-                GridPanelHeaderText = $"Select artwork for {game.Name} (platform: {game.Platform}, ID: {game.XboxPlatformId})";
+                GridPanelHeaderText = $"Select artwork for {game.Name} (platform: {game.Platform}, ID: {game.ExternalPlatformId})";
 
                 // Show panel with animation
                 await ShowGridPanelAsync();
@@ -1214,7 +1396,7 @@ namespace SteamGridDB.Xbox
                 // Show loading indicator
                 GridLoadingRing.IsActive = true;
                 GridImagesView.Items.Clear();
-                GridPanelStatus.Text = $"Loading artworks for {game.Name ?? $"{game.Platform} / {game.XboxPlatformId}"}...";
+                GridPanelStatus.Text = $"Loading artworks for {game.Name ?? $"{game.Platform} / {game.ExternalPlatformId}"}...";
 
                 // Get the platform string for SteamGridDB API
                 string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(game.Platform);
@@ -1227,12 +1409,20 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
+                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                {
+                    GridPanelStatus.Text = "SteamGridDB API key is not set";
+                    GridLoadingRing.IsActive = false;
+
+                    return;
+                }
+
                 // Fetch grids and icons from SteamGridDB
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
-                    // Fetch both grids and icons by platform ID
-                    List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.XboxPlatformId);
-                    List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.XboxPlatformId);
+                    // Fetch both grids and icons by the store's own game ID
+                    List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+                    List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
 
                     PopulateGridSelectionPanel(grids, icons);
                 }
@@ -1268,9 +1458,9 @@ namespace SteamGridDB.Xbox
         {
             string text = (grid.Notes ?? string.Empty) + " " + string.Join(" ", grid.Tags ?? Array.Empty<string>());
 
-            text = Regex.Replace(text, @"\[>[^\]]*\]\s*\([^)]*\)", " ");
-            text = Regex.Replace(text, @"\[([^\]]*)\]\s*\([^)]*\)", "$1");
-            text = Regex.Replace(text, @"https?://(?:www\.)?([^/\s)\]]+)\S*", " $1 ");
+            text = crossReferenceLink.Replace(text, " ");
+            text = markdownLink.Replace(text, "$1");
+            text = bareUrl.Replace(text, " $1 ");
 
             return text;
         }
@@ -1279,9 +1469,11 @@ namespace SteamGridDB.Xbox
         /// True when the artwork's notes/tags name an edition (deluxe, GOTY, etc.) that is not part of
         /// the game's own name - e.g. "Deluxe Edition" art for a standard-edition game.
         /// </summary>
-        private static bool IsEditionMismatch(SteamGridDbGrid grid, string gameName)
+        /// <param name="metadata">Cleaned notes/tags text from <see cref="GridMetadata"/>.</param>
+        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
+        private static bool IsEditionMismatch(string metadata, string gameName)
         {
-            foreach (Match match in editionGridMetadata.Matches(GridMetadata(grid)))
+            foreach (Match match in editionGridMetadata.Matches(metadata))
             {
                 if (string.IsNullOrEmpty(gameName) || gameName.IndexOf(match.Value, StringComparison.OrdinalIgnoreCase) < 0)
                 {
@@ -1293,6 +1485,43 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// A grid with its ranking signals worked out once. Evaluating them inside the sort keys instead
+        /// would rebuild and re-scan the same notes text three times for every candidate.
+        /// </summary>
+        private sealed class RankedGrid
+        {
+            public RankedGrid(SteamGridDbGrid grid, string gameName)
+            {
+                string metadata = GridMetadata(grid);
+
+                Grid = grid;
+                IsDemoted = demotedGridMetadata.IsMatch(metadata) || IsEditionMismatch(metadata, gameName);
+                IsBoosted = boostedGridMetadata.IsMatch(metadata);
+                IsForeignLanguage = !string.IsNullOrEmpty(grid.Language) && grid.Language != "en";
+            }
+
+            public SteamGridDbGrid Grid
+            {
+                get;
+            }
+
+            public bool IsDemoted
+            {
+                get;
+            }
+
+            public bool IsBoosted
+            {
+                get;
+            }
+
+            public bool IsForeignLanguage
+            {
+                get;
+            }
+        }
+
+        /// <summary>
         /// Ranks grids for auto-selection: mockup/icon-labelled and wrong-edition uploads last,
         /// English (or untagged) language first, official store artwork boosted, then style
         /// preference and community score. Ties keep SteamGridDB's canonical ordering (stable sort).
@@ -1300,11 +1529,13 @@ namespace SteamGridDB.Xbox
         private static List<SteamGridDbGrid> RankGrids(IEnumerable<SteamGridDbGrid> grids, string gameName)
         {
             return grids
-                .OrderBy(g => demotedGridMetadata.IsMatch(GridMetadata(g)) || IsEditionMismatch(g, gameName) ? 1 : 0)
-                .ThenBy(g => string.IsNullOrEmpty(g.Language) || g.Language == "en" ? 0 : 1)
-                .ThenBy(g => GridStylePriority(g.Style))
-                .ThenByDescending(g => boostedGridMetadata.IsMatch(GridMetadata(g)) ? 1 : 0)
-                .ThenByDescending(g => g.Score)
+                .Select(g => new RankedGrid(g, gameName))
+                .OrderBy(r => r.IsDemoted ? 1 : 0)
+                .ThenBy(r => r.IsForeignLanguage ? 1 : 0)
+                .ThenBy(r => GridStylePriority(r.Grid.Style))
+                .ThenByDescending(r => r.IsBoosted ? 1 : 0)
+                .ThenByDescending(r => r.Grid.Score)
+                .Select(r => r.Grid)
                 .ToList();
         }
 
@@ -1535,6 +1766,13 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
+                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                {
+                    SearchPanelStatus.Text = "SteamGridDB API key is not set";
+
+                    return;
+                }
+
                 SearchLoadingRing.IsActive = true;
                 SearchResultsListView.Items.Clear();
                 SearchPanelStatus.Text = $"Searching for '{searchTerm}'...";
@@ -1603,6 +1841,14 @@ namespace SteamGridDB.Xbox
                 GridLoadingRing.IsActive = true;
                 GridImagesView.Items.Clear();
                 GridPanelStatus.Text = $"Loading artworks for {game.Name}...";
+
+                if (string.IsNullOrEmpty(steamGridDbApiKey))
+                {
+                    GridPanelStatus.Text = "SteamGridDB API key is not set";
+                    GridLoadingRing.IsActive = false;
+
+                    return;
+                }
 
                 // Fetch grids and icons from SteamGridDB by game ID
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
@@ -1786,8 +2032,8 @@ namespace SteamGridDB.Xbox
         {
             string imageFileName = Path.GetFileName(game.ImageFilePath);
             string backupGameName = game.Name != unknownName ? game.Name : imageFileName;
-            string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
-            string newFileName = imageFileName.Replace(imageExtension, newImageExtension);
+            string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
+            string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
 
             try
             {
@@ -1811,18 +2057,6 @@ namespace SteamGridDB.Xbox
                     return RestoreBackupResult.BackupMissing;
                 }
 
-                // Delete current image if it exists
-                try
-                {
-                    StorageFile currentImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-
-                    await currentImageFile.DeleteAsync();
-                }
-                catch (FileNotFoundException)
-                {
-                    // Current image doesn't exist, that's okay
-                }
-
                 // Delete saved customisation if it exists
                 try
                 {
@@ -1835,33 +2069,26 @@ namespace SteamGridDB.Xbox
                     // Saved customisation doesn't exist, that's okay
                 }
 
-                // Rename backup to become the main image
+                // Rename backup to become the main image. ReplaceExisting overwrites the current image,
+                // so it is never deleted up front - a failed rename would leave the game with no image.
                 await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
 
-                // Reload the image in the UI - open stream before dispatching to UI thread
+                // Reload the image in the UI
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-                var stream = await imageFile.OpenReadAsync();
+                BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
                 {
-                    try
+                    foreach (GameEntry entry in EntriesSharingImage(game))
                     {
-                        BitmapImage restoredImage = new BitmapImage();
-                        // Fire-and-forget: async call will complete in background
-                        var _ = restoredImage.SetSourceAsync(stream);
-
-                        game.Image = restoredImage;
-                        game.ImageFileName = imageFileName;
-                        game.HasBackup = false; // Backup no longer exists
-
-                        if (updateStatusText)
-                        {
-                            StatusText.Text = $"Backup restored for {backupGameName}";
-                        }
+                        entry.Image = restoredImage;
+                        entry.ImageFileName = imageFileName;
+                        entry.HasBackup = false; // Backup no longer exists
                     }
-                    catch
+
+                    if (updateStatusText)
                     {
-                        stream?.Dispose();
+                        StatusText.Text = $"Backup restored for {backupGameName}";
                     }
                 });
 
@@ -1979,7 +2206,9 @@ namespace SteamGridDB.Xbox
                 string content = await response.Content.ReadAsStringAsync();
                 string[] lines = content.Split('\n');
 
-                ubisoftGameLookupCache = new Dictionary<string, string>();
+                // Built locally and only published once it has entries: caching an empty result would
+                // make the early return above skip every later attempt for the rest of the session
+                Dictionary<string, string> parsedGames = new Dictionary<string, string>();
 
                 foreach (string line in lines)
                 {
@@ -2000,12 +2229,19 @@ namespace SteamGridDB.Xbox
 
                         if (!string.IsNullOrEmpty(idPart) && !string.IsNullOrEmpty(namePart))
                         {
-                            ubisoftGameLookupCache[idPart] = namePart;
+                            parsedGames[idPart] = namePart;
                         }
                     }
                 }
 
-                return ubisoftGameLookupCache.Count > 0;
+                if (parsedGames.Count == 0)
+                {
+                    return false;
+                }
+
+                ubisoftGameLookupCache = parsedGames;
+
+                return true;
             }
             catch (Exception ex)
             {

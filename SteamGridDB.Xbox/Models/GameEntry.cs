@@ -11,7 +11,6 @@ namespace SteamGridDB.Xbox.Models
     public class GameEntry : INotifyPropertyChanged
     {
         private string name;
-        private string xboxPlatformId;
         private string externalPlatformId;
         private GamePlatform platform;
         private DateTime addedDate;
@@ -39,19 +38,10 @@ namespace SteamGridDB.Xbox.Models
             }
         }
 
-        public string XboxPlatformId
-        {
-            get => xboxPlatformId;
-            set
-            {
-                if (xboxPlatformId != value)
-                {
-                    xboxPlatformId = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
+        /// <summary>
+        /// The game's ID in its own store, in the form SteamGridDB expects (for Epic that is the
+        /// appName, the last segment of the Xbox manifest entry - not the catalog item ID).
+        /// </summary>
         public string ExternalPlatformId
         {
             get => externalPlatformId;
