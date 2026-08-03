@@ -4,9 +4,11 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
+using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Core;
@@ -45,6 +47,16 @@ namespace SteamGridDB.Xbox
         // Grid styles that normally carry the game's title artwork, matching the look of native Xbox app tiles.
         // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
         private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
+
+        // Notes/tags vocabulary of physical-media mockups (word-bounded, so "Xbox" never matches "box").
+        // "icon" is deliberately absent - it appears in legitimate source notes like "PS icon" too often.
+        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Uploads labelled as sourced from official store artwork
+        private static readonly Regex boostedGridMetadata = new Regex(@"\bofficial\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        // Edition markers in notes/tags; art is demoted when the marker is absent from the game's own name
+        private static readonly Regex editionGridMetadata = new Regex(@"\b(deluxe|goty|game of the year|definitive|ultimate|premium|collector'?s?|complete|anniversary|remaster(ed)?|enhanced|legendary|gold)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private enum RestoreBackupResult
         {
@@ -756,9 +768,9 @@ namespace SteamGridDB.Xbox
 
                             if (grids != null && grids.Count > 0)
                             {
-                                // Get the best-styled, highest-scored grid
-                                SteamGridDbGrid bestGrid = grids.OrderBy(g => GridStylePriority(g.Style)).ThenByDescending(g => g.Score).First();
-                                bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestGrid.Url, false);
+                                // Rank candidates, then take the best one whose art actually fills the tile
+                                IBuffer imageBytes = await DownloadBestTileFillingImageAsync(RankGrids(grids, game.Name));
+                                bool downloaded = imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, false);
 
                                 if (downloaded)
                                 {
@@ -953,6 +965,25 @@ namespace SteamGridDB.Xbox
 
                     var imageBytes = await response.Content.ReadAsBufferAsync();
 
+                    return await ReplaceImageCoreAsync(game, imageBytes, updateStatusText);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in DownloadAndReplaceImageCoreAsync for {game.Name}: {ex.Message}");
+
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Replaces a game's image with the provided image bytes, backing up the original first.
+        /// </summary>
+        private async Task<bool> ReplaceImageCoreAsync(GameEntry game, IBuffer imageBytes, bool updateStatusText = true)
+        {
+            try
+            {
+                {
                     // Generate the filenames
                     string imageFileName = Path.GetFileName(game.ImageFilePath);
                     string backupFileName = imageFileName.Replace(imageExtension, backupImageExtension);
@@ -1035,6 +1066,120 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Downloads the best-ranked grid that fills the square tile, skipping uploads with transparent
+        /// corners (rounded icon-style art and physical case mockups that metadata cannot identify).
+        /// Returns the first passing grid's image bytes, or the best-ranked grid's bytes when none pass.
+        /// </summary>
+        private async Task<IBuffer> DownloadBestTileFillingImageAsync(IReadOnlyList<SteamGridDbGrid> rankedGrids)
+        {
+            const int maxCandidates = 5;
+
+            IBuffer fallback = null;
+
+            for (int i = 0; i < rankedGrids.Count && i < maxCandidates; i++)
+            {
+                IBuffer imageBytes;
+
+                try
+                {
+                    HttpResponseMessage response = await sharedHttpClient.GetAsync(new Uri(rankedGrids[i].Url));
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        continue;
+                    }
+
+                    imageBytes = await response.Content.ReadAsBufferAsync();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error downloading grid candidate {rankedGrids[i].Url}: {ex.Message}");
+
+                    continue;
+                }
+
+                if (fallback == null)
+                {
+                    fallback = imageBytes;
+                }
+
+                if (await ImageFillsTileAsync(imageBytes))
+                {
+                    return imageBytes;
+                }
+            }
+
+            return fallback;
+        }
+
+        /// <summary>
+        /// True when the image is opaque in its corners. Case mockups and rounded icon-style uploads
+        /// have transparent corners; legitimate box art fills the whole square.
+        /// </summary>
+        private static async Task<bool> ImageFillsTileAsync(IBuffer imageBytes)
+        {
+            try
+            {
+                using (var stream = new InMemoryRandomAccessStream())
+                {
+                    await stream.WriteAsync(imageBytes);
+                    stream.Seek(0);
+
+                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+
+                    var transform = new BitmapTransform
+                    {
+                        ScaledWidth = 32,
+                        ScaledHeight = 32,
+                        InterpolationMode = BitmapInterpolationMode.Fant
+                    };
+
+                    PixelDataProvider pixelData = await decoder.GetPixelDataAsync(
+                        BitmapPixelFormat.Bgra8,
+                        BitmapAlphaMode.Straight,
+                        transform,
+                        ExifOrientationMode.IgnoreExifOrientation,
+                        ColorManagementMode.DoNotColorManage);
+
+                    byte[] pixels = pixelData.DetachPixelData();
+
+                    // Sample a 6x6 block in each corner of the 32x32 image; a corner counts as
+                    // transparent when over 40% of its pixels have near-zero alpha
+                    int transparentCorners = 0;
+
+                    foreach (var corner in new[] { (X: 0, Y: 0), (X: 26, Y: 0), (X: 0, Y: 26), (X: 26, Y: 26) })
+                    {
+                        int transparentPixels = 0;
+
+                        for (int y = corner.Y; y < corner.Y + 6; y++)
+                        {
+                            for (int x = corner.X; x < corner.X + 6; x++)
+                            {
+                                if (pixels[((y * 32) + x) * 4 + 3] < 64)
+                                {
+                                    transparentPixels++;
+                                }
+                            }
+                        }
+
+                        if (transparentPixels > 14)
+                        {
+                            transparentCorners++;
+                        }
+                    }
+
+                    return transparentCorners < 2;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error inspecting image corners: {ex.Message}");
+
+                return true; // undecodable here - accept and let the normal pipeline handle it
+            }
+        }
+
+        /// <summary>
         /// Handle edit button click to show grid selection panel
         /// </summary>
         private async void EditGameImage_Click(object sender, RoutedEventArgs e)
@@ -1103,13 +1248,62 @@ namespace SteamGridDB.Xbox
 
         /// <summary>
         /// Returns the sort rank of a grid style - title-bearing box art styles first, icon-like styles last.
+        /// Title-bearing styles rank equally: preferring one over another proved to mostly surface
+        /// mis-tagged fan art while any of them already matches the native Xbox look.
         /// </summary>
         /// <param name="style">Grid style reported by SteamGridDB.</param>
         private static int GridStylePriority(string style)
         {
-            int index = Array.IndexOf(textBearingGridStyles, style);
+            return Array.IndexOf(textBearingGridStyles, style) >= 0 ? 0 : 1;
+        }
 
-            return index >= 0 ? index : textBearingGridStyles.Length;
+        /// <summary>
+        /// Combined notes and tags text used for metadata-based ranking. Cross-reference links to
+        /// other uploads (SteamGridDB convention "[&gt;deluxe](url)") and URLs are stripped so they
+        /// cannot trigger keyword matches; other links keep their text (e.g. "Official - Microsoft").
+        /// </summary>
+        private static string GridMetadata(SteamGridDbGrid grid)
+        {
+            string text = (grid.Notes ?? string.Empty) + " " + string.Join(" ", grid.Tags ?? Array.Empty<string>());
+
+            text = Regex.Replace(text, @"\[>[^\]]*\]\s*\([^)]*\)", " ");
+            text = Regex.Replace(text, @"\[([^\]]*)\]\s*\([^)]*\)", "$1");
+            text = Regex.Replace(text, @"https?://\S+", " ");
+
+            return text;
+        }
+
+        /// <summary>
+        /// True when the artwork's notes/tags name an edition (deluxe, GOTY, etc.) that is not part of
+        /// the game's own name - e.g. "Deluxe Edition" art for a standard-edition game.
+        /// </summary>
+        private static bool IsEditionMismatch(SteamGridDbGrid grid, string gameName)
+        {
+            foreach (Match match in editionGridMetadata.Matches(GridMetadata(grid)))
+            {
+                if (string.IsNullOrEmpty(gameName) || gameName.IndexOf(match.Value, StringComparison.OrdinalIgnoreCase) < 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Ranks grids for auto-selection: mockup/icon-labelled and wrong-edition uploads last,
+        /// English (or untagged) language first, official store artwork boosted, then style
+        /// preference and community score. Ties keep SteamGridDB's canonical ordering (stable sort).
+        /// </summary>
+        private static List<SteamGridDbGrid> RankGrids(IEnumerable<SteamGridDbGrid> grids, string gameName)
+        {
+            return grids
+                .OrderBy(g => demotedGridMetadata.IsMatch(GridMetadata(g)) || IsEditionMismatch(g, gameName) ? 1 : 0)
+                .ThenBy(g => string.IsNullOrEmpty(g.Language) || g.Language == "en" ? 0 : 1)
+                .ThenByDescending(g => boostedGridMetadata.IsMatch(GridMetadata(g)) ? 1 : 0)
+                .ThenBy(g => GridStylePriority(g.Style))
+                .ThenByDescending(g => g.Score)
+                .ToList();
         }
 
         /// <summary>
@@ -1119,12 +1313,12 @@ namespace SteamGridDB.Xbox
         /// <param name="icons">Collection of icon artworks</param>
         private void PopulateGridSelectionPanel(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons)
         {
-            // Combine grids and icons - box-art style grids first, then remaining grids, then icons
+            // Combine grids and icons - ranked grids first (style, language, metadata), then icons
             List<SteamGridDbGrid> sortedArtworks = new List<SteamGridDbGrid>();
 
             if (grids != null && grids.Count > 0)
             {
-                sortedArtworks.AddRange(grids.OrderBy(g => GridStylePriority(g.Style)).ThenByDescending(g => g.Score));
+                sortedArtworks.AddRange(RankGrids(grids, CurrentSelectedGame?.Name));
             }
 
             if (icons != null && icons.Count > 0)
