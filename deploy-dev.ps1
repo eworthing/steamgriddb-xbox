@@ -18,8 +18,32 @@ if (-not $msbuild) { throw "MSBuild not found - is Visual Studio with the MSBuil
 $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.*\x64\signtool.exe" | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
 if (-not $signtool) { throw "signtool.exe not found - install the Windows SDK signing tools" }
 
-& $msbuild "$root\SteamGridDB.Xbox.sln" /p:Configuration=$Configuration /p:Platform=$Platform /p:AppxBundle=Never /v:minimal /nologo
-if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+# Windows only treats an install as an update - and so only keeps LocalState - when the version goes
+# up. Rebuilding the same version is refused as a reinstall (0x80073CFB), which forced an
+# uninstall and wiped applied-artwork.json and last-fix.log. So the build field is bumped for the
+# packaged copy only, and the manifest is put back afterwards to keep the working tree clean.
+# Backed up as bytes, not text: the manifest is UTF-8 with a BOM and PowerShell would drop it.
+$manifestPath = "$root\SteamGridDB.Xbox\Package.appxmanifest"
+$manifestBackup = [System.IO.File]::ReadAllBytes($manifestPath)
+
+try {
+    $manifest = [xml](Get-Content $manifestPath -Raw)
+    $version = [Version]$manifest.Package.Identity.Version
+
+    # Relative to whatever is installed, not to the source, so repeated deploys keep climbing
+    $installed = Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev | Select-Object -First 1
+    if ($installed -and [Version]$installed.Version -ge $version) { $version = [Version]$installed.Version }
+
+    $manifest.Package.Identity.Version = "{0}.{1}.{2}.0" -f $version.Major, $version.Minor, ($version.Build + 1)
+    $manifest.Save($manifestPath)
+    Write-Host "Packaging as $($manifest.Package.Identity.Version) so the install is an update, not a reinstall" -ForegroundColor DarkGray
+
+    & $msbuild "$root\SteamGridDB.Xbox.sln" /p:Configuration=$Configuration /p:Platform=$Platform /p:AppxBundle=Never /v:minimal /nologo
+    if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+}
+finally {
+    [System.IO.File]::WriteAllBytes($manifestPath, $manifestBackup)
+}
 
 $msix = Get-ChildItem "$root\SteamGridDB.Xbox\AppPackages\*_${Platform}_${Configuration}_Test\*_${Platform}_${Configuration}.msix" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
 & $signtool sign /fd SHA256 /sha1 $CertThumbprint $msix
