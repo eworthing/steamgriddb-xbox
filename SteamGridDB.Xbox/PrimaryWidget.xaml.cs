@@ -22,6 +22,7 @@ using SteamGridDB.Xbox.Models;
 using SteamGridDB.Xbox.Services.Artwork;
 using SteamGridDB.Xbox.Services.SteamGridDB;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
+using SteamGridDB.Xbox.Services.Stores;
 
 namespace SteamGridDB.Xbox
 {
@@ -101,6 +102,11 @@ namespace SteamGridDB.Xbox
         private static Dictionary<string, string> ubisoftGameLookupCache = null;
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Games found by name rather than by store ID. The library reloads on every widget open, and
+        // without this each reload would search again for the same handful of unmatched games. Misses
+        // are cached too: a miss walked the whole result list to conclude nothing matched.
+        private static readonly Dictionary<string, int> nameMatchCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private static readonly HttpClient sharedHttpClient = new HttpClient();
 
         private Button lastFocusedButton;
@@ -564,6 +570,10 @@ namespace SteamGridDB.Xbox
                                     // except Epic, where reaching for the wrong one silently breaks lookups.
                                     string externalPlatformId;
 
+                                    // Epic's other identifier. The name sources are keyed on this, while
+                                    // SteamGridDB is keyed on the appName, so both have to be kept.
+                                    string epicCatalogItemId = null;
+
                                     if (platform == GamePlatform.Custom)
                                     {
                                         gameName = entryObject.GetNamedString("title");
@@ -583,12 +593,14 @@ namespace SteamGridDB.Xbox
                                             if (parts.Length >= 3)
                                             {
                                                 externalPlatformId = parts[parts.Length - 1];
+                                                epicCatalogItemId = parts.Length >= 4 ? parts[2] : null;
                                             }
                                         }
                                     }
 
                                     bool hasSteamGridDBMatch = false;
                                     string officialCapsuleUrl = null;
+                                    int steamGridDbGameId = 0;
 
                                     // Try to fetch game name from SteamGridDB API
                                     try
@@ -638,7 +650,12 @@ namespace SteamGridDB.Xbox
                                         {
                                             if (!epicNameCache.TryGetValue(externalPlatformId, out string epicName) || string.IsNullOrEmpty(epicName))
                                             {
-                                                epicName = await GetEpicGameNameAsync(externalPlatformId);
+                                                // Epic's own install manifests first: they are local, they
+                                                // carry the real title, and they cover games the online
+                                                // database does not. The database is keyed by catalog item
+                                                // ID, not by the appName SteamGridDB wants.
+                                                epicName = await EpicLibrary.GetDisplayNameAsync(externalPlatformId, epicCatalogItemId)
+                                                    ?? await GetEpicGameNameAsync(epicCatalogItemId ?? externalPlatformId);
 
                                                 if (!string.IsNullOrEmpty(epicName))
                                                 {
@@ -664,6 +681,17 @@ namespace SteamGridDB.Xbox
                                         {
                                             // TODO: Implement EA App name fetching if possible
                                         }
+
+                                        // A name is enough to find the game even when no store ID
+                                        // matches - SteamGridDB has entries linked to no store at all.
+                                        // Custom entries are excluded: they are local executables the
+                                        // user pointed at, they never had a store lookup to fail, and
+                                        // searching them would add a request where there was none.
+                                        if (canQuerySteamGridDb && gameName != unknownName && platform != GamePlatform.Custom)
+                                        {
+                                            steamGridDbGameId = await FindGameByNameAsync(sgdbClient, gameName);
+                                            hasSteamGridDBMatch = steamGridDbGameId > 0;
+                                        }
                                     }
 
                                     // Add to temporary list instead of directly to GameEntries
@@ -679,7 +707,8 @@ namespace SteamGridDB.Xbox
                                         Image = image,
                                         HasBackup = hasBackup,
                                         HasSteamGridDBMatch = hasSteamGridDBMatch,
-                                        OfficialCapsuleUrl = officialCapsuleUrl
+                                        OfficialCapsuleUrl = officialCapsuleUrl,
+                                        SteamGridDbGameId = steamGridDbGameId
                                     });
                                 }
                             }
@@ -1020,10 +1049,9 @@ namespace SteamGridDB.Xbox
                                 StatusText.Text = $"Fixing {game.Name} ({successCount + notFoundCount + skippedCount + errorCount + 1}/{eligibleGames.Count})...";
                             });
 
-                            // Get the platform string for SteamGridDB API
-                            string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(game.Platform);
+                            ArtworkSource source = SourceFor(game);
 
-                            if (string.IsNullOrEmpty(platformString))
+                            if (source == null)
                             {
                                 System.Diagnostics.Debug.WriteLine($"Skipping {game.Name}: unsupported platform");
 
@@ -1037,9 +1065,9 @@ namespace SteamGridDB.Xbox
                             // Rank the unfiltered results client-side: tied scores are common, and the stable
                             // sort keeps SteamGridDB's canonical ordering for ties (the same image the site
                             // shows first, typically the official box art).
-                            FixLog.Write($"{game.Name} [{platformString}/{game.ExternalPlatformId}] capsule={(string.IsNullOrEmpty(game.OfficialCapsuleUrl) ? "none" : game.OfficialCapsuleUrl)}");
+                            FixLog.Write($"{game.Name} capsule={(string.IsNullOrEmpty(game.OfficialCapsuleUrl) ? "none" : game.OfficialCapsuleUrl)}");
 
-                            List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, platformString, game.ExternalPlatformId);
+                            List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, source);
 
                             if (grids == null)
                             {
@@ -1074,14 +1102,14 @@ namespace SteamGridDB.Xbox
                                     errorCount++;
                                 }
                             }
-                            else if (await TryFixFromPortraitArtAsync(client, game, platformString))
+                            else if (await TryFixFromPortraitArtAsync(client, game, source))
                             {
                                 successCount++;
                             }
                             else
                             {
                                 // No square or portrait artwork - icons are the last resort
-                                List<SteamGridDbGrid> icons = await client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+                                List<SteamGridDbGrid> icons = await client.GetSquareIconsAsync(source);
 
                                 if (icons == null)
                                 {
@@ -1514,11 +1542,11 @@ namespace SteamGridDB.Xbox
         /// </summary>
         /// <param name="client">Client to fetch with.</param>
         /// <param name="game">Game being fixed.</param>
-        /// <param name="platformString">SteamGridDB platform key.</param>
+        /// <param name="source">How to address the game's artwork.</param>
         /// <returns>True when a cropped tile was written.</returns>
-        private async Task<bool> TryFixFromPortraitArtAsync(SteamGridDbClient client, GameEntry game, string platformString)
+        private async Task<bool> TryFixFromPortraitArtAsync(SteamGridDbClient client, GameEntry game, ArtworkSource source)
         {
-            List<SteamGridDbGrid> portraits = await client.GetPortraitGridsByPlatformIdAsync(platformString, game.ExternalPlatformId);
+            List<SteamGridDbGrid> portraits = await client.GetPortraitGridsAsync(source);
 
             if (portraits == null || portraits.Count == 0)
             {
@@ -1567,23 +1595,46 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task LoadGridSelectionPanelAsync(GameEntry game)
         {
+            await LoadGridSelectionAsync(
+                SourceFor(game),
+                $"Select artwork for {game.Name} (platform: {game.Platform}, ID: {game.ExternalPlatformId})",
+                game.Name ?? $"{game.Platform} / {game.ExternalPlatformId}");
+        }
+
+        /// <summary>
+        /// Loads the artwork picker for a game found by manual search, which has no store ID.
+        /// </summary>
+        /// <param name="game">Game as SteamGridDB returned it.</param>
+        private async Task LoadGridSelectionByGameIdAsync(SteamGridDbGame game)
+        {
+            await LoadGridSelectionAsync(
+                ArtworkSource.ForGame(game.Id),
+                $"Select artwork for {game.Name} (SteamGridDB ID: {game.Id})",
+                game.Name);
+        }
+
+        /// <summary>
+        /// Shows the artwork picker for whichever way the game is addressed.
+        ///
+        /// The two entry points - a library row and a manual search result - differed only in that,
+        /// which is why they were two near-identical methods that had already drifted apart once.
+        /// </summary>
+        /// <param name="source">How to address the game's artwork, or null when it cannot be.</param>
+        /// <param name="header">Panel header.</param>
+        /// <param name="describeGame">Name to show while loading.</param>
+        private async Task LoadGridSelectionAsync(ArtworkSource source, string header, string describeGame)
+        {
             try
             {
-                // Update panel header with game info
-                GridPanelHeaderText = $"Select artwork for {game.Name} (platform: {game.Platform}, ID: {game.ExternalPlatformId})";
+                GridPanelHeaderText = header;
 
-                // Show panel with animation
                 await ShowGridPanelAsync();
 
-                // Show loading indicator
                 GridLoadingRing.IsActive = true;
                 GridImagesView.Items.Clear();
-                GridPanelStatus.Text = $"Loading artworks for {game.Name ?? $"{game.Platform} / {game.ExternalPlatformId}"}...";
+                GridPanelStatus.Text = $"Loading artworks for {describeGame}...";
 
-                // Get the platform string for SteamGridDB API
-                string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(game.Platform);
-
-                if (string.IsNullOrEmpty(platformString))
+                if (source == null)
                 {
                     GridPanelStatus.Text = "Unsupported platform";
                     GridLoadingRing.IsActive = false;
@@ -1599,12 +1650,11 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
-                // Fetch grids and icons from SteamGridDB
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
                     // Icons do not depend on the grids result, so the two round trips overlap
-                    Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsByPlatformIdAsync(platformString, game.ExternalPlatformId);
-                    List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, platformString, game.ExternalPlatformId);
+                    Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsAsync(source);
+                    List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, source);
                     List<SteamGridDbGrid> icons = await iconsTask;
 
                     if (grids == null && icons == null)
@@ -1655,6 +1705,26 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// How to address a game's artwork: by its store ID, or by SteamGridDB's own ID when the game
+        /// was found by name because no store ID matched.
+        /// </summary>
+        /// <param name="game">Game to fetch artwork for.</param>
+        /// <returns>The source, or null when the game cannot be addressed at all.</returns>
+        private static ArtworkSource SourceFor(GameEntry game)
+        {
+            if (game.SteamGridDbGameId > 0)
+            {
+                return ArtworkSource.ForGame(game.SteamGridDbGameId);
+            }
+
+            string platform = GamePlatformHelper.GamePlatformToSGDBApiString(game.Platform);
+
+            return string.IsNullOrEmpty(platform) || string.IsNullOrEmpty(game.ExternalPlatformId)
+                ? null
+                : ArtworkSource.ForPlatform(platform, game.ExternalPlatformId);
+        }
+
+        /// <summary>
         /// The square grids worth showing for a game: one page, and if that page happens to hold nothing
         /// but icon-like styles, a second request restricted to the title-bearing ones.
         ///
@@ -1663,19 +1733,18 @@ namespace SteamGridDB.Xbox
         /// already chosen from - which reads as the picker being broken.
         /// </summary>
         /// <param name="client">Client to fetch with.</param>
-        /// <param name="platform">SteamGridDB platform key.</param>
-        /// <param name="platformId">The store's own game ID.</param>
+        /// <param name="source">How to address the game's artwork.</param>
         /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
-        private static async Task<List<SteamGridDbGrid>> GetTitleBearingGridsAsync(SteamGridDbClient client, string platform, string platformId)
+        private static async Task<List<SteamGridDbGrid>> GetTitleBearingGridsAsync(SteamGridDbClient client, ArtworkSource source)
         {
-            List<SteamGridDbGrid> grids = await client.GetSquareGridsByPlatformIdAsync(platform, platformId);
+            List<SteamGridDbGrid> grids = await client.GetSquareGridsAsync(source);
 
             if (grids == null || grids.Count == 0 || grids.Any(g => GridStylePriority(g.Style) == 0))
             {
                 return grids;
             }
 
-            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsByPlatformIdAsync(platform, platformId, textBearingGridStyles);
+            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsAsync(source, textBearingGridStyles);
 
             return textBearing != null && textBearing.Count > 0 ? textBearing : grids;
         }
@@ -2113,61 +2182,6 @@ namespace SteamGridDB.Xbox
             }
         }
 
-        /// <summary>
-        /// Loads grid selection panel for a game by its SteamGridDB ID.
-        /// Reuses the existing LoadGridSelectionPanelAsync logic.
-        /// </summary>
-        private async Task LoadGridSelectionByGameIdAsync(SteamGridDbGame game)
-        {
-            try
-            {
-                // Update panel header
-                GridPanelHeaderText = $"Select artwork for {game.Name} (SteamGridDB ID: {game.Id})";
-
-                // Show panel with animation
-                await ShowGridPanelAsync();
-
-                // Show loading indicator
-                GridLoadingRing.IsActive = true;
-                GridImagesView.Items.Clear();
-                GridPanelStatus.Text = $"Loading artworks for {game.Name}...";
-
-                if (!HasSteamGridDbApiKey)
-                {
-                    GridPanelStatus.Text = "SteamGridDB API key is not set";
-                    GridLoadingRing.IsActive = false;
-
-                    return;
-                }
-
-                // Fetch grids and icons from SteamGridDB by game ID
-                using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
-                {
-                    // Independent requests, so they overlap
-                    Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsByGameIdAsync(game.Id);
-                    List<SteamGridDbGrid> grids = await client.GetSquareGridsByGameIdAsync(game.Id);
-                    List<SteamGridDbGrid> icons = await iconsTask;
-
-                    if (grids == null && icons == null)
-                    {
-                        GridPanelStatus.Text = "Could not reach SteamGridDB - try again";
-                        GridLoadingRing.IsActive = false;
-
-                        return;
-                    }
-
-                    await PopulateGridSelectionPanelAsync(grids, icons);
-                }
-
-                GridLoadingRing.IsActive = false;
-            }
-            catch (Exception ex)
-            {
-                GridPanelStatus.Text = $"Error: {ex.Message}";
-                GridLoadingRing.IsActive = false;
-                System.Diagnostics.Debug.WriteLine($"Error loading artworks: {ex.Message}");
-            }
-        }
 
         /// <summary>
         /// Shows the search panel with animation.
@@ -2457,10 +2471,68 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Fetches Epic Games Store game name from GitHub by external platform ID.
+        /// Finds a game on SteamGridDB by name, for entries whose store ID it does not recognise.
+        ///
+        /// Only an exact match after normalisation is accepted. Search returns near-misses readily -
+        /// "Alan Wake 2" also brings back Alan Wake, Alan Wake Remastered and Alan Wake's American
+        /// Nightmare - and artwork for the wrong game is worse than no artwork, because nothing about
+        /// the result says it is wrong.
         /// </summary>
-        /// <param name="epicId">The Epic Games Store ID.</param>
-        /// <returns>Game name or null if not found.</returns>
+        /// <param name="client">Client to search with.</param>
+        /// <param name="gameName">Name as the store knows it.</param>
+        /// <returns>SteamGridDB game ID, or 0 when nothing matches closely enough.</returns>
+        private static async Task<int> FindGameByNameAsync(SteamGridDbClient client, string gameName)
+        {
+            string wanted = NormaliseGameName(gameName);
+
+            if (nameMatchCache.TryGetValue(wanted, out int cached))
+            {
+                return cached;
+            }
+
+            int found = 0;
+
+            try
+            {
+                foreach (SteamGridDbGame candidate in await client.SearchGameByNameAsync(gameName))
+                {
+                    if (NormaliseGameName(candidate.Name) == wanted)
+                    {
+                        found = candidate.Id;
+
+                        break;
+                    }
+                }
+
+                nameMatchCache[wanted] = found;
+            }
+            catch (Exception ex)
+            {
+                // Not cached - a failed request should be retried, unlike a genuine miss
+                System.Diagnostics.Debug.WriteLine($"Could not search SteamGridDB for {gameName}: {ex.Message}");
+            }
+
+            return found;
+        }
+
+        /// <summary>
+        /// Reduces a title to what two stores would agree on: case, punctuation and trademark symbols
+        /// all vary between them ("Rocket League&#174;" against "Rocket League").
+        /// </summary>
+        private static string NormaliseGameName(string name)
+        {
+            return name == null
+                ? string.Empty
+                : new string(name.Where(char.IsLetterOrDigit).Select(char.ToLowerInvariant).ToArray());
+        }
+
+        /// <summary>
+        /// Fetches an Epic game's name from a community database, for games the local Epic manifests
+        /// do not cover - a title uninstalled from Epic while its Xbox entry lingers, for instance.
+        /// Keyed by catalog item ID, not by the appName SteamGridDB wants.
+        /// </summary>
+        /// <param name="epicId">Epic catalog item ID.</param>
+        /// <returns>Game name, or null when the database does not have it.</returns>
         private async Task<string> GetEpicGameNameAsync(string epicId)
         {
             try

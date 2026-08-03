@@ -114,20 +114,12 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// <returns>Game information or null.</returns>
         public async Task<SteamGridDbGame> GetGameByPlatformIdAsync(string platform, string platformId, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(platform))
-            {
-                throw new ArgumentException("Platform cannot be empty", nameof(platform));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId))
-            {
-                throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
-            }
-
             // platformdata=steam asks SteamGridDB to attach Valve's own store asset manifest, which is
             // where OfficialCapsuleUrl comes from. It rides along on the lookup the widget already makes
             // to resolve the game's name, so it costs no extra request.
-            var url = $"{baseUrl}/games/{platform}/{Uri.EscapeDataString(platformId)}?platformdata=steam";
+            // The /games/ endpoint addresses a game the same way as /grids/ and /icons/ do - but only
+            // for the platform form, so this reuses the construction rather than taking a source.
+            var url = $"{baseUrl}/games/{ArtworkSource.ForPlatform(platform, platformId).Segment}?platformdata=steam";
             var json = await GetStringAsync(url, cancellationToken);
             var response = DeserializeJson<SteamGridDbResponse<SteamGridDbGame>>(json);
 
@@ -160,9 +152,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                     return null;
                 }
 
-                JsonObject data = NamedObject(root, "data");
-                JsonObject platformData = NamedObject(data, "external_platform_data");
-                JsonArray steamEntries = NamedArray(platformData, "steam");
+                JsonObject data = JsonRead.Object(root, "data");
+                JsonObject platformData = JsonRead.Object(data, "external_platform_data");
+                JsonArray steamEntries = JsonRead.Array(platformData, "steam");
 
                 if (steamEntries == null || steamEntries.Count == 0)
                 {
@@ -172,8 +164,8 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 }
 
                 JsonObject entry = steamEntries.GetObjectAt(0);
-                string appId = NamedString(entry, "id");
-                JsonObject metadata = NamedObject(entry, "metadata");
+                string appId = JsonRead.String(entry, "id");
+                JsonObject metadata = JsonRead.Object(entry, "metadata");
 
                 if (string.IsNullOrEmpty(appId) || metadata == null)
                 {
@@ -183,10 +175,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 }
 
                 // Prefer the 2x capsule, then the 1x, then the store header
-                JsonObject capsule = NamedObject(metadata, "library_capsule_full");
-                string path = FirstLocalisedValue(NamedObject(capsule, "image2x"))
-                    ?? FirstLocalisedValue(NamedObject(capsule, "image"))
-                    ?? FirstLocalisedValue(NamedObject(metadata, "header_image_full"));
+                JsonObject capsule = JsonRead.Object(metadata, "library_capsule_full");
+                string path = FirstLocalisedValue(JsonRead.Object(capsule, "image2x"))
+                    ?? FirstLocalisedValue(JsonRead.Object(capsule, "image"))
+                    ?? FirstLocalisedValue(JsonRead.Object(metadata, "header_image_full"));
 
                 if (string.IsNullOrEmpty(path))
                 {
@@ -207,50 +199,6 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         /// <summary>
-        /// Named lookups that tolerate a key being absent, explicitly null, or the wrong type.
-        ///
-        /// Windows.Data.Json's own defaulting overloads only substitute the default when the key is
-        /// missing. A key that is present and JSON null throws InvalidOperationException, and
-        /// GetNamedString additionally rejects a null default outright, because its fallback crosses
-        /// the WinRT boundary as an HSTRING. Both cases threw here and the catch turned them into
-        /// "Valve has no artwork for this game" - which is real for some games, so a bug that hit
-        /// every game looked exactly like the truth.
-        /// </summary>
-        /// <param name="source">Object to read from, or null.</param>
-        /// <param name="name">Member to read.</param>
-        private static JsonObject NamedObject(JsonObject source, string name)
-        {
-            IJsonValue value = NamedValue(source, name);
-
-            return value?.ValueType == JsonValueType.Object ? value.GetObject() : null;
-        }
-
-        /// <summary>
-        /// As <see cref="NamedObject"/>, for arrays.
-        /// </summary>
-        private static JsonArray NamedArray(JsonObject source, string name)
-        {
-            IJsonValue value = NamedValue(source, name);
-
-            return value?.ValueType == JsonValueType.Array ? value.GetArray() : null;
-        }
-
-        /// <summary>
-        /// As <see cref="NamedObject"/>, for strings.
-        /// </summary>
-        private static string NamedString(JsonObject source, string name)
-        {
-            IJsonValue value = NamedValue(source, name);
-
-            return value?.ValueType == JsonValueType.String ? value.GetString() : null;
-        }
-
-        private static IJsonValue NamedValue(JsonObject source, string name)
-        {
-            return source != null && source.ContainsKey(name) ? source[name] : null;
-        }
-
-        /// <summary>
         /// Returns the first value of a {language: path} map, preferring English when it is present.
         /// </summary>
         private static string FirstLocalisedValue(JsonObject localised)
@@ -260,7 +208,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
                 return null;
             }
 
-            string preferred = NamedString(localised, "english") ?? NamedString(localised, "en");
+            string preferred = JsonRead.String(localised, "english") ?? JsonRead.String(localised, "en");
 
             if (preferred != null)
             {
@@ -279,156 +227,39 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         /// <summary>
-        /// Gets grids (box art) for a game by platform ID.
+        /// Gets square box art, the shape the Xbox tile needs.
         /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="dimensions">Preferred dimensions (e.g., new[] { "600x900", "920x430" }). Use null for all sizes.</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "alternate", "white_logo" }). Use null for all styles.</param>
+        /// <param name="source">Which game to fetch for.</param>
+        /// <param name="styles">Styles to filter by, or null for all.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available grids.</returns>
-        public async Task<List<SteamGridDbGrid>> GetGridsByPlatformIdAsync(string platform, string platformId, string[] dimensions = null, string[] styles = null, CancellationToken cancellationToken = default)
+        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
+        public async Task<List<SteamGridDbGrid>> GetSquareGridsAsync(ArtworkSource source, string[] styles = null, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(platform))
-            {
-                throw new ArgumentException("Platform cannot be empty", nameof(platform));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId))
-            {
-                throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
-            }
-
-            var url = BuildUrl($"grids/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
-            return await GetArtworkListAsync(url, cancellationToken);
+            return await GetArtworkListAsync(BuildUrl($"grids/{source.Segment}", squareGridDimensions, styles), cancellationToken);
         }
 
         /// <summary>
-        /// Gets square grids (box art) for a game by platform ID - convenience method.
+        /// Gets portrait box art, used only when a game has no square artwork at all. Cropped to a
+        /// square before it becomes a tile.
         /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="styles">Styles to filter by. Use null for all styles.</param>
+        /// <param name="source">Which game to fetch for.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of square grids only.</returns>
-        public async Task<List<SteamGridDbGrid>> GetSquareGridsByPlatformIdAsync(string platform, string platformId, string[] styles = null, CancellationToken cancellationToken = default)
+        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
+        public async Task<List<SteamGridDbGrid>> GetPortraitGridsAsync(ArtworkSource source, CancellationToken cancellationToken = default)
         {
-            return await GetGridsByPlatformIdAsync(platform, platformId, squareGridDimensions, styles, cancellationToken);
+            return await GetArtworkListAsync(BuildUrl($"grids/{source.Segment}", portraitGridDimensions, null), cancellationToken);
         }
 
         /// <summary>
-        /// Gets grids (box art) for a game by SteamGridDB game ID.
+        /// Gets icons, the last resort when a game has no box art in any shape.
         /// </summary>
-        /// <param name="gameId">SteamGridDB game ID.</param>
-        /// <param name="dimensions">Preferred dimensions (e.g., new[] { "600x900", "920x430" }). Use null for all sizes.</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "alternate", "white_logo" }). Use null for all styles.</param>
+        /// <param name="source">Which game to fetch for.</param>
+        /// <param name="styles">Styles to filter by, or null for all.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available grids.</returns>
-        public async Task<List<SteamGridDbGrid>> GetGridsByGameIdAsync(int gameId, string[] dimensions = null, string[] styles = null, CancellationToken cancellationToken = default)
+        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
+        public async Task<List<SteamGridDbGrid>> GetSquareIconsAsync(ArtworkSource source, string[] styles = null, CancellationToken cancellationToken = default)
         {
-            if (gameId <= 0)
-            {
-                throw new ArgumentException("Game ID must be greater than 0", nameof(gameId));
-            }
-
-            var url = BuildUrl($"grids/game/{gameId}", dimensions, styles);
-            return await GetArtworkListAsync(url, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets square grids (box art) for a game by SteamGridDB game ID - convenience method.
-        /// </summary>
-        /// <param name="gameId">SteamGridDB game ID.</param>
-        /// <param name="styles">Styles to filter by. Use null for all styles.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of square grids only.</returns>
-        public async Task<List<SteamGridDbGrid>> GetSquareGridsByGameIdAsync(int gameId, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            return await GetGridsByGameIdAsync(gameId, squareGridDimensions, styles, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets icons for a game by platform ID.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="dimensions">Preferred dimensions (e.g., new[] { "32", "64", "128" }). Use null for all sizes.</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "official", "custom" }). Use null for all styles.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available icons.</returns>
-        public async Task<List<SteamGridDbGrid>> GetIconsByPlatformIdAsync(string platform, string platformId, string[] dimensions = null, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            if (string.IsNullOrWhiteSpace(platform))
-            {
-                throw new ArgumentException("Platform cannot be empty", nameof(platform));
-            }
-
-            if (string.IsNullOrWhiteSpace(platformId))
-            {
-                throw new ArgumentException("Platform ID cannot be empty", nameof(platformId));
-            }
-
-            var url = BuildUrl($"icons/{platform}/{Uri.EscapeDataString(platformId)}", dimensions, styles);
-            return await GetArtworkListAsync(url, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets portrait box art for a game by platform ID - the shapes SteamGridDB uses for store
-        /// capsules. Only useful once cropped to a square; see the tile crop in the widget.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, egs, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of portrait grids, empty when there are none, null when the request failed.</returns>
-        public async Task<List<SteamGridDbGrid>> GetPortraitGridsByPlatformIdAsync(string platform, string platformId, CancellationToken cancellationToken = default)
-        {
-            return await GetGridsByPlatformIdAsync(platform, platformId, portraitGridDimensions, null, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets square icons for a game by platform ID - convenience method.
-        /// Icons are typically square, but this ensures only 1:1 ratio icons are returned.
-        /// </summary>
-        /// <param name="platform">Platform type (steam, gog, epic, etc).</param>
-        /// <param name="platformId">Platform-specific game ID.</param>
-        /// <param name="styles">Styles to filter by. Use null for all styles.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of square icons only.</returns>
-        public async Task<List<SteamGridDbGrid>> GetSquareIconsByPlatformIdAsync(string platform, string platformId, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            return await GetIconsByPlatformIdAsync(platform, platformId, squareIconDimensions, styles, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets icons for a game by SteamGridDB game ID.
-        /// </summary>
-        /// <param name="gameId">SteamGridDB game ID.</param>
-        /// <param name="dimensions">Preferred dimensions (e.g., new[] { "32", "64", "128" }). Use null for all sizes.</param>
-        /// <param name="styles">Styles to filter by (e.g., new[] { "official", "custom" }). Use null for all styles.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of available icons.</returns>
-        public async Task<List<SteamGridDbGrid>> GetIconsByGameIdAsync(int gameId, string[] dimensions = null, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            if (gameId <= 0)
-            {
-                throw new ArgumentException("Game ID must be greater than 0", nameof(gameId));
-            }
-
-            var url = BuildUrl($"icons/game/{gameId}", dimensions, styles);
-            return await GetArtworkListAsync(url, cancellationToken);
-        }
-
-        /// <summary>
-        /// Gets square icons for a game by SteamGridDB game ID - convenience method.
-        /// Icons are typically square, but this ensures only 1:1 ratio icons are returned.
-        /// </summary>
-        /// <param name="gameId">SteamGridDB game ID.</param>
-        /// <param name="styles">Styles to filter by. Use null for all styles.</param>
-        /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of square icons only.</returns>
-        public async Task<List<SteamGridDbGrid>> GetSquareIconsByGameIdAsync(int gameId, string[] styles = null, CancellationToken cancellationToken = default)
-        {
-            return await GetIconsByGameIdAsync(gameId, squareIconDimensions, styles, cancellationToken);
+            return await GetArtworkListAsync(BuildUrl($"icons/{source.Segment}", squareIconDimensions, styles), cancellationToken);
         }
 
         /// <summary>

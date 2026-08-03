@@ -123,7 +123,10 @@
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbResponse.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbAuthor.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbGame.cs" />
+    <Compile Include="Services\JsonRead.cs" />
+    <Compile Include="Services\SteamGridDB\ArtworkSource.cs" />
     <Compile Include="Services\SteamGridDB\SteamGridDbClient.cs" />
+    <Compile Include="Services\Stores\EpicLibrary.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">

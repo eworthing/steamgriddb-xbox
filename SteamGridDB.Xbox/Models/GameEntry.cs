@@ -135,6 +135,15 @@ namespace SteamGridDB.Xbox.Models
             get; set;
         }
 
+        /// <summary>
+        /// SteamGridDB's own ID for this game, set when it was found by name because no store ID
+        /// matched. Zero otherwise, in which case artwork is fetched by store ID.
+        /// </summary>
+        public int SteamGridDbGameId
+        {
+            get; set;
+        }
+
         // Edit button visible when there is a match
         public Visibility EditButtonVisibility => HasSteamGridDBMatch ? Visibility.Visible : Visibility.Collapsed;
 
