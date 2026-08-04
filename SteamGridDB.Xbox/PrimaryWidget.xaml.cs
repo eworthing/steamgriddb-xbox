@@ -596,17 +596,9 @@ namespace SteamGridDB.Xbox
                                     {
                                         if (platform == GamePlatform.GOG)
                                         {
-                                            if (!StoreNameLookup.gogNameCache.TryGetValue(externalPlatformId, out string gogName) || string.IsNullOrEmpty(gogName))
-                                            {
-                                                gogName = await StoreNameLookup.GetGogGameNameAsync(externalPlatformId);
+                                            string gogName = await StoreNameLookup.GetOrFetchGogNameAsync(externalPlatformId);
 
-                                                if (!string.IsNullOrEmpty(gogName))
-                                                {
-                                                    StoreNameLookup.gogNameCache[externalPlatformId] = gogName;
-                                                    gameName = gogName;
-                                                }
-                                            }
-                                            else
+                                            if (!string.IsNullOrEmpty(gogName))
                                             {
                                                 gameName = gogName;
                                             }

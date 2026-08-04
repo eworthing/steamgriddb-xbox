@@ -22,9 +22,10 @@ namespace SteamGridDB.Xbox.Services.Stores
     /// </summary>
     internal static class StoreNameLookup
     {
-        // GOG/Epic name caches. LoadGameEntriesAsync in PrimaryWidget owns the "is this cached"
-        // decision and reads/writes these directly, so they are internal rather than private.
-        internal static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        // GOG's cache is now private: GetOrFetchGogNameAsync below owns the "is this cached"
+        // decision. Epic's cache is still internal - LoadGameEntriesAsync in PrimaryWidget owns that
+        // decision directly, pending the same fold (see Deepening Candidates in CURRENT_REVIEW.md).
+        private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         internal static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Games found by name rather than by store ID. Misses are cached too: a miss walked the
@@ -74,6 +75,30 @@ namespace SteamGridDB.Xbox.Services.Stores
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Resolves a GOG game's name, using the cached value when one is on file. An empty cached
+        /// value is treated the same as a miss and retried - the cache is only ever written on a
+        /// successful fetch below, so this only matters if that invariant is ever relaxed.
+        /// </summary>
+        /// <param name="gogId">The GOG game ID.</param>
+        /// <returns>Game name, or null when GOG has none for it.</returns>
+        internal static async Task<string> GetOrFetchGogNameAsync(string gogId)
+        {
+            if (gogNameCache.TryGetValue(gogId, out string cached) && !string.IsNullOrEmpty(cached))
+            {
+                return cached;
+            }
+
+            string name = await GetGogGameNameAsync(gogId);
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                gogNameCache[gogId] = name;
+            }
+
+            return name;
         }
 
         /// <summary>
