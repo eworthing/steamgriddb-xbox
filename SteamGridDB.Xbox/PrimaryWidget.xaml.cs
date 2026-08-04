@@ -40,8 +40,6 @@ namespace SteamGridDB.Xbox
             @"AppData\Local\Packages\Microsoft.GamingApp_8wekyb3d8bbwe\LocalState\ThirdPartyLibraries");
         private const string unknownName = "Unknown";
         private const string imageExtension = ".png";
-        private const string backupImageExtension = ".bak";
-        private const string newImageExtension = ".new";
         private const string manifestFileExtension = ".manifest";
         private const string busyStatusText = "Another library operation is still running - please wait for it to finish";
 
@@ -232,17 +230,6 @@ namespace SteamGridDB.Xbox
             RestoreChangesButton.IsEnabled = enabled;
             RevertDefaultsButton.IsEnabled = enabled;
             RefreshButton.IsEnabled = enabled;
-        }
-
-        /// <summary>
-        /// Returns the name a sibling artefact (.bak/.new) takes for the given image file.
-        /// Path.ChangeExtension rather than a string replace: a replace rewrites every occurrence of
-        /// ".png" in the name and silently does nothing for images that are not .png at all, which
-        /// would make the backup name equal the image name and overwrite the original unrecoverably.
-        /// </summary>
-        private static string GetSiblingFileName(string imageFileName, string extension)
-        {
-            return Path.ChangeExtension(imageFileName, extension);
         }
 
         /// <summary>
@@ -489,22 +476,9 @@ namespace SteamGridDB.Xbox
                                     }
 
                                     string imageFileName = Path.GetFileName(imageFilePath);
-                                    string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
 
                                     BitmapImage image = null;
-                                    bool hasBackup = false;
-
-                                    // Check if backup exists
-                                    try
-                                    {
-                                        await imageFolder.GetFileAsync(backupFileName);
-
-                                        hasBackup = true;
-                                    }
-                                    catch (FileNotFoundException)
-                                    {
-                                        // Backup doesn't exist, that's okay
-                                    }
+                                    bool hasBackup = await ArtworkFiles.HasBackupAsync(imageFolder, imageFileName);
 
                                     try
                                     {
@@ -1163,15 +1137,7 @@ namespace SteamGridDB.Xbox
                             StatusText.Text = $"Restoring {gameName} ({successCount + noArtworkCount + errorCount + 1}/{uniqueGames.Count})...";
                         });
 
-                        string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
-
-                        StorageFile newFile;
-
-                        try
-                        {
-                            newFile = await game.ImageFolder.GetFileAsync(newFileName);
-                        }
-                        catch (FileNotFoundException)
+                        if (await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName) == ArtworkFiles.ReapplyOutcome.NothingSaved)
                         {
                             noArtworkCount++;
                             System.Diagnostics.Debug.WriteLine($"Skipping {gameName} for restoration: corresponding .new file not found");
@@ -1179,11 +1145,7 @@ namespace SteamGridDB.Xbox
                             continue;
                         }
 
-                        var imageBytes = await FileIO.ReadBufferAsync(newFile);
-
-                        StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-                        await FileIO.WriteBufferAsync(imageFile, imageBytes);
-
+                        StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                         BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
                         await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
@@ -1249,57 +1211,15 @@ namespace SteamGridDB.Xbox
         {
             try
             {
-                // Generate the filenames
                 string imageFileName = Path.GetFileName(game.ImageFilePath);
-                string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
-                string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
 
-                // Create backup of ORIGINAL image ONLY if backup doesn't already exist
-                bool backupExists = false;
-
-                try
-                {
-                    await game.ImageFolder.GetFileAsync(backupFileName);
-
-                    backupExists = true;
-                }
-                catch (FileNotFoundException)
-                {
-                    // Backup doesn't exist, create it from current image
-                    try
-                    {
-                        StorageFile existingImageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-
-                        // Backup the ORIGINAL image by copying to preserve it
-                        StorageFile backupFile = await game.ImageFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
-                        var existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
-
-                        await FileIO.WriteBufferAsync(backupFile, existingBuffer);
-
-                        backupExists = true;
-                    }
-                    catch (FileNotFoundException)
-                    {
-                        // No existing image to backup
-                    }
-                }
-
-                // The Xbox app names every tile .png and we cannot rename its files, so anything that
-                // is not already a PNG is re-encoded rather than written under a lying extension
-                IBuffer tileBytes = await TileImage.EnsurePngAsync(imageBytes);
-
-                // Save the new image (replaces current)
-                StorageFile imageFile = await game.ImageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBufferAsync(imageFile, tileBytes);
-
-                // Save a copy of the new image as .new file
-                StorageFile newFile = await game.ImageFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBufferAsync(newFile, tileBytes);
+                bool backupExists = await ArtworkFiles.ApplyAsync(game.ImageFolder, imageFileName, imageBytes);
 
                 // Nothing on disk says which artwork a tile came from, so remember it
                 await AppliedArtworkStore.SetAsync(game.ImageFilePath, appliedArtworkId);
 
                 // Reload the image in the UI
+                StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                 BitmapImage newImage = await CreateThumbnailAsync(imageFile);
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
@@ -2138,19 +2058,10 @@ namespace SteamGridDB.Xbox
         {
             string imageFileName = Path.GetFileName(game.ImageFilePath);
             string backupGameName = game.Name != unknownName ? game.Name : imageFileName;
-            string backupFileName = GetSiblingFileName(imageFileName, backupImageExtension);
-            string newFileName = GetSiblingFileName(imageFileName, newImageExtension);
 
             try
             {
-                // Locate the backup first so a missing backup never leaves the game without an image
-                StorageFile backupFile;
-
-                try
-                {
-                    backupFile = await game.ImageFolder.GetFileAsync(backupFileName);
-                }
-                catch (FileNotFoundException)
+                if (await ArtworkFiles.RestoreOriginalAsync(game.ImageFolder, imageFileName) == ArtworkFiles.RestoreOutcome.BackupMissing)
                 {
                     if (updateStatusText)
                     {
@@ -2162,22 +2073,6 @@ namespace SteamGridDB.Xbox
 
                     return RestoreBackupResult.BackupMissing;
                 }
-
-                // Delete saved customisation if it exists
-                try
-                {
-                    StorageFile newImageFile = await game.ImageFolder.GetFileAsync(newFileName);
-
-                    await newImageFile.DeleteAsync();
-                }
-                catch (FileNotFoundException)
-                {
-                    // Saved customisation doesn't exist, that's okay
-                }
-
-                // Rename backup to become the main image. ReplaceExisting overwrites the current image,
-                // so it is never deleted up front - a failed rename would leave the game with no image.
-                await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
 
                 // The Xbox app's own artwork is back, so no SteamGridDB artwork applies any more
                 await AppliedArtworkStore.ClearAsync(game.ImageFilePath);
