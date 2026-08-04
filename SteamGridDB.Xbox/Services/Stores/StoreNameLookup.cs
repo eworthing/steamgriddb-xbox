@@ -22,11 +22,10 @@ namespace SteamGridDB.Xbox.Services.Stores
     /// </summary>
     internal static class StoreNameLookup
     {
-        // GOG's cache is now private: GetOrFetchGogNameAsync below owns the "is this cached"
-        // decision. Epic's cache is still internal - LoadGameEntriesAsync in PrimaryWidget owns that
-        // decision directly, pending the same fold (see Deepening Candidates in CURRENT_REVIEW.md).
+        // Both caches are private: GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync below each own
+        // the "is this cached" decision for their store, matching GetUbisoftGameNameAsync's shape.
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        internal static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         // Games found by name rather than by store ID. Misses are cached too: a miss walked the
         // whole result list to conclude nothing matched.
@@ -190,6 +189,36 @@ namespace SteamGridDB.Xbox.Services.Stores
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Resolves an Epic game's name, using the cached value when one is on file. Tries Epic's own
+        /// install manifests first, then the community database, matching the order
+        /// LoadGameEntriesAsync used inline before this fold. An empty cached value is treated the
+        /// same as a miss and retried - the cache is only ever written on a successful fetch below.
+        /// </summary>
+        /// <param name="appName">Epic app name - the last segment of the Xbox entry ID. Also the cache key.</param>
+        /// <param name="catalogItemId">Epic catalog item ID - the third segment, or null when absent.</param>
+        /// <returns>Game name, or null when neither source has it.</returns>
+        internal static async Task<string> GetOrFetchEpicNameAsync(string appName, string catalogItemId)
+        {
+            if (epicNameCache.TryGetValue(appName, out string cached) && !string.IsNullOrEmpty(cached))
+            {
+                return cached;
+            }
+
+            // Epic's own install manifests first: they are local, they carry the real title, and they
+            // cover games the online database does not. The database is keyed by catalog item ID, not
+            // by the appName SteamGridDB wants.
+            string name = await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
+                ?? await GetEpicGameNameAsync(catalogItemId ?? appName);
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                epicNameCache[appName] = name;
+            }
+
+            return name;
         }
 
         /// <summary>

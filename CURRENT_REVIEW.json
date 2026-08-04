@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "loop": 4,
+  "loop": 5,
   "loop_cap": 10,
   "state": "CONTINUE",
   "halt_subtype": null,
@@ -26,12 +26,12 @@
   "findings_registry_path": "./findings_registry.json",
   "discovery": null,
   "verdict": "Promising, but architecturally immature",
-  "verdict_explanation": "This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) - F1's core claim is unchanged from loop 3. Instead it closed the GOG slice of the split-cache-ownership residual loop 3 left in Services/Stores/StoreNameLookup.cs, after the primary ask (backup/restore extraction) failed the Simplify Pressure Test's smallest-honest-fix bar without a test oracle. F1, F-003, and F-004 all remain open.",
+  "verdict_explanation": "This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) - F1's core claim is unchanged from loop 4. Instead it closed the Epic slice of the split-cache-ownership residual in Services/Stores/StoreNameLookup.cs, mirroring loop 4's already-approved GOG fix exactly and fully closing the cluster. F1, F-003, and F-004 all remain open.",
   "scorecard": {
     "architecture_quality": {
       "score": 5.5,
       "delta": "SAME",
-      "proof": "PrimaryWidget.xaml.cs is 2,291 LOC (down 8 lines from 2,299, all from the GOG cache-check block shrinking to a 4-line call) - not a reduction in merged-concern count. F1's core claim (UI event handling, backup/restore orchestration still merged with no Interface boundary) is completely unaffected by this loop's fix, which targeted a narrower, already-extracted module (StoreNameLookup), not the god-class itself.",
+      "proof": "PrimaryWidget.xaml.cs is 2,278 LOC (down 13 lines from 2,291, all from the Epic cache-check block shrinking to a short call-and-assign) - not a reduction in merged-concern count. F1's core claim (UI event handling, backup/restore orchestration still merged with no Interface boundary) is completely unaffected by this loop's fix, which targeted a narrower, already-extracted module (StoreNameLookup), not the god-class itself.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -40,7 +40,7 @@
     "state_management": {
       "score": 6.5,
       "delta": "SAME",
-      "proof": "The Authority Map's Store-name-resolution-caches concern was already \"Single and clear\" before this loop (one writer per cache, no ambiguity) - this loop closed a Locality/Interface-coherence gap for that concern, not a write-authority correctness defect, so this dimension does not move. isLibraryOperationRunning and AppliedArtworkStore.applied remain unchanged.",
+      "proof": "The Authority Map's Store-name-resolution-caches concern was already \"Single and clear\" before this loop (epicNameCache had exactly one writer, PrimaryWidget.LoadGameEntriesAsync, both before and after) - this loop closed a Locality/Interface-coherence gap for that concern, not a write-authority correctness defect, so this dimension does not move. isLibraryOperationRunning and AppliedArtworkStore.applied remain unchanged.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -58,7 +58,7 @@
     "data_flow": {
       "score": 6.0,
       "delta": "SAME",
-      "proof": "This loop's fix is entirely in-process reorganisation within an already-relocated module (StoreNameLookup, moved out of PrimaryWidget in loop 3) - no dependency moved, no new port introduced, no call site outside StoreNameLookup gained or lost a dependency it didn't already have. Not scored up for the same diff that earns the Code simplicity credit, per loop 3's own scorecard-humility caution about double-counting.",
+      "proof": "This loop's fix is entirely in-process reorganisation within an already-relocated module (StoreNameLookup). PrimaryWidget's direct call count into Services/Stores for the Epic path dropped from three call sites to one, but that is the same shape of evidence loop 4 deliberately credited to code_simplicity, not data_flow, for the identical GOG fix, to avoid double-counting one diff across two dimensions. Staying consistent with that established convention rather than re-litigating the judgment call (see Builder Notes scorecard-humility item 2).",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -76,16 +76,16 @@
     "concurrency": {
       "score": 5.5,
       "delta": "SAME",
-      "proof": "Unaffected by this loop's change. F-003's fully sequential per-game round-trips (PrimaryWidget.xaml.cs:324-733) remain open. gogNameCache is still a plain, non-thread-safe Dictionary after this loop - narrowing its visibility to private changed nothing about its thread-safety.",
+      "proof": "Unaffected by this loop's change. F-003's fully sequential per-game round-trips (PrimaryWidget.xaml.cs:324-720) remain open. epicNameCache is still a plain, non-thread-safe Dictionary after this loop - narrowing its visibility to private changed nothing about its thread-safety, same as gogNameCache last loop.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
       "unverifiable_due_to_build_failure": false
     },
     "simplicity": {
-      "score": 6.5,
+      "score": 7.0,
       "delta": "UP",
-      "proof": "StoreNameLookup.GetOrFetchGogNameAsync (StoreNameLookup.cs:87-102, new this loop) now owns the full check-cache/fetch/populate decision for GOG names in one place, matching the shape GetUbisoftGameNameAsync already used. The call site in PrimaryWidget.xaml.cs shrank from a 17-line inline cache-check/fetch/populate block to a 4-line call-and-assign (:599-604). gogNameCache moved from internal back to private (StoreNameLookup.cs:28) now that only StoreNameLookup itself touches it - Interface now >> Implementation for this slice, closing the shallow-module gap Finding #1's loop-3 evidence named. Not a bigger jump: the identical gap for Epic's cache is untouched, and F1's dominant concerns are untouched.",
+      "proof": "StoreNameLookup.GetOrFetchEpicNameAsync (StoreNameLookup.cs:203-222, new this loop) now owns the full check-cache/fetch/populate decision for Epic names, mirroring GetOrFetchGogNameAsync's shape exactly and preserving the two-source fallback order. The call site in PrimaryWidget.xaml.cs shrank from a 20-line inline block (:606-627 before this loop) to a 7-line call-and-assign (:606-612 now). epicNameCache moved from internal back to private (StoreNameLookup.cs:28). This closes the last remaining instance of the shallow-module gap Finding #1's evidence has tracked since loop 3: all four StoreNameLookup caches now share the same Interface-owns-the-decision shape. Same magnitude of structural proof as loop 4's GOG move, applied to the matching residual instance - not a bigger jump: F1's dominant concerns (UI handling, backup/restore) remain untouched.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -94,7 +94,7 @@
     "test_strategy": {
       "score": 3.0,
       "delta": "SAME",
-      "proof": "No test project exists; standing user instruction prohibits adding one this run. Verified unchanged this loop. Named, non-backlog-item blocker, as recorded loops 1-3.",
+      "proof": "No test project exists; standing user instruction prohibits adding one this run. Verified unchanged this loop. Named, non-backlog-item blocker, as recorded loops 1-4.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -103,7 +103,7 @@
     "credibility": {
       "score": 5.5,
       "delta": "SAME",
-      "proof": "GetGogGameNameAsync's own failure handling (StoreNameLookup.cs:71-75, swallows via Debug.WriteLine only) is untouched by this loop - the new GetOrFetchGogNameAsync wrapper adds no new error handling and introduces no new swallow site, so the cited weakness neither improves nor regresses.",
+      "proof": "GetOrFetchEpicNameAsync introduces no new swallow site - it has no try/catch of its own, relying on EpicLibrary.GetDisplayNameAsync and StoreNameLookup.GetEpicGameNameAsync's existing internal catches, exactly matching GetOrFetchGogNameAsync's shape. GetGogGameNameAsync's own failure handling (StoreNameLookup.cs:70-74, swallows via Debug.WriteLine only) is untouched. Neither improves nor regresses this dimension.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -132,17 +132,17 @@
     {
       "concern": "Store-name resolution caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache)",
       "owner": "Services/Stores/StoreNameLookup",
-      "allowed_writers": ["StoreNameLookup.GetOrFetchGogNameAsync (gogNameCache, private - changed this loop)", "PrimaryWidget.LoadGameEntriesAsync (epicNameCache, direct field access - unchanged)", "StoreNameLookup.FindGameByNameAsync/.LoadUbisoftGameListAsync (nameMatchCache/ubisoftGameLookupCache, private, unchanged)"],
+      "allowed_writers": ["StoreNameLookup.GetOrFetchGogNameAsync (gogNameCache, private, closed loop 4)", "StoreNameLookup.GetOrFetchEpicNameAsync (epicNameCache, private - changed this loop; was PrimaryWidget.LoadGameEntriesAsync writing the field directly)", "StoreNameLookup.FindGameByNameAsync/.LoadUbisoftGameListAsync (nameMatchCache/ubisoftGameLookupCache, private, unchanged)"],
       "readers": ["same methods (TryGetValue before writing)"],
       "persistence_seam": null,
-      "async_mutation_entry_points": ["GetOrFetchGogNameAsync (GOG, now internal to StoreNameLookup)", "LoadGameEntriesAsync per-entry body (Epic only, now)", "StoreNameLookup's own methods (nameMatch/Ubisoft)"],
+      "async_mutation_entry_points": ["GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync (both now fully internal to StoreNameLookup)", "StoreNameLookup's own methods (nameMatch/Ubisoft)"],
       "verdict": "Single and clear"
     }
   ],
   "strengths": [
     "ArtworkSource's private-constructor-plus-factory-method design (Services/SteamGridDB/ArtworkSource.cs:15-51) makes \"neither a platform-ID nor a game-ID\" unrepresentable - a genuine smart-constructor, not decoration. Re-verified unchanged this loop.",
-    "The official-artwork gate (FindOfficialLookalikeAsync, PrimaryWidget.xaml.cs:1428-1499) is a narrow, evidence-tuned veto whose code comments cite the specific regression case and slack margin that motivated it. Re-verified unchanged this loop (line numbers shifted by -8 from this loop's edit near the top of the store-name-resolution block; content unaffected).",
-    "StoreNameLookup.GetOrFetchGogNameAsync (new this loop) mirrors the exact check-cache/fetch/populate shape GetUbisoftGameNameAsync already used in the same file, rather than inventing a new caching idiom - one fewer shape for a future contributor to choose between when Epic's equivalent gets the same treatment."
+    "The official-artwork gate (FindOfficialLookalikeAsync, PrimaryWidget.xaml.cs:1415-1486) is a narrow, evidence-tuned veto whose code comments cite the specific regression case and slack margin that motivated it. Re-verified unchanged this loop (line numbers shifted by -13 from this loop's edit earlier in the store-name-resolution block; content unaffected).",
+    "StoreNameLookup.GetOrFetchEpicNameAsync (new this loop) completes the fold: all four of the module's caches now share the identical check-cache/fetch/populate ownership shape, and zero external code reaches into a StoreNameLookup field directly any more."
   ],
   "findings": [
     {
@@ -151,25 +151,25 @@
       "id": "F1",
       "title": "PrimaryWidget.xaml.cs still merges UI event handling and backup/restore orchestration behind zero Interface boundary",
       "why_it_matters": "The churn-flagged god-class (21 edits, still the largest file in the repo) continues to bundle two structurally distinct concerns with no Module boundary between them, so a change to either risks touching the other.",
-      "what_is_wrong": "UI event handling (the *_Click handlers, grid/search panel management, artwork download/replace flow) and backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, the RestoreBackupResult enum) remain private members on one 2,291-line Page-derived class with no Interface separating them. This loop closed the GOG slice of the split-cache-ownership residual loop 3 left behind: StoreNameLookup.GetOrFetchGogNameAsync now owns the full check-cache/fetch/populate decision for GOG names, and gogNameCache is private again. The Epic slice (epicNameCache, still internal, still written directly by PrimaryWidget.LoadGameEntriesAsync) remains open. This fix does not touch the file's two dominant merged concerns (UI event handling, backup/restore orchestration) at all - F1's core claim is unchanged from loop 3.",
+      "what_is_wrong": "UI event handling (the *_Click handlers, grid/search panel management, artwork download/replace flow) and backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, the RestoreBackupResult enum) remain private members on one 2,278-line Page-derived class with no Interface separating them. This loop closed the Epic slice of the split-cache-ownership residual loop 4 left behind: StoreNameLookup.GetOrFetchEpicNameAsync now owns the full check-cache/fetch/populate decision for Epic names, mirroring GetOrFetchGogNameAsync, and epicNameCache is private again. All four StoreNameLookup caches (GOG, Epic, name-match, Ubisoft) are now fully owned by the module itself - the split-cache-ownership residual is fully closed. This fix does not touch the file's two dominant merged concerns (UI event handling, backup/restore orchestration) at all - F1's core claim is unchanged from loop 4.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2150-2233 (RestoreBackupCoreAsync - backup/restore orchestration, still inline)",
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:87-102 (new this loop - GetOrFetchGogNameAsync owns GOG's cache decision; gogNameCache narrowed to private at :28)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:608-620 (epicNameCache still internal, still read/written directly by LoadGameEntriesAsync - the unclosed half of the split-cache-ownership residual)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2137-2220 (RestoreBackupCoreAsync - backup/restore orchestration, still inline)",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:203-222 (new this loop - GetOrFetchEpicNameAsync owns Epic's cache decision; epicNameCache narrowed to private at :28)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:722-858 (RefreshButton_Click through RevertDefaultsButton_Click - UI event handlers invoking orchestration methods directly on the same class, no Interface between them)"
       ],
       "test_failed": "n/a",
       "dependency_category": null,
       "leverage_impact": "Every future backup/restore fix or UI change still touches the same file; a maintainer touching either risks disturbing the other via shared Dispatcher/StatusText plumbing.",
-      "locality_impact": "Unaffected: a maintainer fixing a UI bug still reads through ~2,290 lines including unrelated backup/restore logic.",
-      "metric_signal": "PrimaryWidget.xaml.cs: 2,291 LOC (down 8 lines this loop, all from the GOG cache block shrinking). StoreNameLookup.cs: 288 LOC (up 25 lines this loop).",
+      "locality_impact": "Unaffected: a maintainer fixing a UI bug still reads through ~2,278 lines including unrelated backup/restore logic.",
+      "metric_signal": "PrimaryWidget.xaml.cs: 2,278 LOC (down 13 lines this loop, all from the Epic cache block shrinking). StoreNameLookup.cs: 317 LOC (up 29 lines this loop).",
       "why_weakens_submission": "Ownership of the two remaining distinct concerns (UI event handling, backup/restore orchestration) is still untraceable from any single Module; the file is not meaningfully smaller this loop and is still well above the one-or-two-shallow-wrapper bar the architecture-quality 7-anchor requires.",
       "severity": "Serious deduction",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Fold the Epic slice next (StoreNameLookup.GetOrFetchEpicNameAsync, preserving the EpicLibrary.GetDisplayNameAsync fallback-first order exactly), then attempt backup/restore orchestration - more UI-entangled than either cache fold, needing either a UI-update callback parameter or an accepted partial split; do not attempt it as a same-shape mechanical move without first confirming which Dispatcher.RunAsync blocks can move to the caller without changing update timing.",
+      "minimal_correction_path": "The split-cache-ownership residual is now fully closed (GOG loop 4, Epic this loop) - no further cache-folding steps remain in StoreNameLookup. The only remaining F1 slice is backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, RestoreAllChangesAsync, RevertAllToDefaultAsync, FixLibraryAsync and the RestoreBackupResult enum): extracting it needs either a UI-update callback parameter (an interface or delegate PrimaryWidget implements to receive status-text and per-row image updates) or an accepted partial split (move the file-system logic out, leave the Dispatcher/StatusText/GameEntries plumbing in PrimaryWidget) - a design decision, not a mechanical move. Do not attempt a same-shape mechanical relocation without resolving this first.",
       "blast_radius": {
-        "change": ["Services/Stores/StoreNameLookup.cs", "PrimaryWidget.xaml.cs (Epic slice) OR a new file for backup/restore"],
-        "avoid": ["Services/SteamGridDB/*", "Services/Artwork/ArtworkRanker.cs"]
+        "change": ["PrimaryWidget.xaml.cs (backup/restore orchestration slice) OR a new file, once the UI-update design decision is resolved"],
+        "avoid": ["Services/SteamGridDB/*", "Services/Artwork/ArtworkRanker.cs", "Services/Stores/StoreNameLookup.cs (cache-folding work is complete for this module)"]
       }
     },
     {
@@ -178,9 +178,9 @@
       "id": "F2",
       "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
       "why_it_matters": "Load time scales linearly with library size and network latency on the widget's primary open path - the one flow every user hits every time.",
-      "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks, routed through StoreNameLookup and EpicLibrary) one game at a time; nothing overlaps the independent per-game network calls. Unaffected by this loop's fix, which changed how the GOG branch resolves a name, not whether it does so sequentially.",
+      "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks, routed through StoreNameLookup and EpicLibrary) one game at a time; nothing overlaps the independent per-game network calls. Unaffected by this loop's fix, which changed how the Epic branch resolves a name (now via StoreNameLookup.GetOrFetchEpicNameAsync), not whether it does so sequentially.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:324-733 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :577 and the store-name fallbacks at :599,614-615,630,650, with nothing overlapped - re-verified at current line numbers this loop after F1's GOG-slice edit shifted them)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:324-720 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :577 and the store-name fallbacks at :599,608,617,637, with nothing overlapped - re-verified at current line numbers this loop after F1's Epic-slice edit shifted them)"
       ],
       "test_failed": "n/a",
       "dependency_category": "true-external",
@@ -203,7 +203,7 @@
       "id": "F3",
       "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
       "why_it_matters": "The same ~25-line lazy-load-with-gate skeleton was written twice by hand instead of once; a future third cache would make it three.",
-      "what_is_wrong": "AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) both implement: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper. Unaffected by this loop's fix, which targeted the GOG cache fold in a different file (StoreNameLookup.cs). Re-verified this loop: StoreNameLookup.GetOrFetchGogNameAsync uses a plain TryGetValue/populate pattern with no lock (matching the rest of that class), not this locked skeleton, so no third copy was introduced.",
+      "what_is_wrong": "AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) both implement: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper. Unaffected by this loop's fix, which targeted the Epic cache fold in a different file (StoreNameLookup.cs) and a different pattern (plain TryGetValue/populate, no lock - matching the rest of that class). Re-verified this loop: StoreNameLookup.GetOrFetchEpicNameAsync introduces no third copy of this locked skeleton.",
       "evidence": [
         "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:95-147",
         "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs:67-89"
@@ -225,21 +225,21 @@
     }
   ],
   "simplification_check": {
-    "structurally_necessary": "Folding GOG's check-cache/fetch/populate-cache logic into StoreNameLookup.GetOrFetchGogNameAsync - closes the shallow-module residual Finding #1's loop-3 evidence named (Interface approx Implementation for gogNameCache, now Interface >> Implementation); the smallest honest fix is a targeted fold plus a private narrowing, not a new abstraction.",
+    "structurally_necessary": "Folding Epic's check-cache/fetch/populate logic into StoreNameLookup.GetOrFetchEpicNameAsync - closes the last instance of the shallow-module residual Finding #1's evidence has tracked since loop 3 (Interface approx Implementation for epicNameCache, now Interface >> Implementation, matching GOG's shape from loop 4); the smallest honest fix is a targeted fold plus a private narrowing, not a new abstraction.",
     "new_seam_justified": false,
     "new_seam_adapters": [],
-    "helpful_simplification": "PrimaryWidget.xaml.cs's GOG branch shrank from 17 lines of inline cache-check/fetch/populate logic to a 4-line call-and-assign; the check-cache/fetch/populate decision for GOG names now lives entirely inside StoreNameLookup, matching the shape GetUbisoftGameNameAsync already used.",
-    "should_not_be_done": "Folding Epic's equivalent block in the same loop - Epic's path tries EpicLibrary.GetDisplayNameAsync first via ?? before falling back to StoreNameLookup.GetEpicGameNameAsync, a second fallback source GOG's path does not have, so the same mechanical fold carries more behavior-preservation risk without a test oracle. Deferred to a future loop per the Deepening Candidate, following loop 3's own smallest-first-step ordering (GOG first).",
-    "tests_after_fix": "No test project exists (standing instruction); MSBuild compile is the only regression oracle, verified green both before and after this loop's change. This is a behavior-preserving fold, not a Meta-Rule-4 risk-boundary crossing: gogNameCache's visibility narrowed from internal to private, but its only external reader/writer (PrimaryWidget.LoadGameEntriesAsync) was rewritten in this same commit to go through GetOrFetchGogNameAsync instead - grep-verified post-edit that no file outside StoreNameLookup.cs references gogNameCache any more, and the green build independently proves no orphaned caller was left behind."
+    "helpful_simplification": "PrimaryWidget.xaml.cs's Epic branch shrank from a 20-line inline cache-check/fetch/populate block to a 7-line call-and-assign; the check-cache/fetch/populate decision for Epic names now lives entirely inside StoreNameLookup, matching the shape GetOrFetchGogNameAsync already used, and preserving the exact two-source fallback order (EpicLibrary.GetDisplayNameAsync first, StoreNameLookup.GetEpicGameNameAsync second).",
+    "should_not_be_done": "Attempting backup/restore orchestration extraction in the same loop - its own evidence text says it needs either a UI-update callback parameter or an accepted partial split, a design decision this codebase's lack of a test oracle makes too risky to attempt as a same-loop mechanical move (same judgment loop 4 reached; re-confirmed this loop by reading RestoreBackupCoreAsync directly - it calls Dispatcher.RunAsync, reads/writes StatusText.Text, and iterates EntriesSharingImage/GameEntries, all UI-bound state a non-UI class cannot reach without a passed-in abstraction).",
+    "tests_after_fix": "No test project exists (standing instruction); MSBuild compile is the only regression oracle, verified green both before and after this loop's change. This is a behavior-preserving fold, not a Meta-Rule-4 risk-boundary crossing: epicNameCache's visibility narrowed from internal to private, but its only external reader/writer (PrimaryWidget.LoadGameEntriesAsync) was rewritten in this same commit to go through GetOrFetchEpicNameAsync instead - grep-verified post-edit that no file outside StoreNameLookup.cs references epicNameCache any more, and the green build independently proves no orphaned caller was left behind."
   },
   "backlog": [
     {
       "priority": 1,
-      "title": "Continue the PrimaryWidget.xaml.cs break-up (F1, next slice): fold Epic's cache, or attempt backup/restore orchestration",
+      "title": "Attempt backup/restore orchestration extraction (F1's only remaining slice)",
       "kind": "structural",
       "rank": "needed for winning",
-      "why_it_matters": "F1 remains the largest Serious deduction on the board; two concerns are still merged in the god-class the churn signal flagged, and closing Epic's cache slice finishes the smaller residual before the higher-risk backup/restore slice is attempted.",
-      "score_impact": "Architecture quality +0.5, Code simplicity +0.5 once verified (backup/restore slice); or a smaller Code simplicity win from closing Epic's cache-ownership residual."
+      "why_it_matters": "F1 remains the largest Serious deduction on the board, and its only remaining smaller substitute step (cache-folding) is now exhausted - both StoreNameLookup slices (GOG loop 4, Epic this loop) are closed.",
+      "score_impact": "Architecture quality +0.5, Code simplicity +0.5 once verified. Requires resolving a UI-update design decision first (callback parameter or accepted partial split)."
     },
     {
       "priority": 2,
@@ -261,40 +261,40 @@
   "unresolved_reason": null,
   "deepening_candidates": [
     {
-      "candidate_module": "Services/Stores/StoreNameLookup",
-      "source_friction_proven": "Finding F1's residual evidence - epicNameCache is an internal field on StoreNameLookup (StoreNameLookup.cs:29) written and read only by PrimaryWidget.xaml.cs (:608-620), the same shallow-module gap gogNameCache had before this loop.",
-      "why_shallow_or_misplaced": "epicNameCache exposes internal mutable state as a bare Interface (a Dictionary directly, not a method) - Interface approx Implementation for that slice, the shallow-module test's own definition of shallow.",
-      "behavior_to_move_behind_interface": "The check-cache/fetch/populate logic currently inline in LoadGameEntriesAsync (PrimaryWidget.xaml.cs:608-620) should become a GetOrFetchEpicNameAsync method on StoreNameLookup, mirroring GetOrFetchGogNameAsync's shape, with epicNameCache becoming private.",
+      "candidate_module": "Services/Artwork/AppliedArtworkStore + Services/Stores/EpicLibrary (shared AsyncLazy-style helper)",
+      "source_friction_proven": "Finding F3's (F-004) evidence - both AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) hand-implement the identical check-null/gate/re-check-null/populate/release skeleton with no shared owner.",
+      "why_shallow_or_misplaced": "Each class's LoadAsync method exposes the full lazy-load mechanism as its own Implementation rather than delegating to a shared Interface - the same check-lock-recheck-populate logic is the Implementation in two places instead of the Implementation in one place behind two thin call sites.",
+      "behavior_to_move_behind_interface": "The check-null/gate.WaitAsync()/re-check-null/populate/gate.Release() skeleton, parameterised by a loader delegate (Func<Task<TValue>>) and the value type (Dictionary<string,int> for AppliedArtworkStore, Dictionary<string,string> for EpicLibrary).",
       "dependency_category": "in-process",
       "test_surface_after_change": "none (no test project; build-verified only, same as today)",
-      "smallest_first_step": "Preserve the exact fallback order - EpicLibrary.GetDisplayNameAsync (local manifest read) tried first via ??, only then StoreNameLookup.GetEpicGameNameAsync (remote community database) - the wrapper method must try both in that order, not just the second one GOG-style.",
-      "what_not_to_do": "Do not collapse the two-source ?? fallback into a single call, and do not change the \"empty cached value still means refetch\" semantics while doing this - same trap this loop's GOG fix preserved explicitly."
+      "smallest_first_step": "Write the shared helper as an internal generic type taking a SemaphoreSlim and a loader delegate; convert EpicLibrary.LoadAsync first (simpler - no JSON-writeback path), then AppliedArtworkStore.LoadAsync (UpdateAsync also writes through the same gate and must keep doing so - do not fold the write path into the read-only helper).",
+      "what_not_to_do": "Do not add an interface or DI for this - one concrete internal type serving two internal call sites is not a Seam per the Unified Seam Policy (no two-adapter justification, no policy/failure/platform isolation)."
     }
   ],
   "builder_notes": [
     {
-      "pattern": "When a backlog item names two alternatives (\"do the risky thing, or the safer fallback\"), re-run the Simplify Pressure Test on the risky option fresh each loop rather than defaulting to whichever sounds more impactful.",
-      "how_to_recognize": "The backlog item itself flags a design decision still needed (a callback parameter, an accepted partial split) before the riskier option can be attempted safely.",
-      "smallest_coding_rule": "In a codebase with no test suite, when the smallest honest fix and the \"real\" fix diverge, take the smallest honest fix this loop and leave the real fix as a concretely-scoped backlog item - don't force a design decision under loop time pressure.",
-      "stack_example": "C# - this loop took the named fallback (fold GOG's cache) over the named primary ask (extract backup/restore) because the primary ask's own text said it \"needs either a UI-update callback parameter or accepting a partial split,\" which is a design decision, not a mechanical move."
+      "pattern": "When a prior loop names two alternatives (\"fold the smaller residual instance, or attempt the risky thing\") and the smaller instance is now closed, do not assume the risky option automatically becomes this loop's task - re-run the Simplify Pressure Test on it fresh, because the underlying blocker (a design decision the loop cannot make mechanically) does not resolve itself just because time has passed.",
+      "how_to_recognize": "The backlog item's own text names a design decision still needed (a callback parameter, an accepted partial split) before the riskier option can be attempted safely, and no new source evidence has appeared that would resolve it.",
+      "smallest_coding_rule": "In a codebase with no test suite, when a \"smaller instance\" of a residual exists, close it before the harder core claim - but once every smaller instance is closed, say so plainly rather than picking a bigger, riskier move under the pressure to keep showing progress.",
+      "stack_example": "C# - this loop closed Epic's cache fold (the last remaining smaller instance of F1's split-cache-ownership residual) rather than attempting backup/restore extraction, because the latter's own text still names an unresolved UI-update design decision with no new evidence this loop that would make it safer to attempt mechanically."
     },
     {
-      "pattern": "A residual left half-closed by one loop (fixing GOG's cache but not Epic's) is a legitimate, named next step - not a sign the prior loop's work was wasted.",
-      "how_to_recognize": "The Deepening Candidate or Finding evidence names two or more parallel instances of the same shallow-module shape, and the fix for one instance is a template for the rest.",
-      "smallest_coding_rule": "Fix the lowest-risk instance first (the one with no secondary fallback source to preserve), and use it as the concrete \"smallest first step\" for the next one, rather than doing all instances in one loop.",
+      "pattern": "A residual tracked across multiple loops (GOG in loop 4, Epic in loop 5) as parallel instances of the same shallow-module shape is fully closed once every named instance is folded - the Deepening Candidate for that specific module should then say so explicitly rather than being silently dropped or re-proposed without new evidence.",
+      "how_to_recognize": "The Authority Map or Findings evidence names N parallel instances of one shape; each loop's fix closes one; once all N are closed, the \"verdict\" line changes from partial (\"N of M closed\") to complete (\"no Interface-coherence gap remains\").",
+      "smallest_coding_rule": "When the last instance of a tracked shape closes, update the Authority Map entry's verdict text to say so plainly, and explicitly retire the Deepening Candidate rather than leaving stale \"still to go\" language in the review.",
       "stack_example": null
     },
     {
-      "pattern": "Churn concentrates where concerns are merged (unchanged from loops 1-3 - still live; this loop did not touch the churn-flagged file's concern count at all).",
+      "pattern": "Churn concentrates where concerns are merged (unchanged from loops 1-4 - still live; this loop did not touch the churn-flagged file's concern count at all).",
       "how_to_recognize": "One file dominates the six-month edit count and is several times larger than everything else, even after partial extraction.",
-      "smallest_coding_rule": "When a file's edit count and size both dominate the repo, extract the concern that changed rather than adding to the pile - but a loop that instead does a smaller, safer fix elsewhere is not wasted, provided it's disclosed honestly as not moving the god-class dimension.",
+      "smallest_coding_rule": "When a file's edit count and size both dominate the repo, extract the concern that changed rather than adding to the pile - but a loop that instead closes the last safe residual elsewhere is not wasted, provided it is disclosed honestly as not moving the god-class dimension.",
       "stack_example": null
     }
   ],
-  "narrative": "Place, not win. This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) at all - F1 (Serious) is exactly as large as it was at the end of loop 3. Instead, the loop took the backlog's own named fallback: closing the GOG slice of the split-cache-ownership residual loop 3 left in Services/Stores/StoreNameLookup.cs. The primary ask (backup/restore extraction) was assessed and downgraded per the Simplify Pressure Test - its own text signals a design decision this codebase's lack of a test oracle makes too risky to attempt as a same-loop mechanical move. code_simplicity moved up on real, narrow, build-verified structural proof; no other dimension moved. Runtime ownership remains trustworthy for what has been resolved; concurrency is not yet trustworthy (F-003 open). Tests remain absent by standing instruction. Future work risks the same trap this loop deliberately avoided: folding Epic's cache needs its two-source fallback order preserved exactly, and backup/restore extraction needs the UI-update design decision resolved before attempting a mechanical move.",
+  "narrative": "Place, not win. This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) at all - F1 (Serious) is exactly as large as it was at the end of loop 4. Instead, the loop closed the Epic slice of the split-cache-ownership residual loop 4 left in Services/Stores/StoreNameLookup.cs, mirroring loop 4's GOG fix exactly and completing the cluster: all four of that module's caches now share one consistent ownership shape. The harder ask (backup/restore extraction) was re-examined against current source (RestoreBackupCoreAsync's direct Dispatcher/StatusText/GameEntries coupling) and still fails the same test loop 4 applied - its own evidence text names an unresolved design decision, not a mechanical move. code_simplicity moved up on real, narrow, build-verified structural proof, matching the magnitude of loop 4's own move for the parallel half of the same residual; no other dimension moved. Runtime ownership remains trustworthy for what has been resolved; concurrency is not yet trustworthy (F-003 open). Tests remain absent by standing instruction. Future work has run out of smaller substitute steps for F1: next loop must either resolve the UI-update design decision and attempt backup/restore extraction, or honestly pivot Priority 1 to a Noticeable-severity item if that design decision still cannot be made without user input.",
   "loop_result": {
-    "what_changed": "Closed the GOG slice of F1's split-cache-ownership residual: added StoreNameLookup.GetOrFetchGogNameAsync (Services/Stores/StoreNameLookup.cs:87-102), which owns the full check-cache/fetch/populate decision for GOG names, and narrowed gogNameCache from internal back to private (StoreNameLookup.cs:28) now that StoreNameLookup is its only reader/writer. Rewrote the GOG branch in PrimaryWidget.xaml.cs's LoadGameEntriesAsync (:597-604) from a 17-line inline cache-check/fetch/populate block to a 4-line call-and-assign.",
-    "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery - no test project exists) passed clean both before and after the change (exit 0 both times, same command as loops 1-3's baseline). git diff --stat: PrimaryWidget.xaml.cs (2 insertions, 10 deletions), StoreNameLookup.cs (28 insertions, 3 deletions). The new GetOrFetchGogNameAsync preserves the original inline logic's semantics exactly: a cache hit with a non-empty cached value returns it with zero network calls (matching the original's TryGetValue + non-empty check); a cache miss or empty cached value makes exactly one call to GetGogGameNameAsync (unchanged, matching the original's single fetch); the cache is written only when that call returns a non-empty name (matching the original's if (!string.IsNullOrEmpty(gogName)) write guard). Grep-verified post-edit that gogNameCache is referenced only inside StoreNameLookup.cs, confirming the private narrowing left no orphaned external caller - independently confirmed by the green build (an orphaned private-field access from another class would not compile). This changes where the cache-check/fetch/populate decision lives, not the number of network calls per game, retry semantics, or any selection/ranking behavior - confirmed by the independent implementation-reviewer pass (verdict: approved; reality/honesty/regression all passed).",
+    "what_changed": "Closed the Epic slice of F1's split-cache-ownership residual: added StoreNameLookup.GetOrFetchEpicNameAsync (Services/Stores/StoreNameLookup.cs:203-222), which owns the full check-cache/fetch/populate decision for Epic names and preserves the exact two-source fallback order (EpicLibrary.GetDisplayNameAsync tried first, then StoreNameLookup.GetEpicGameNameAsync), and narrowed epicNameCache from internal back to private (StoreNameLookup.cs:28) now that StoreNameLookup is its only reader/writer. Rewrote the Epic branch in PrimaryWidget.xaml.cs's LoadGameEntriesAsync (:606-612) from a 20-line inline cache-check/fetch/populate block to a 7-line call-and-assign.",
+    "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery - no test project exists) passed clean both before and after the change (exit 0 both times). git diff --numstat: PrimaryWidget.xaml.cs (3 insertions, 16 deletions), StoreNameLookup.cs (33 insertions, 4 deletions). The new GetOrFetchEpicNameAsync preserves the original inline logic's semantics exactly, traced branch-by-branch: a cache hit with a non-empty cached value returns it immediately with zero network calls; a cache miss or empty cached value tries EpicLibrary.GetDisplayNameAsync first, then GetEpicGameNameAsync as a ?? fallback, exactly the original's two-source order; the cache is written and gameName is set only when that resolves to a non-empty name; when both sources return null/empty, the value is not cached and gameName stays unset, exactly matching the original's silent fall-through to the default \"Unknown\". Grep-verified post-edit that epicNameCache is referenced only inside StoreNameLookup.cs, confirming the private narrowing left no orphaned external caller - independently confirmed by the green build. This changes where the cache-check/fetch/populate decision lives, not the number of network calls per game, the fallback order, retry semantics, or any selection/ranking behavior - confirmed by the independent implementation-reviewer pass (verdict: approved; reality/honesty/regression all passed).",
     "risk_boundary_evidence": null,
     "targeted_finding_status": "carried_forward",
     "unintended_regression": null,
@@ -306,7 +306,7 @@
   },
   "implementation_review": {
     "verdict": "approved",
-    "reason": "GetOrFetchGogNameAsync (StoreNameLookup.cs:87-102) now owns the GOG cache's check/fetch/populate decision with gogNameCache correctly narrowed to private, closing the shallow-module residual cited in Finding #1's evidence, and the cache-hit/miss/empty-retry/write-only-on-success semantics are preserved exactly with no change in network-call count.",
+    "reason": "The diff is a faithful, behavior-preserving relocation of Epic's check-cache/fetch/populate logic into StoreNameLookup.GetOrFetchEpicNameAsync, mirroring the already-approved GOG fold exactly, closing the specific epicNameCache residual evidence F1 cited without overclaiming F1's core UI/backup-restore merge is resolved, and introduces no new same-or-higher-severity finding.",
     "checks": {
       "reality": "passed",
       "honesty": "passed",
@@ -318,7 +318,7 @@
     "retry_count": 1,
     "retry_cause": null,
     "retry_attempts": [
-      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 115673}
+      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 138470}
     ]
   }
 }

@@ -605,22 +605,9 @@ namespace SteamGridDB.Xbox
                                         }
                                         else if (platform == GamePlatform.Epic)
                                         {
-                                            if (!StoreNameLookup.epicNameCache.TryGetValue(externalPlatformId, out string epicName) || string.IsNullOrEmpty(epicName))
-                                            {
-                                                // Epic's own install manifests first: they are local, they
-                                                // carry the real title, and they cover games the online
-                                                // database does not. The database is keyed by catalog item
-                                                // ID, not by the appName SteamGridDB wants.
-                                                epicName = await EpicLibrary.GetDisplayNameAsync(externalPlatformId, epicCatalogItemId)
-                                                    ?? await StoreNameLookup.GetEpicGameNameAsync(epicCatalogItemId ?? externalPlatformId);
+                                            string epicName = await StoreNameLookup.GetOrFetchEpicNameAsync(externalPlatformId, epicCatalogItemId);
 
-                                                if (!string.IsNullOrEmpty(epicName))
-                                                {
-                                                    StoreNameLookup.epicNameCache[externalPlatformId] = epicName;
-                                                    gameName = epicName;
-                                                }
-                                            }
-                                            else
+                                            if (!string.IsNullOrEmpty(epicName))
                                             {
                                                 gameName = epicName;
                                             }

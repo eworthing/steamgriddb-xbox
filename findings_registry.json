@@ -12,7 +12,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 4,
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 1,
@@ -61,6 +61,18 @@
             "evidence_paths_hash": "sha256:0915bf33c04713b440cb41f79f786b69e94fc6947531089a3ef8381909b270d4"
           },
           "attempted_remedy_hash": "sha256:e4802d30826a621272073b72d80f59e2ce3caa6891a9dc2978c9d6a045427d74"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "2697abb",
+          "note": "This loop closed the Epic slice of the split-cache-ownership residual (StoreNameLookup.GetOrFetchEpicNameAsync added, epicNameCache narrowed to private, reviewer-approved) - the last remaining Finding #1 evidence item in this cluster (GOG closed loop 4). The core claim (UI event handling + backup/restore orchestration merged) is untouched; loop_result.targeted_finding_status: carried_forward. Title/evidence/why_it_matters/why_weakens_submission all re-derived from current source this loop (new hashes below).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:899ea478a9b5b6e8b233710a2f07ad5ce88d1d8c9e49cccb401eae6f015dc3dd",
+            "evidence_paths_hash": "sha256:03fc92683e70eb4a4e0e18d7f27e07f7fbcb92e1f74e76a3390cd8245eeb3071"
+          },
+          "attempted_remedy_hash": "sha256:514bb320c9faecdc4c7a0daf4530b18006b16f77b92b059bf3c218c23003f4f3"
         }
       ]
     },
@@ -111,7 +123,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 4,
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 1,
@@ -159,6 +171,18 @@
             "evidence_paths_hash": "sha256:74dec6e24193ba60c2aa4382bc6ade9f653f9287aff2eebfe32f8b89e61f85e2"
           },
           "attempted_remedy_hash": "sha256:f4da7c88ddd01a6d45217e0371609588a3ed977e56c54959f297be4f21e230e5"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "2697abb",
+          "note": "Re-derived from current source this loop (line numbers shifted to :324-720, await sites at :577,599,608,617,637, after F1's Epic-slice edit shifted them by -13 lines). Unaffected by this loop's fix, which targeted the Epic cache fold (F-001 evidence), not concurrency. Remains Priority 2 in loop 5's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:f738e3d8c170017ffa1a6210440a559b56d016ec2e1d71d9274d8278c28fb32c",
+            "evidence_paths_hash": "sha256:e95230b2016d21467fea78e9f116e3742c8a39eaed43dc73cf5114434da5ca3c"
+          },
+          "attempted_remedy_hash": "sha256:5e8a55ad7b3686275506b113ab9be24a3abd8bbe71d17f60cfa35af7c9baae8b"
         }
       ]
     },
@@ -172,7 +196,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 4,
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 1,
@@ -220,6 +244,18 @@
             "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
           },
           "attempted_remedy_hash": "sha256:8a6c704ef60f051ecc07c477ea18a12b650e8df173b5e58307ae513890c86c16"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "2697abb",
+          "note": "Re-verified this loop: AppliedArtworkStore.cs and EpicLibrary.cs both untouched by this loop's fix (which targeted the Epic cache fold in StoreNameLookup.cs). Confirmed the new GetOrFetchEpicNameAsync uses a plain TryGetValue/populate pattern with no lock, not this locked skeleton, so no third copy was introduced. Remains Priority 3 in loop 5's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:799445ae009f93ba132de1a73f04d8310ce85359125bf1ee29e2be67ff4341d0",
+            "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
+          },
+          "attempted_remedy_hash": "sha256:e8874903abd55069e2dbd5245008c6b924d4df4c725d5798ef8f04d2abef326d"
         }
       ]
     }
