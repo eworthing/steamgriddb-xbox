@@ -57,5 +57,104 @@ namespace SteamGridDB.Xbox.Tests
         {
             Assert.Null(await TileImage.EnsurePngAsync(null));
         }
+
+        // ---- FillsTileAsync ----
+
+        [Fact]
+        public async Task Fills_tile_when_the_image_is_opaque_at_every_corner()
+        {
+            IBuffer opaque = await TestImages.OpaquePngAsync();
+
+            Assert.True(await TileImage.FillsTileAsync(opaque));
+        }
+
+        [Fact]
+        public async Task Does_not_fill_tile_when_the_corners_are_transparent()
+        {
+            // The shape a rounded icon or a physical-media mockup produces - opaque centre, transparent
+            // corners - which the tile-fill gate exists to reject before it ever reaches the ranked pick.
+            IBuffer roundedIcon = await TestImages.PngWithTransparentCornersAsync();
+
+            Assert.False(await TileImage.FillsTileAsync(roundedIcon));
+        }
+
+        // ---- CropPortraitToTileAsync ----
+
+        [Fact]
+        public async Task Crop_returns_null_for_images_that_are_not_taller_than_wide()
+        {
+            IBuffer square = await TestImages.PngAsync(width: 32, height: 32);
+
+            Assert.Null(await TileImage.CropPortraitToTileAsync(square));
+        }
+
+        [Fact]
+        public async Task Crops_a_portrait_image_to_a_square_matching_the_source_width()
+        {
+            IBuffer portrait = await TestImages.OpaquePngAsync(width: 64, height: 192);
+
+            IBuffer cropped = await TileImage.CropPortraitToTileAsync(portrait);
+
+            (uint Width, uint Height) size = await TileImage.WithDecoderAsync(
+                cropped,
+                decoder => Task.FromResult((decoder.PixelWidth, decoder.PixelHeight)),
+                (0u, 0u),
+                "decode failed");
+
+            Assert.Equal((64u, 64u), size);
+        }
+
+        [Fact]
+        public async Task Crop_window_is_drawn_toward_a_high_detail_band_at_the_top()
+        {
+            // A flat, featureless band carries no edge energy; a checkerboard band carries a lot. The
+            // window BestVerticalCropAsync places should land on the band with content, not the blank one.
+            IBuffer portrait = await TestImages.PortraitWithDetailBandAsync(width: 64, totalHeight: 256, checkerboardOnTop: true);
+
+            IBuffer cropped = await TileImage.CropPortraitToTileAsync(portrait);
+
+            Assert.True(await ContainsDetailAsync(cropped));
+        }
+
+        [Fact]
+        public async Task Crop_window_is_drawn_toward_a_high_detail_band_at_the_bottom()
+        {
+            IBuffer portrait = await TestImages.PortraitWithDetailBandAsync(width: 64, totalHeight: 256, checkerboardOnTop: false);
+
+            IBuffer cropped = await TileImage.CropPortraitToTileAsync(portrait);
+
+            Assert.True(await ContainsDetailAsync(cropped));
+        }
+
+        /// <summary>
+        /// True when the image is not a single flat colour - i.e. the crop landed on
+        /// <see cref="TestImages.PortraitWithDetailBandAsync"/>'s checkerboard band rather than its flat
+        /// grey one. A mutation that reverses the window-selection direction, or one that always crops to
+        /// a fixed offset, would land on the flat band instead and this would return false.
+        /// </summary>
+        private static async Task<bool> ContainsDetailAsync(IBuffer image)
+        {
+            return await TileImage.WithDecoderAsync(
+                image,
+                async decoder =>
+                {
+                    byte[] pixels = await TileImage.ScaledPixelsAsync(
+                        decoder, null, decoder.PixelWidth, decoder.PixelHeight, Windows.Graphics.Imaging.BitmapAlphaMode.Straight);
+
+                    byte first = pixels[0];
+
+                    for (int i = 0; i < pixels.Length; i += 4)
+                    {
+                        if (pixels[i] != first)
+                        {
+                            return true;
+                        }
+                    }
+
+                    return false;
+                },
+                false,
+                "decode failed");
+        }
     }
 }

@@ -2,6 +2,8 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 
+using SteamGridDB.Xbox.Services.Artwork;
+
 using Windows.Graphics.Imaging;
 using Windows.Security.Cryptography;
 using Windows.Storage.Streams;
@@ -80,6 +82,78 @@ namespace SteamGridDB.Xbox.Tests
                 stream.Seek(0);
 
                 return await stream.ReadAsync(buffer, (uint)stream.Size, InputStreamOptions.None);
+            }
+        }
+
+        /// <summary>A fully opaque PNG - every pixel's alpha is 255, so no corner reads as transparent.</summary>
+        internal static Task<IBuffer> OpaquePngAsync(int width = 32, int height = 32)
+        {
+            return FromPixelsAsync(width, height, (x, y) => (B: (byte)200, G: (byte)200, R: (byte)200, A: (byte)255));
+        }
+
+        /// <summary>
+        /// A PNG whose four corners are fully transparent and whose centre is opaque - the shape a
+        /// rounded icon or a physical-media mockup produces, which FillsTileAsync exists to reject.
+        /// </summary>
+        internal static Task<IBuffer> PngWithTransparentCornersAsync(int width = 32, int height = 32, int cornerSize = 6)
+        {
+            return FromPixelsAsync(width, height, (x, y) =>
+            {
+                bool inCorner = (x < cornerSize || x >= width - cornerSize) && (y < cornerSize || y >= height - cornerSize);
+
+                return (B: (byte)200, G: (byte)200, R: (byte)200, A: inCorner ? (byte)0 : (byte)255);
+            });
+        }
+
+        /// <summary>
+        /// A portrait PNG with one flat, featureless band (grey, no edges) and one high-contrast
+        /// checkerboard band (alternating black/white, dense edges) at the requested end - for testing
+        /// that the crop window is drawn toward the band with detail, wherever it sits.
+        /// </summary>
+        /// <param name="width">Image width; also the height of the checkerboard band, so the band is
+        /// exactly one crop-window tall.</param>
+        /// <param name="totalHeight">Full image height. Must exceed <paramref name="width"/>.</param>
+        /// <param name="checkerboardOnTop">Whether the checkerboard band is the first <paramref
+        /// name="width"/> rows (true) or the last (false).</param>
+        internal static Task<IBuffer> PortraitWithDetailBandAsync(int width, int totalHeight, bool checkerboardOnTop)
+        {
+            return FromPixelsAsync(width, totalHeight, (x, y) =>
+            {
+                bool inBand = checkerboardOnTop ? y < width : y >= totalHeight - width;
+                byte level = inBand && ((x + y) % 2 == 0) ? (byte)0 : (byte)255;
+                byte flat = 128;
+
+                return inBand
+                    ? (B: level, G: level, R: level, A: (byte)255)
+                    : (B: flat, G: flat, R: flat, A: (byte)255);
+            });
+        }
+
+        /// <summary>Builds a PNG from an explicit per-pixel BGRA function, bypassing the encoder's own
+        /// (opaque-black or fully-transparent) default fill so tests can control alpha and colour exactly.</summary>
+        private static async Task<IBuffer> FromPixelsAsync(int width, int height, Func<int, int, (byte B, byte G, byte R, byte A)> pixelAt)
+        {
+            var pixels = new byte[width * height * 4];
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    (byte B, byte G, byte R, byte A) = pixelAt(x, y);
+                    int i = ((y * width) + x) * 4;
+
+                    pixels[i] = B;
+                    pixels[i + 1] = G;
+                    pixels[i + 2] = R;
+                    pixels[i + 3] = A;
+                }
+            }
+
+            IBuffer pixelBuffer = CryptographicBuffer.CreateFromByteArray(pixels);
+
+            using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(pixelBuffer, BitmapPixelFormat.Bgra8, width, height, BitmapAlphaMode.Straight))
+            {
+                return await TileImage.EncodePngAsync(bitmap);
             }
         }
     }

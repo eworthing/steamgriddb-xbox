@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 8,
+  "next_serial": 9,
   "entries": [
     {
       "stable_id": "F-001",
@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 10,
+      "last_seen_loop": 11,
       "occurrences": [
         {
           "loop": 1,
@@ -136,6 +136,18 @@
             "evidence_paths_hash": "sha256:de9b15e85f2b2ca7742892331c990aad72835026e42e890df62ea81fe270c65f"
           },
           "attempted_remedy_hash": "sha256:0f056253101b47905be0863d9a9aed86cdc1087d1996f755d0c90ef632aeae32"
+        },
+        {
+          "loop": 11,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "b042f75",
+          "note": "Re-verified this loop via fresh direct read of LoadGameEntriesAsync (:332-609 read in full; :610-703 confirmed unchanged via git diff). Core claim (image decode, backup check, and per-game network resolution still merged in the nested foreach at :436) unaffected - this loop's own diff touches only SteamGridDB.Xbox.Tests/TestImages.cs and TileImageTests.cs. No further slice queued this loop without fresh evidence. loop_result.targeted_finding_status: carried_forward (this loop's own target was F-007, not F-001).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2ec34f417cff680deca4a3f3f0a6e19cedee1b0a3e0f7a55ad86bddefd7accf0",
+            "evidence_paths_hash": "sha256:b92f7bc788522fe2ef2795ef02d60c98d688aac64f0e2cd8e1a302f2de955806"
+          },
+          "attempted_remedy_hash": "sha256:f5a010436a3240d004232ff03bd957bcf201532b90ec4640b296fb3668907092"
         }
       ]
     },
@@ -192,7 +204,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 10,
+      "last_seen_loop": 11,
       "occurrences": [
         {
           "loop": 1,
@@ -312,6 +324,18 @@
             "evidence_paths_hash": "sha256:011679570c21c9f6fe2e53f5f7954530ba310c9db27bb18c5c7b0bd254b43186"
           },
           "attempted_remedy_hash": "sha256:4ee86d2db30d220ee7d27d79c0ed6494349cb4f2e88c983d28580c65a6132027"
+        },
+        {
+          "loop": 11,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "b042f75",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched (this loop's diff is confined to SteamGridDB.Xbox.Tests/TestImages.cs and TileImageTests.cs), await sites unchanged at :562,584,593,602 (confirmed via this loop's own direct read). Still ruled out by the same standing operational constraint; re-grepped codebase-wide for Task.WhenAll/Parallel.*/Task.Run this loop, zero hits. Priority 2 in loop 11's backlog (behind the new ArtworkDownloader-seam item).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:1e35d362994d50b8d773a75027ce0ad865f4a47877477cba0b2076e66e7fecab",
+            "evidence_paths_hash": "sha256:04f287e8db6511f9c80f9d076da7c97e5f62117a9521b390a2ffd76656442065"
+          },
+          "attempted_remedy_hash": "sha256:b1b780524ff409da4e0bb2b9472891d0668c72159eb9503a18c84136e88650e8"
         }
       ]
     },
@@ -510,7 +534,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "71224de",
-      "last_seen_loop": 10,
+      "last_seen_loop": 11,
       "occurrences": [
         {
           "loop": 9,
@@ -535,6 +559,47 @@
             "evidence_paths_hash": "sha256:ba9be792e797eb5a46ef7d3fdf3fe4ca1eb23639f3ec1b79da1ea13c88d692bd"
           },
           "attempted_remedy_hash": "sha256:3689975889589f6a28e7010e91ae4cf64e7b4720b92ca6a83fe79a2b11cfd37d"
+        },
+        {
+          "loop": 11,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "b042f75",
+          "note": "Narrowed this loop, not resolved: added 6 mutation-verified tests to TileImageTests.cs closing TileImage's public FillsTileAsync/CropPortraitToTileAsync (and the private BestVerticalCropAsync reachable only through the latter). ArtworkDownloader.cs's three entry points remain untested - discovered this loop that they cannot be tested with constructed fixtures alone (as the prior backlog description assumed) because DownloadArtworkAsync calls a private static sharedHttpClient directly with no seam; this is now recorded as a friction-proven Deepening Candidate for next loop rather than a vague absence. Reviewer verdict: approved (reality/honesty/regression all passed). Claim/evidence narrowed this loop (new title/evidence), so this occurrence's hashes differ from loop 9/10's.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8fad19697a11b2ebf62adb4b8a8ee93004dcb0982e079cd03adf2b08beaa1455",
+            "evidence_paths_hash": "sha256:43e4010d84df00eddd137d692971fcade71d45d64747704429e04ddd2b2c8eab"
+          },
+          "attempted_remedy_hash": "sha256:e009dc0ef18f86cec3f7ca750cd1dab2a047293ef2af6780ff6637c557c79fde"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-008",
+      "title": "FixLog has zero direct test coverage",
+      "category_hint": "missing-test-coverage-gap",
+      "primary_file": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+      "primary_evidence_lines": [
+        46,
+        64
+      ],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 11,
+      "first_seen_sha": "b042f75",
+      "last_seen_loop": 11,
+      "occurrences": [
+        {
+          "loop": 11,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "b042f75",
+          "note": "New this loop, surfaced while building the Authority Map cross-check that test_strategy approaching 9.0 requires (G24). FixLog.cs's Start/Write/SaveAsync have no corresponding FixLogTests.cs (confirmed via directory listing) and no other test file references FixLog. Promoted to Priority 1 in loop 11's backlog - the cheapest and safest of this run's three open test-coverage items (no network, no WinRT decode), same construction pattern AppliedArtworkStoreTests.cs already uses.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:e27aae98db89e66823f4ae86606c198d8b18ccdcde1d863c708189ea12255732",
+            "evidence_paths_hash": "sha256:4b90aece0fbe5218d582e0ab6fe4839960563c1a6b94279390b2aea1502a9b66"
+          },
+          "attempted_remedy_hash": "sha256:269393f729eaee27d9ea455b9c978bd6f0692152a80eb3b14aae9a4e09fafb71"
         }
       ]
     }
