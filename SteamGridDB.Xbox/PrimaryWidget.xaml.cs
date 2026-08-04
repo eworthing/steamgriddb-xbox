@@ -4,7 +4,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
@@ -63,34 +62,6 @@ namespace SteamGridDB.Xbox
         // candidates above 0.85 sat untouched - a hundredth of slack either side of a hard edge.
         private const double officialArtworkFloor = 0.60;
         private const double officialArtworkCeiling = 0.85;
-
-        // Grid styles that normally carry the game's title artwork, matching the look of native Xbox app tiles.
-        // Ordered by preference; styles not listed here (no_logo, material) tend to look like plain icons.
-        private static readonly string[] textBearingGridStyles = { "alternate", "white_logo", "blurred" };
-
-        // Notes/tags vocabulary of physical-media mockups (word-bounded, so "Xbox" never matches "box").
-        // "icon" is deliberately absent - it appears in legitimate source notes like "PS icon" too often.
-        private static readonly Regex demotedGridMetadata = new Regex(@"\b(case|box|jewel|spine|cartridge|mock-?ups?|physical|ps1|ps2|psp|retro|custom|wallpapers?|iisu|game icons|wallhaven|artstation|deviantart)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        // Console-store artwork: the game's real cover with a storefront badge burned into it
-        // ("PlayStation Hits" banner, a Switch or PS5 dashboard icon, an Xbox generation stamp).
-        // The art underneath is usually right, which is why the similarity gate rates these highly and
-        // why the vocabulary above misses them - they are not mockups, they are branded reissues.
-        // "greatest hits" is deliberately absent: one upload advertises being the *non*-Hits version.
-        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
-        // or citing an official platform-store domain. Press-kit mentions were tried and rejected:
-        // press-kit art is often stylistic promo art rather than the game's real cover.
-        private static readonly Regex boostedGridMetadata = new Regex(@"\b(official|offical)\b|xbox\.com|playstation\.com|nintendo\.com|microsoft\.com", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        // Edition markers in notes/tags; art is demoted when the marker is absent from the game's own name
-        private static readonly Regex editionGridMetadata = new Regex(@"\b(deluxe|goty|game of the year|definitive|ultimate|premium|collector'?s?|complete|anniversary|remaster(ed)?|enhanced|legendary|gold)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-
-        // Markdown/URL noise stripped from notes before keyword matching (see GridMetadata)
-        private static readonly Regex crossReferenceLink = new Regex(@"\[>[^\]]*\]\s*\([^)]*\)", RegexOptions.Compiled);
-        private static readonly Regex markdownLink = new Regex(@"\[([^\]]*)\]\s*\([^)]*\)", RegexOptions.Compiled);
-        private static readonly Regex bareUrl = new Regex(@"https?://(?:www\.)?([^/\s)\]]+)\S*", RegexOptions.Compiled);
 
         private enum RestoreBackupResult
         {
@@ -1093,7 +1064,7 @@ namespace SteamGridDB.Xbox
                             if (grids.Count > 0)
                             {
                                 // Rank candidates, then take the best one whose art actually fills the tile
-                                List<SteamGridDbGrid> ranked = RankGrids(grids, game.Name);
+                                List<SteamGridDbGrid> ranked = ArtworkRanker.RankGrids(grids, game.Name);
 
                                 FixLog.Write($"  {grids.Count} square candidates, ranked: {string.Join(", ", ranked.Take(5).Select(g => g.Id))}");
 
@@ -1131,7 +1102,7 @@ namespace SteamGridDB.Xbox
 
                                 if (icons.Count > 0)
                                 {
-                                    SteamGridDbGrid bestIcon = RankIcons(icons).First();
+                                    SteamGridDbGrid bestIcon = ArtworkRanker.RankIcons(icons).First();
                                     bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false, bestIcon.Id);
 
                                     if (downloaded)
@@ -1509,7 +1480,7 @@ namespace SteamGridDB.Xbox
             // can only fail it again - starting past the winner saves re-fetching and re-decoding them.
             for (int i = chosenIndex + 1; i < rankedGrids.Count && i < maxArtworkCandidates; i++)
             {
-                if (IsDemotedGrid(rankedGrids[i], gameName))
+                if (ArtworkRanker.IsDemotedGrid(rankedGrids[i], gameName))
                 {
                     continue;
                 }
@@ -1562,7 +1533,7 @@ namespace SteamGridDB.Xbox
                 return false;
             }
 
-            foreach (SteamGridDbGrid candidate in RankGrids(portraits, game.Name).Take(maxArtworkCandidates))
+            foreach (SteamGridDbGrid candidate in ArtworkRanker.RankGrids(portraits, game.Name).Take(maxArtworkCandidates))
             {
                 IBuffer cropped = await TileImage.CropPortraitToTileAsync(await DownloadArtworkAsync(candidate.Url));
 
@@ -1690,30 +1661,6 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Orders icons for the picker, and for the fallback used when a game has no square grid.
-        ///
-        /// Deliberately close to the order the API returned. Sorting on Score, as this did, was sorting
-        /// on a constant the API retired, but grading 108 games showed nothing else beat that accidental
-        /// order either: preferring PNG over .ico split 30/29, and preferring SteamGridDB's own
-        /// "official" style over "custom" was actively worse at 8 against 3 - the official icon is often
-        /// the small platform one (128px against a 512px custom upload), so a label was outranking size.
-        ///
-        /// The one rule the grading did support is narrow, so that is all this does: among icons that
-        /// are the same kind - same format, same style - take the largest. Everything else keeps its
-        /// original position. On the graded set that moved 14 picks, 6 onto the preferred artwork and 1
-        /// onto artwork that had been rejected.
-        /// </summary>
-        /// <param name="icons">Icons as returned by the API.</param>
-        private static List<SteamGridDbGrid> RankIcons(IEnumerable<SteamGridDbGrid> icons)
-        {
-            // GroupBy yields groups in first-appearance order, so kinds stay where the API put them
-            return icons
-                .GroupBy(i => (i.Mime, i.Style))
-                .SelectMany(kind => kind.OrderByDescending(i => i.Width))
-                .ToList();
-        }
-
-        /// <summary>
         /// How to address a game's artwork: by its store ID, or by SteamGridDB's own ID when the game
         /// was found by name because no store ID matched.
         /// </summary>
@@ -1748,153 +1695,14 @@ namespace SteamGridDB.Xbox
         {
             List<SteamGridDbGrid> grids = await client.GetSquareGridsAsync(source);
 
-            if (grids == null || grids.Count == 0 || grids.Any(g => GridStylePriority(g.Style) == 0))
+            if (grids == null || grids.Count == 0 || grids.Any(g => ArtworkRanker.GridStylePriority(g.Style) == 0))
             {
                 return grids;
             }
 
-            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsAsync(source, textBearingGridStyles);
+            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsAsync(source, ArtworkRanker.TextBearingGridStyles);
 
             return textBearing != null && textBearing.Count > 0 ? textBearing : grids;
-        }
-
-        /// <summary>
-        /// Returns the sort rank of a grid style - title-bearing box art styles first, icon-like styles last.
-        /// Title-bearing styles rank equally: preferring one over another proved to mostly surface
-        /// mis-tagged fan art while any of them already matches the native Xbox look.
-        /// </summary>
-        /// <param name="style">Grid style reported by SteamGridDB.</param>
-        private static int GridStylePriority(string style)
-        {
-            return Array.IndexOf(textBearingGridStyles, style) >= 0 ? 0 : 1;
-        }
-
-        /// <summary>
-        /// Combined notes and tags text used for metadata-based ranking. Cross-reference links to
-        /// other uploads (SteamGridDB convention "[&gt;deluxe](url)") and URLs are stripped so they
-        /// cannot trigger keyword matches; other links keep their text (e.g. "Official - Microsoft").
-        /// </summary>
-        private static string GridMetadata(SteamGridDbGrid grid)
-        {
-            string text = (grid.Notes ?? string.Empty) + " " + string.Join(" ", grid.Tags ?? Array.Empty<string>());
-
-            text = crossReferenceLink.Replace(text, " ");
-            text = markdownLink.Replace(text, "$1");
-            text = bareUrl.Replace(text, " $1 ");
-
-            return text;
-        }
-
-        /// <summary>
-        /// True when the artwork's notes/tags name an edition (deluxe, GOTY, etc.) that is not part of
-        /// the game's own name - e.g. "Deluxe Edition" art for a standard-edition game.
-        /// </summary>
-        /// <param name="metadata">Cleaned notes/tags text from <see cref="GridMetadata"/>.</param>
-        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
-        private static bool IsEditionMismatch(string metadata, string gameName)
-        {
-            if (string.IsNullOrEmpty(gameName))
-            {
-                // Nothing to compare against. Treating that as a mismatch demoted every
-                // edition-labelled candidate for any game whose name did not resolve, on no evidence.
-                return false;
-            }
-
-            foreach (Match match in editionGridMetadata.Matches(metadata))
-            {
-                if (gameName.IndexOf(match.Value, StringComparison.OrdinalIgnoreCase) < 0)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        /// <summary>
-        /// True when the artwork's notes/tags mark it as something other than the game's plain cover:
-        /// a physical-media mockup, art for an edition the game is not, or a console-store reissue with
-        /// a storefront badge on it. Such artwork is ranked last and is never accepted as a replacement
-        /// by the official-artwork gate, which would otherwise rate a badged cover highly for matching
-        /// the real one.
-        /// </summary>
-        /// <param name="grid">Artwork to test.</param>
-        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
-        private static bool IsDemotedGrid(SteamGridDbGrid grid, string gameName)
-        {
-            return IsDemotedMetadata(GridMetadata(grid), gameName);
-        }
-
-        /// <summary>
-        /// As <see cref="IsDemotedGrid"/>, for callers that have already built the metadata text.
-        /// </summary>
-        /// <param name="metadata">Cleaned notes/tags text from <see cref="GridMetadata"/>.</param>
-        /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
-        private static bool IsDemotedMetadata(string metadata, string gameName)
-        {
-            return demotedGridMetadata.IsMatch(metadata)
-                || consoleBadgeGridMetadata.IsMatch(metadata)
-                || IsEditionMismatch(metadata, gameName);
-        }
-
-        /// <summary>
-        /// A grid with its ranking signals worked out once. Evaluating them inside the sort keys instead
-        /// would rebuild and re-scan the same notes text three times for every candidate.
-        /// </summary>
-        private sealed class RankedGrid
-        {
-            public RankedGrid(SteamGridDbGrid grid, string gameName)
-            {
-                string metadata = GridMetadata(grid);
-
-                Grid = grid;
-                IsDemoted = IsDemotedMetadata(metadata, gameName);
-                IsBoosted = boostedGridMetadata.IsMatch(metadata);
-                IsForeignLanguage = !string.IsNullOrEmpty(grid.Language) && grid.Language != "en";
-            }
-
-            public SteamGridDbGrid Grid
-            {
-                get;
-            }
-
-            public bool IsDemoted
-            {
-                get;
-            }
-
-            public bool IsBoosted
-            {
-                get;
-            }
-
-            public bool IsForeignLanguage
-            {
-                get;
-            }
-        }
-
-        /// <summary>
-        /// Ranks grids for auto-selection: mockup/icon-labelled and wrong-edition uploads last,
-        /// English (or untagged) language first, official store artwork boosted, then style
-        /// preference, resolution and format. Ties keep SteamGridDB's canonical ordering (stable sort).
-        /// </summary>
-        private static List<SteamGridDbGrid> RankGrids(IEnumerable<SteamGridDbGrid> grids, string gameName)
-        {
-            return grids
-                .Select(g => new RankedGrid(g, gameName))
-                .OrderBy(r => r.IsDemoted ? 1 : 0)
-                .ThenBy(r => r.IsForeignLanguage ? 1 : 0)
-                .ThenBy(r => GridStylePriority(r.Grid.Style))
-                .ThenByDescending(r => r.IsBoosted ? 1 : 0)
-                // 512x512 and 1024x1024 are requested together, so the sharper upload has to be picked
-                // out here. Preferring PNG over JPEG was tried as a further tie-break and reverted: it
-                // moved 26 picks and graded 2 better against 7 worse, because format says nothing about
-                // whether the art is the game's real cover. The tile's filename claim is a separate
-                // problem and belongs with the download, not the ranking.
-                .ThenByDescending(r => r.Grid.Width)
-                .Select(r => r.Grid)
-                .ToList();
         }
 
         /// <summary>
@@ -1912,12 +1720,12 @@ namespace SteamGridDB.Xbox
 
             if (grids != null && grids.Count > 0)
             {
-                sortedArtworks.AddRange(RankGrids(grids, CurrentSelectedGame?.Name));
+                sortedArtworks.AddRange(ArtworkRanker.RankGrids(grids, CurrentSelectedGame?.Name));
             }
 
             if (icons != null && icons.Count > 0)
             {
-                sortedArtworks.AddRange(RankIcons(icons));
+                sortedArtworks.AddRange(ArtworkRanker.RankIcons(icons));
             }
 
             if (sortedArtworks.Count == 0)

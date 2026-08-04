@@ -116,6 +116,7 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\Artwork\AppliedArtworkStore.cs" />
+    <Compile Include="Services\Artwork\ArtworkRanker.cs" />
     <Compile Include="Services\Artwork\ArtworkSignature.cs" />
     <Compile Include="Services\Artwork\FixLog.cs" />
     <Compile Include="Services\Artwork\TileImage.cs" />

@@ -1,0 +1,317 @@
+{
+  "schema_version": 4,
+  "loop": 1,
+  "loop_cap": 10,
+  "state": "CONTINUE",
+  "halt_subtype": null,
+  "halt_handoff_text": null,
+  "halt_handoff": null,
+  "re_validated_at_sha": null,
+  "re_validation_context": null,
+  "dry_run": false,
+  "strictness": "standard",
+  "loop_metrics": null,
+  "run_id": null,
+  "source_rev": null,
+  "candidate_fingerprint": null,
+  "halt_success_challenge": null,
+  "provider": "claude_code",
+  "loop_model": "claude-sonnet-5",
+  "loop_model_source": "default",
+  "reviewer_model": "claude-sonnet-5",
+  "reviewer_model_source": "default",
+  "spawn_isolation": "subagent",
+  "premium_dry_run": null,
+  "premium_loop_override": false,
+  "findings_registry_path": "./findings_registry.json",
+  "discovery": {
+    "source_roots": ["SteamGridDB.Xbox"],
+    "test_command": null,
+    "test_command_absent_reason": "no test project exists in the solution; skipping tests is a standing user instruction from the originating session, which outranks this skill on the instruction-authority ladder. The build command is the sole ground-truth oracle, so Step 3 regression checking is a type-check only.",
+    "build_command": "\"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo",
+    "build_verified_green_at": "92c598a",
+    "build_duration_seconds": 4,
+    "test_scope": "full",
+    "test_filter": null,
+    "adrs": [],
+    "domain_terms": [],
+    "prior_audit_docs": [
+      { "path": "ARTWORK-SELECTION.md", "date": "2026-08-03" },
+      { "path": "CODE-REVIEW.md", "date": "2026-08-03" }
+    ],
+    "selected_lens": "lens-generic.md",
+    "selected_lens_caveat": "C#/.NET/UWP matches no lens-registry row and takes the generic fallback. The generic lens covers Rust/Go/Python/Node/JVM idioms and does not model UWP IAsyncOperation boundaries, SoftwareBitmap native-memory disposal, app-container path virtualisation, or Windows.Data.Json null semantics. This loop's findings did not depend on any of those four; future loops should not read that as clearance.",
+    "loaded_lenses": ["lens-generic.md", "lens-security.md", "lens-efficiency.md"],
+    "working_tree_dirty_paths": [],
+    "churn_top20": [
+      { "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "edits": 21 },
+      { "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs", "edits": 8 },
+      { "path": "SteamGridDB.Xbox/Models/GameEntry.cs", "edits": 4 },
+      { "path": "SteamGridDB.Xbox/Models/GridImageItem.cs", "edits": 3 },
+      { "path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGrid.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkSignature.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Models/GamePlatform.cs", "edits": 2 },
+      { "path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGame.cs", "edits": 1 },
+      { "path": "SteamGridDB.Xbox/Services/SteamGridDB/ArtworkSource.cs", "edits": 1 },
+      { "path": "SteamGridDB.Xbox/Services/JsonRead.cs", "edits": 1 },
+      { "path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs", "edits": 1 },
+      { "path": "SteamGridDB.Xbox/Properties/AssemblyInfo.cs", "edits": 1 }
+    ],
+    "preflight": "exit 0"
+  },
+  "verdict": "Promising, but architecturally immature",
+  "verdict_explanation": "Runtime ownership is mostly honest and several service modules show genuine Depth, but the churn-flagged PrimaryWidget.xaml.cs merged UI orchestration with three unrelated business-logic concerns behind zero Interface boundary, and there is no test suite to backstop any of it.",
+  "scorecard": {
+    "architecture_quality":      {"score": 5.0, "delta": "SAME", "proof": "PrimaryWidget.xaml.cs (2,722 LOC at loop start, 55% of source) merged UI, manifest/store-name resolution, artwork ranking, and backup orchestration with no Interface boundary; contrasted with well-structured siblings SteamGridDbClient.cs and ArtworkSource.cs.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "state_management":          {"score": 6.0, "delta": "SAME", "proof": "isLibraryOperationRunning (PrimaryWidget.xaml.cs:242-272) is a clean single owner; AppliedArtworkStore.GetAsync (AppliedArtworkStore.cs:38-48) reads without the lock UpdateAsync (:138-169) uses to write the same dictionary - F2.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "domain_modeling":           {"score": 5.5, "delta": "SAME", "proof": "GameEntry/GridImageItem are real domain types; SteamGridDbGame.OfficialCapsuleUrl is hand-parsed by client code (SteamGridDbClient.cs:131,144-199) outside the DTO's own deserialization.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "data_flow":                 {"score": 5.5, "delta": "SAME", "proof": "GOG/Epic/Ubisoft network calls instantiated directly inside PrimaryWidget's private methods via a shared static HttpClient, reached as ambient scope (PrimaryWidget.xaml.cs:2448-2664, unchanged this loop).", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "framework_idioms":          {"score": 6.0, "delta": "SAME", "proof": "Dispatcher.RunAsync used consistently; App.xaml.cs follows the documented XboxGameBarWidget lifecycle. Two JSON idioms coexist without a chosen default - DataContractJsonSerializer for DTOs vs. ad hoc Windows.Data.Json elsewhere.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "concurrency":               {"score": 5.0, "delta": "SAME", "proof": "F2 (AppliedArtworkStore unguarded read vs guarded write) and F3 (LoadGameEntriesAsync issues fully sequential per-game network round-trips, PrimaryWidget.xaml.cs:430-734, D2 lens-efficiency.md).", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "simplicity":                {"score": 5.5, "delta": "UP", "proof": "git diff --stat this loop: PrimaryWidget.xaml.cs 208 net lines removed, moved to a new 207-line Services/Artwork/ArtworkRanker.cs (pure relocation, reviewer-approved). F4 (AppliedArtworkStore/EpicLibrary duplicate lazy-cache pattern, AppliedArtworkStore.cs:84-136 vs EpicLibrary.cs:67-89) and F1's remaining slices still weigh the score down.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "test_strategy":             {"score": 3.0, "delta": "SAME", "proof": "No test project exists (verified: no test-named *.csproj, no MSTest/xUnit/NUnit reference); a standing user instruction prohibits adding one this run. Stateful/networking/persistence Modules (AppliedArtworkStore, EpicLibrary, SteamGridDbClient, the artwork-ranking algorithm) have zero test coverage - matches the rubric 3-anchor exactly. Named, non-backlog-item blocker: the instruction outranks this skill and the 9-anchor cannot be met while it stands.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "credibility":                {"score": 5.5, "delta": "SAME", "proof": "Doc comments tie decisions to measured outcomes (the official-artwork gate floor/ceiling cites a named regression case). Three of four store-name-resolution methods (GetGogGameNameAsync, GetEpicGameNameAsync, LoadUbisoftGameListAsync/GetUbisoftGameNameAsync) swallow failures via Debug.WriteLine only, never reaching FixLog, unlike the SteamGridDB path in the same method (PrimaryWidget.xaml.cs:699-701).", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false}
+  },
+  "authority_map": [
+    {
+      "concern": "Library-operation exclusivity (isLibraryOperationRunning)",
+      "owner": "PrimaryWidget instance",
+      "allowed_writers": ["TryBeginLibraryOperation", "EndLibraryOperation"],
+      "readers": ["IsLibraryOperationBlocking", "header-button click handlers", "EditGameImage_Click", "SearchGameImage_Click", "RestoreBackup_Click"],
+      "persistence_seam": null,
+      "async_mutation_entry_points": ["TryBeginLibraryOperation/EndLibraryOperation via every *_Click handler's try/finally"],
+      "verdict": "Single and clear"
+    },
+    {
+      "concern": "Applied-artwork record (AppliedArtworkStore.applied)",
+      "owner": "AppliedArtworkStore (static, Services/Artwork/)",
+      "allowed_writers": ["UpdateAsync (via SetAsync/ClearAsync), gated by `gate`"],
+      "readers": ["GetAsync - not gated, the ambiguity F2 names"],
+      "persistence_seam": "applied-artwork.json in ApplicationData.Current.LocalFolder",
+      "async_mutation_entry_points": ["SetAsync (from ReplaceImageCoreAsync)", "ClearAsync (from RestoreBackupCoreAsync)"],
+      "verdict": "Split and ambiguous"
+    },
+    {
+      "concern": "Store-name resolution caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache)",
+      "owner": "PrimaryWidget static fields (conceptually a store-resolution concern, physically on the UI class - F1 remaining scope)",
+      "allowed_writers": ["the matching Get*NameAsync/FindGameByNameAsync method, only from within LoadGameEntriesAsync's sequential per-entry loop"],
+      "readers": ["the same methods (TryGetValue before writing)"],
+      "persistence_seam": null,
+      "async_mutation_entry_points": ["inside LoadGameEntriesAsync's per-entry body"],
+      "verdict": "Single and clear"
+    }
+  ],
+  "strengths": [
+    "ArtworkSource's private-constructor-plus-factory-method design (Services/SteamGridDB/ArtworkSource.cs:15-51) makes 'neither a platform-ID nor a game-ID' unrepresentable.",
+    "The official-artwork gate (FindOfficialLookalikeAsync) is a narrow, evidence-tuned veto whose code comments cite a specific regression case (a Mad Max false-positive at a 0.51 match) and the exact slack margin that motivated the floor/ceiling split.",
+    "SteamGridDbClient.GetStringAsync (Services/SteamGridDB/SteamGridDbClient.cs:334-374) distinguishes 'the request failed' from 'SteamGridDB returned zero results' throughout the call chain, which FixLibraryAsync's error/not-found counters depend on."
+  ],
+  "findings": [
+    {
+      "loop_local_id": "F1",
+      "stable_id": "F-001",
+      "id": "F1",
+      "title": "PrimaryWidget.xaml.cs merges four unrelated concerns behind zero Interface boundary",
+      "why_it_matters": "The file the churn signal already flags as the leaky seam (21 edits, 2.6x the next file, 55% of all source at loop start) has no module boundary separating UI orchestration from business logic, so a change to any one concern risks touching the other three.",
+      "what_is_wrong": "UI event handling, third-party manifest/store-name resolution (GOG/Epic/Ubisoft), the artwork-ranking algorithm, and file backup/restore orchestration are all private methods on one 2722-line Page-derived class with no Interface separating them.",
+      "evidence": [
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:361-778 (manifest parsing + store-name resolution inlined in LoadGameEntriesAsync)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1707-1898 (artwork-ranking algorithm: RankGrids, RankIcons, GridMetadata, RankedGrid, before this loop's extraction)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2448-2664 (GOG/Epic/Ubisoft name-fetch methods)",
+        "CURRENT_REVIEW.json discovery.churn_top20 (PrimaryWidget.xaml.cs: 21 edits vs 8 for the next file)"
+      ],
+      "test_failed": "n/a",
+      "dependency_category": "true-external",
+      "leverage_impact": "Every future artwork-ranking tweak, store-name fix, or UI change touched the same file, so no single change was ever isolated to its own concern.",
+      "locality_impact": "A maintainer fixing a UI bug had to read through ~2700 lines including unrelated ranking-algorithm and network-parsing code to find the relevant 20 lines.",
+      "metric_signal": "PrimaryWidget.xaml.cs: 2722 LOC at loop start, 21 six-month edits (2.6x next-highest file), 55% of all first-party source",
+      "why_weakens_submission": "The module graph is not enforced by source at all in the largest file; ownership of four distinct concerns was untraceable from any single Module.",
+      "severity": "Serious deduction",
+      "adr_conflicts": [],
+      "adr_reopen_justification": null,
+      "minimal_correction_path": "Extract the concerns incrementally, starting with the parts that have zero UI dependency: move the artwork-ranking classification functions (RankGrids, RankIcons, GridMetadata, IsDemotedGrid, IsEditionMismatch, RankedGrid, GridStylePriority plus their static regex/const fields) into the existing Services/Artwork/ module. This loop executes that first slice; store-name resolution and file-restore orchestration remain backlog items for subsequent loops.",
+      "blast_radius": {
+        "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs"],
+        "avoid": ["SteamGridDB.Xbox/Services/SteamGridDB/*", "SteamGridDB.Xbox/Services/Stores/*"]
+      }
+    },
+    {
+      "loop_local_id": "F2",
+      "stable_id": "F-002",
+      "id": "F2",
+      "title": "AppliedArtworkStore.GetAsync reads the shared cache without the lock that guards its writer",
+      "why_it_matters": "A non-thread-safe Dictionary read concurrently with an in-place write can throw or corrupt internal state; the picker's applied-artwork marker can silently go wrong exactly when a fix operation is writing to the same store.",
+      "what_is_wrong": "GetAsync (AppliedArtworkStore.cs:38-48) calls TryGetValue on the shared applied dictionary after LoadAsync returns without acquiring gate, while UpdateAsync (AppliedArtworkStore.cs:138-169) holds gate only around its own read-modify-write of the same dictionary instance - the lock protects the writer against other writers but not readers against the writer.",
+      "evidence": [
+        "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:38-48",
+        "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:138-169"
+      ],
+      "test_failed": "n/a",
+      "dependency_category": null,
+      "leverage_impact": "Callers cannot rely on GetAsync being safe to call concurrently with any Set/Clear, so every call site would otherwise have to independently reason about an ordering the Module itself should guarantee.",
+      "locality_impact": "The hazard is contained to this one Module; fixing it here fixes every caller at once.",
+      "metric_signal": "none",
+      "why_weakens_submission": "A concurrency hazard in a Module every artwork-write path depends on is a real ownership defect, even though it has not yet been observed to fire.",
+      "severity": "Serious deduction",
+      "adr_conflicts": [],
+      "adr_reopen_justification": null,
+      "minimal_correction_path": "Hold gate around the TryGetValue in GetAsync too (or snapshot applied under the gate before releasing it), matching the pattern UpdateAsync already uses.",
+      "blast_radius": {
+        "change": ["SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs"],
+        "avoid": ["everything else"]
+      }
+    },
+    {
+      "loop_local_id": "F3",
+      "stable_id": "F-003",
+      "id": "F3",
+      "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
+      "why_it_matters": "Load time scales linearly with library size and network latency on the widget's primary open path - the one flow every user hits every time.",
+      "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks) one game at a time; nothing overlaps the independent per-game network calls.",
+      "evidence": [
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:430-734 (per-folder, per-entry sequential foreach containing await sgdbClient.GetGameByPlatformIdAsync)"
+      ],
+      "test_failed": "n/a",
+      "dependency_category": "true-external",
+      "leverage_impact": "There is only one call site (the load loop); a future second caller of the same pattern would inherit the same linear cost with no leverage from batching, since none exists.",
+      "locality_impact": "The fix is local to LoadGameEntriesAsync's loop body; it does not need to spread to callers.",
+      "metric_signal": "One HTTP round-trip per game per store lookup; a 100-game library issues 100+ sequential requests with no overlap (D2, lens-efficiency.md)",
+      "why_weakens_submission": "Structural waste on the widget's primary hot path; the fix is well-understood (bounded concurrency) but crosses a real risk boundary because gogNameCache/epicNameCache/nameMatchCache/ubisoftGameLookupCache are plain Dictionary, not thread-safe, and currently rely on this exact sequencing to stay race-free.",
+      "severity": "Noticeable weakness",
+      "adr_conflicts": [],
+      "adr_reopen_justification": null,
+      "minimal_correction_path": "Bound concurrency (e.g. SemaphoreSlim(4-8) + Task.WhenAll) around the per-entry body, and switch the four static caches to ConcurrentDictionary before parallelizing - do not parallelize without that change, or the caches race.",
+      "blast_radius": {
+        "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (LoadGameEntriesAsync + the four static cache field declarations)"],
+        "avoid": ["SteamGridDB.Xbox/Services/*"]
+      }
+    },
+    {
+      "loop_local_id": "F4",
+      "stable_id": "F-004",
+      "id": "F4",
+      "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
+      "why_it_matters": "The same ~25-line lazy-load-with-gate skeleton was written twice by hand instead of once; a future third cache (F1/F3's store-name caches) would make it three.",
+      "what_is_wrong": "AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:84-136) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) both implement: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper.",
+      "evidence": [
+        "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:84-136",
+        "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs:67-89"
+      ],
+      "test_failed": "n/a",
+      "dependency_category": null,
+      "leverage_impact": "A shared lazy-cache primitive would pay for itself across at least these two call sites, and the four PrimaryWidget caches touched by F1/F3 later.",
+      "locality_impact": "Today a bug in the locking pattern must be fixed in two places; a shared helper collapses that to one.",
+      "metric_signal": "none",
+      "why_weakens_submission": "Duplicate concurrency boilerplate is exactly the kind of copy-paste-with-slight-variation the leaf-module duplication sweep looks for; it is real but contained - neither copy is currently wrong on its own (unlike F2, which is a live hazard).",
+      "severity": "Noticeable weakness",
+      "adr_conflicts": [],
+      "adr_reopen_justification": null,
+      "minimal_correction_path": "Extract a small internal AsyncLazy-style helper (check-lock-recheck-populate) that both call sites construct against. Do not add an interface or DI - this is one concrete type serving two internal call sites, not a Seam.",
+      "blast_radius": {
+        "change": ["SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs", "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs", "one new small internal helper"],
+        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"]
+      }
+    }
+  ],
+  "simplification_check": {
+    "structurally_necessary": "Extracting the artwork-ranking classification cluster (F1's first slice) into Services/Artwork/ArtworkRanker.cs - passes the deletion test in reverse (the logic is real and load-bearing; it just did not belong on the UI class) and is a pure move with zero new abstraction.",
+    "new_seam_justified": false,
+    "new_seam_adapters": [],
+    "helpful_simplification": "Consolidating the four store-name caches and the artwork-ranking constants under Services/ once F1's remaining slices land.",
+    "should_not_be_done": "Introduce an IArtworkRanker interface, a Coordinator, or a DI container for this move - there is exactly one production caller (PrimaryWidget) and no second implementation is proven necessary. That would be architecture costume layered on what is otherwise a one-line static-class-reference fix.",
+    "tests_after_fix": "No test project exists (standing user instruction); the build (MSBuild compile) is the only regression oracle this loop, consistent with Discovery's stated test_command_absent_reason."
+  },
+  "backlog": [
+    {
+      "priority": 1,
+      "title": "Fix AppliedArtworkStore.GetAsync's unguarded read against UpdateAsync's guarded write",
+      "kind": "structural",
+      "rank": "needed for winning",
+      "why_it_matters": "Closes a real concurrency hazard in a Module every artwork-write path depends on.",
+      "score_impact": "State management +0.5, Concurrency +0.5 once verified."
+    },
+    {
+      "priority": 2,
+      "title": "Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups, after switching the four static name-resolution caches to ConcurrentDictionary",
+      "kind": "structural",
+      "rank": "helpful",
+      "why_it_matters": "Removes load latency that scales linearly with library size on the widget's primary flow.",
+      "score_impact": "Concurrency +0.5, Framework idioms +0.5 once verified."
+    },
+    {
+      "priority": 3,
+      "title": "Continue the PrimaryWidget.xaml.cs break-up (F1, next slice): move store-name resolution (GOG/Epic/Ubisoft fetch methods + their four caches) into Services/Stores/ alongside the existing EpicLibrary.cs",
+      "kind": "structural",
+      "rank": "needed for winning",
+      "why_it_matters": "Removes the largest remaining slice of F1; EpicLibrary.cs already establishes the precedent this fetch logic should follow.",
+      "score_impact": "Architecture quality +0.5, Code simplicity +0.5 once verified."
+    }
+  ],
+  "unresolved_reason": null,
+  "deepening_candidates": [
+    {
+      "candidate_module": "AsyncLazy-style cache helper for AppliedArtworkStore + EpicLibrary (and eventually the PrimaryWidget store-name caches)",
+      "source_friction_proven": "F4 - identical double-checked-locking skeleton hand-copied between AppliedArtworkStore.cs:84-136 and EpicLibrary.cs:67-89",
+      "why_shallow_or_misplaced": "Each Module re-implements the same generic 'lazily load once behind a gate' behavior instead of delegating to one small internal owner of that pattern.",
+      "behavior_to_move_behind_interface": "check-null, gate.WaitAsync, re-check-null, populate-via-factory, gate.Release",
+      "dependency_category": "in-process",
+      "test_surface_after_change": "No test project (standing instruction); build-verified only, same as today.",
+      "smallest_first_step": "Write the helper against AppliedArtworkStore first (it also has the F2 race to fix at the same time), then EpicLibrary once the shape is proven.",
+      "what_not_to_do": "Do not generalize this into a public caching framework or add a second production adapter to justify a Seam - two internal call sites do not need an interface, just a shared internal type."
+    }
+  ],
+  "builder_notes": [
+    {
+      "pattern": "Churn concentrates where concerns are merged",
+      "how_to_recognize": "One file dominates the six-month edit count and is several times larger than everything else; commits touching it describe unrelated changes (a ranking tweak, a UI fix, a parsing fix) in the same file.",
+      "smallest_coding_rule": "When a file's edit count and size both dominate the repo, treat that as a leaky-seam signal before writing the next feature into it - extract the concern that changed, don't add to the pile.",
+      "stack_example": "C#/UWP: a Page code-behind file is a natural dumping ground because event handlers must live there; pure business logic (ranking, parsing, name resolution) does not have to - move it to a plain static class or service the Page calls into."
+    },
+    {
+      "pattern": "A lock that guards the writer but not the reader is not a lock",
+      "how_to_recognize": "A SemaphoreSlim (or lock) wraps every write to a shared mutable collection, but at least one read path skips it because 'it's just a read.'",
+      "smallest_coding_rule": "Every access path to lock-protected shared mutable state takes the same lock, reads included - a Dictionary read racing a Dictionary write is exactly as unsafe as two racing writes.",
+      "stack_example": "C#: Dictionary<K,V> is not thread-safe for any concurrent read+write mix; either guard every access uniformly or switch to ConcurrentDictionary<K,V>."
+    },
+    {
+      "pattern": "Sequential await in a per-item loop hides its own cost until the collection grows",
+      "how_to_recognize": "A foreach loop with an await inside it, over items whose network/IO calls don't depend on each other, and no Task.WhenAll / bounded-parallel pattern anywhere nearby.",
+      "smallest_coding_rule": "Before parallelizing, check what the loop body writes to outside itself (caches, counters) - if those aren't thread-safe, fix that first or the 'optimization' introduces the very race the sequential version was accidentally protecting against.",
+      "stack_example": "C#: Task.WhenAll over a bounded batch (via SemaphoreSlim) turns N sequential round-trips into N/batch-size overlapped ones, but only after any shared Dictionary the bodies write to becomes a ConcurrentDictionary."
+    }
+  ],
+  "narrative": "Place, not win. PrimaryWidget.xaml.cs concentrated four unrelated concerns - UI, manifest/store-name resolution, artwork ranking, and backup orchestration - behind zero Interface boundary, and the churn data confirmed it was paying rent for that: 21 edits against 8 for the next-highest file. Runtime ownership is mostly trustworthy (isLibraryOperationRunning is a clean single-owner guard, GameEntry/GridImageItem are honest observable models), but AppliedArtworkStore.GetAsync's unguarded read against its own Module's guarded writer is a real, if narrow, concurrency hazard. Tests do not exist and cannot be added this run per standing instruction, so regression resistance is unverifiable beyond a compile check - the score reflects that honestly rather than pretending the codebase earns credit it cannot currently prove. This loop's fix (extracting the artwork-ranking algorithm to Services/Artwork/ArtworkRanker.cs) was deliberately the smallest, lowest-risk first slice of F1; committing to a mid-size or full break-up of PrimaryWidget.xaml.cs in one loop would have violated the smallest-honest-fix discipline and risked exactly the kind of over-engineered churn the simplicity anchor punishes.",
+  "loop_result": {
+    "what_changed": "Moved the artwork-ranking classification cluster (RankGrids, RankIcons, GridMetadata, IsEditionMismatch, IsDemotedGrid, IsDemotedMetadata, the private RankedGrid class, GridStylePriority, and the associated regex/const fields) out of PrimaryWidget.xaml.cs into a new file Services/Artwork/ArtworkRanker.cs, and updated the seven call sites in PrimaryWidget.xaml.cs to ArtworkRanker.X(...). Added the new file to SteamGridDB.Xbox.csproj's explicit <Compile Include> list (old-style csproj, no globbing). Removed the now-unused using System.Text.RegularExpressions; from PrimaryWidget.xaml.cs.",
+    "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery) passed clean after the change (exit 0, same command as Step 0's baseline). git diff --stat shows PrimaryWidget.xaml.cs with 208 net lines removed against a new 207-line ArtworkRanker.cs - doc comments and regex patterns preserved verbatim, call-site arguments unchanged. Implementation Review subagent (fresh context, read-only) returned verdict: approved, all three checks (reality, honesty, regression) passed, empty regressions/conditions.",
+    "risk_boundary_evidence": null,
+    "targeted_finding_status": "carried_forward",
+    "unintended_regression": null,
+    "changed_paths": [
+      "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+      "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs"
+    ],
+    "interface_test_coverage_path": null
+  },
+  "implementation_review": {
+    "verdict": "approved",
+    "reason": "Pure, verbatim relocation of the artwork-ranking cluster into a new internal static ArtworkRanker.cs; all call sites in PrimaryWidget.xaml.cs updated with identical arguments, no new Seam introduced, and no unrelated files touched.",
+    "checks": {
+      "reality": "passed",
+      "honesty": "passed",
+      "regression": "passed"
+    },
+    "regressions": [],
+    "conditions": [],
+    "rounds": 1,
+    "retry_count": 1,
+    "retry_cause": null,
+    "retry_attempts": [
+      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 61409}
+    ]
+  }
+}
