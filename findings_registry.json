@@ -12,7 +12,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 1,
@@ -37,6 +37,18 @@
             "evidence_paths_hash": "sha256:c6d55c4e43b5ed18b1336c8405a275ef904fa40633f7a9138a0d32fdbae7b25d"
           },
           "attempted_remedy_hash": "sha256:c8e58a7b824541f6b10635c9b85ca709b6ece59cce08f7d96f13bc1a7d919856"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "89740e1",
+          "note": "This loop landed the second slice of the remedy (store-name resolution moved to Services/Stores/StoreNameLookup.cs, commit-verified, reviewer-approved). Claim updated to reflect two of the original four concerns remaining (UI event handling, backup/restore orchestration); loop_result.targeted_finding_status: carried_forward. Not marked resolved. Title/evidence/why_it_matters/why_weakens_submission all re-derived from current source this loop (new hashes below).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0734ce75cac95a54775cfb679a4abd1a72993c4c0268da130d9697a47c883ad5",
+            "evidence_paths_hash": "sha256:076981303dd4380583013d2e522318089270454f08e6d18b6635164581bb3065"
+          },
+          "attempted_remedy_hash": "sha256:93be2856575db99a6c6b02bbd23ebfe82cc67e6dd174a33d7f9cdc07a1cc1eaf"
         }
       ]
     },
@@ -87,7 +99,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 1,
@@ -111,6 +123,18 @@
             "evidence_paths_hash": "sha256:ad1d9051bd92b742800f72133fed70ca45d0a179783380a10677c1794e232d2a"
           },
           "attempted_remedy_hash": "sha256:1c1f3b42c9494ed060933e724365f0084ebcebeb3d9f44f4a5d7a3b618b8fc7e"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "89740e1",
+          "note": "Re-derived from current source this loop (line numbers shifted to :324-741, await sites at :577,601,623,638,658, after F1's extraction moved fields/methods earlier in the file). Unaffected by this loop's fix, which targeted store-name resolution relocation (F-001), not concurrency. Remains Priority 2 in loop 3's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:f48a9b3c206b1ab068633773506178a82344c9cf1d9f8ee8d9d7ed24c081ab24",
+            "evidence_paths_hash": "sha256:98c3429e7850bed46c870573ffba3ec1d93b7ca71df689b7e60c582ef4a137b7"
+          },
+          "attempted_remedy_hash": "sha256:e5dda9f433bf36f988c1f8540f1350699b06b6b4b03ea693defac341e7bb8056"
         }
       ]
     },
@@ -124,7 +148,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 1,
@@ -145,6 +169,18 @@
           "note": "Re-derived from current source this loop (AppliedArtworkStore.LoadAsync line numbers shifted to :95-147 after F2's fix widened GetAsync above it; pattern itself unchanged). Untouched by loop 2's fix. Remains Priority 3 in loop 2's backlog.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:674618b406be2f2618bcd9cefd81f92ca44db6862a02c43bfe8a4637f804c54c",
+            "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
+          },
+          "attempted_remedy_hash": "sha256:e8874903abd55069e2dbd5245008c6b924d4df4c725d5798ef8f04d2abef326d"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "89740e1",
+          "note": "Re-verified this loop: AppliedArtworkStore.cs and EpicLibrary.cs both untouched by this loop's fix (which targeted PrimaryWidget.xaml.cs and the new StoreNameLookup.cs). Confirmed the new file's LoadUbisoftGameListAsync uses a simpler unlocked lazy-init, not this locked skeleton, so no third copy was introduced. Remains Priority 3 in loop 3's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:1db9ec0957dc7d4787d00b8d7c41ce3581713bc05066525cef2bafe1c825d1a5",
             "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
           },
           "attempted_remedy_hash": "sha256:e8874903abd55069e2dbd5245008c6b924d4df4c725d5798ef8f04d2abef326d"
