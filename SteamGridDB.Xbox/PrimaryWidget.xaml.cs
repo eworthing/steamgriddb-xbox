@@ -19,6 +19,7 @@ using Windows.Web.Http;
 
 using SteamGridDB.Xbox.Models;
 using SteamGridDB.Xbox.Services.Artwork;
+using SteamGridDB.Xbox.Services.Library;
 using SteamGridDB.Xbox.Services.SteamGridDB;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
 using SteamGridDB.Xbox.Services.Stores;
@@ -233,6 +234,33 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Shows a line in the status bar, from whichever thread happens to be running.
+        ///
+        /// Most of this page's work runs off the UI thread - file writes, downloads, decoding - and
+        /// reports as it goes, so nearly every status update needed the same four-line dispatcher
+        /// block around it. Forgetting one is not a compile error and not obviously a runtime one
+        /// either: it throws only when that particular branch is reached from a background thread.
+        /// </summary>
+        /// <param name="text">The line to show.</param>
+        private async Task SetStatusAsync(string text)
+        {
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+            {
+                StatusText.Text = text;
+            });
+        }
+
+        /// <summary>
+        /// Runs work on the UI thread, for the updates that touch more than the status bar - entry
+        /// properties the list is bound to, and the controls' own state.
+        /// </summary>
+        /// <param name="update">Work to run on the UI thread.</param>
+        private async Task OnUiThreadAsync(Action update)
+        {
+            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => update());
+        }
+
+        /// <summary>
         /// Decodes a game image at list-thumbnail size on the UI thread and releases the file handle
         /// as soon as decoding finishes.
         /// </summary>
@@ -296,23 +324,32 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private List<GameEntry> EntriesSharingImage(GameEntry game)
         {
-            List<GameEntry> shared = GameEntries
-                .Where(g => string.Equals(g.ImageFilePath, game.ImageFilePath, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            return GameImages.SharingImage(GameEntries, game, g => g.ImageFilePath);
+        }
 
-            if (shared.Count == 0)
-            {
-                shared.Add(game);
-            }
+        /// <summary>
+        /// The games a bulk run should visit: those matching <paramref name="eligible"/>, one per image.
+        /// </summary>
+        /// <param name="eligible">Which entries the operation applies to.</param>
+        private List<GameEntry> GamesToProcess(Func<GameEntry, bool> eligible)
+        {
+            return GameImages.DistinctByImage(GameEntries.Where(eligible), g => g.ImageFilePath);
+        }
 
-            return shared;
+        /// <summary>
+        /// The name to show for a game in progress and status lines - its own, or the image file it is
+        /// backed by when the manifests never gave it one.
+        /// </summary>
+        private string DisplayName(GameEntry game)
+        {
+            return game.Name != unknownName ? game.Name : Path.GetFileName(game.ImageFilePath);
         }
 
         private async Task LoadGameEntriesAsync()
         {
             try
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                await OnUiThreadAsync(() =>
                 {
                     // Clear here rather than in the callers so that a repeated load can never append
                     // a second copy of the library to the list
@@ -333,7 +370,7 @@ namespace SteamGridDB.Xbox
                 }
                 catch (DirectoryNotFoundException)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    await OnUiThreadAsync(() =>
                     {
                         StatusText.Text = "ThirdPartyLibraries folder was not found. Make sure games are added to the Xbox app.";
                         GameEntriesListView.Visibility = Visibility.Collapsed;
@@ -344,7 +381,7 @@ namespace SteamGridDB.Xbox
 
                 if (thirdPartyFolder == null)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                    await OnUiThreadAsync(() =>
                     {
                         StatusText.Text = "Access denied. Please grant file system permission.";
                         InstructionsPanel.Visibility = Visibility.Visible;
@@ -357,11 +394,9 @@ namespace SteamGridDB.Xbox
                 // Get all subdirectories
                 var folders = await thirdPartyFolder.GetFoldersAsync();
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    string directoryNames = string.Join(", ", folders.Select(f => f.Name));
-                    StatusText.Text = $"Found {folders.Count} director{(folders.Count == 1 ? "y" : "ies")} ({directoryNames}). Loading and sorting...";
-                });
+                string directoryNames = string.Join(", ", folders.Select(f => f.Name));
+
+                await SetStatusAsync($"Found {folders.Count} director{(folders.Count == 1 ? "y" : "ies")} ({directoryNames}). Loading and sorting...");
 
                 // Temporary list to collect games before sorting
                 List<GameEntry> tmpGameList = new List<GameEntry>();
@@ -662,7 +697,7 @@ namespace SteamGridDB.Xbox
 
                 await FixLog.SaveAsync();
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                await OnUiThreadAsync(() =>
                 {
                     foreach (GameEntry game in sortedGames)
                     {
@@ -686,10 +721,7 @@ namespace SteamGridDB.Xbox
             }
             catch (Exception ex)
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Error: {ex.Message}";
-                });
+                await SetStatusAsync($"Error: {ex.Message}");
             }
         }
 
@@ -838,22 +870,16 @@ namespace SteamGridDB.Xbox
         {
             try
             {
-                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once
-                List<GameEntry> customisedGames = GameEntries
-                    .Where(g => g.HasBackup)
-                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                List<GameEntry> customisedGames = GamesToProcess(g => g.HasBackup);
 
                 if (customisedGames.Count == 0)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = "No customised games to revert";
-                    });
+                    await SetStatusAsync("No customised games to revert");
 
                     return;
                 }
+
+                var report = new OperationReport("Reverting", customisedGames.Count);
 
                 int successCount = 0;
                 int skippedCount = 0;
@@ -861,10 +887,7 @@ namespace SteamGridDB.Xbox
 
                 foreach (GameEntry game in customisedGames)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = $"Reverting {(game.Name == unknownName ? Path.GetFileName(game.ImageFilePath) : game.Name)} ({successCount + skippedCount + errorCount + 1}/{customisedGames.Count})...";
-                    });
+                    await SetStatusAsync(report.Step(DisplayName(game)));
 
                     switch (await RestoreBackupCoreAsync(game, false))
                     {
@@ -880,29 +903,14 @@ namespace SteamGridDB.Xbox
                     }
                 }
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    string summary = $"Revert complete: {successCount} restored to Xbox defaults";
-
-                    if (skippedCount > 0)
-                    {
-                        summary += $", {skippedCount} skipped (no backup)";
-                    }
-
-                    if (errorCount > 0)
-                    {
-                        summary += $", {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
-                    }
-
-                    StatusText.Text = summary;
-                });
+                await SetStatusAsync(OperationReport.Summary(
+                    $"Revert complete: {successCount} restored to Xbox defaults",
+                    OperationReport.When(skippedCount, $"{skippedCount} skipped (no backup)"),
+                    OperationReport.When(errorCount, OperationReport.Plural(errorCount, "error"))));
             }
             catch (Exception ex)
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Error reverting to defaults: {ex.Message}";
-                });
+                await SetStatusAsync($"Error reverting to defaults: {ex.Message}");
 
                 System.Diagnostics.Debug.WriteLine($"Error in RevertAllToDefaultAsync: {ex.Message}");
             }
@@ -918,38 +926,26 @@ namespace SteamGridDB.Xbox
             {
                 if (!HasSteamGridDbApiKey)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = "SteamGridDB API key is not set - artwork cannot be downloaded";
-                    });
+                    await SetStatusAsync("SteamGridDB API key is not set - artwork cannot be downloaded");
 
                     return;
                 }
 
-                // Get eligible games: there is a match in SteamGridDB and, unless re-fixing, no backup yet.
-                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once.
-                List<GameEntry> eligibleGames = GameEntries
-                    .Where(g => g.HasSteamGridDBMatch && (refixCustomised || !g.HasBackup))
-                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                // Eligible: there is a match in SteamGridDB and, unless re-fixing, no backup yet
+                List<GameEntry> eligibleGames = GamesToProcess(g => g.HasSteamGridDBMatch && (refixCustomised || !g.HasBackup));
 
                 if (eligibleGames.Count == 0)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = refixCustomised
-                            ? "No eligible artworks to fix (no games have a match in SteamGridDB)"
-                            : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)";
-                    });
+                    await SetStatusAsync(refixCustomised
+                        ? "No eligible artworks to fix (no games have a match in SteamGridDB)"
+                        : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)");
 
                     return;
                 }
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Fixing library artwork...";
-                });
+                await SetStatusAsync("Fixing library artwork...");
+
+                var report = new OperationReport("Fixing", eligibleGames.Count);
 
                 int successCount = 0;
                 int notFoundCount = 0;
@@ -969,10 +965,9 @@ namespace SteamGridDB.Xbox
                     {
                         try
                         {
-                            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                            {
-                                StatusText.Text = $"Fixing {game.Name} ({successCount + notFoundCount + skippedCount + errorCount + 1}/{eligibleGames.Count})...";
-                            });
+                            // game.Name rather than DisplayName: this line has always shown "Unknown"
+                            // for an unnamed game rather than falling back to its image file name
+                            await SetStatusAsync(report.Step(game.Name));
 
                             ArtworkSource source = SourceFor(game);
 
@@ -1078,26 +1073,16 @@ namespace SteamGridDB.Xbox
 
                 await FixLog.SaveAsync();
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    string summary = $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database";
-
-                    if (skippedCount > 0)
-                    {
-                        summary += $", {skippedCount} skipped (unsupported platform)";
-                    }
-
-                    summary += $", {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
-
-                    StatusText.Text = summary;
-                });
+                // The error count is always shown here, unlike the other operations: a fix that reports
+                // nothing about failures reads as a clean run when it may have touched almost nothing
+                await SetStatusAsync(OperationReport.Summary(
+                    $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database",
+                    OperationReport.When(skippedCount, $"{skippedCount} skipped (unsupported platform)"),
+                    OperationReport.Plural(errorCount, "error")));
             }
             catch (Exception ex)
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Error fixing library: {ex.Message}";
-                });
+                await SetStatusAsync($"Error fixing library: {ex.Message}");
 
                 System.Diagnostics.Debug.WriteLine($"Error in FixLibraryAsync: {ex.Message}");
             }
@@ -1110,32 +1095,24 @@ namespace SteamGridDB.Xbox
         {
             try
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = "Restoring customisations...";
-                });
+                await SetStatusAsync("Restoring customisations...");
 
                 int successCount = 0;
                 int noArtworkCount = 0;
                 int errorCount = 0;
 
-                // Stale Xbox app manifests can list the same image under multiple entries - process each image only once
-                List<GameEntry> uniqueGames = GameEntries
-                    .GroupBy(g => g.ImageFilePath, StringComparer.OrdinalIgnoreCase)
-                    .Select(g => g.First())
-                    .ToList();
+                List<GameEntry> uniqueGames = GamesToProcess(g => true);
+
+                var report = new OperationReport("Restoring", uniqueGames.Count);
 
                 foreach (GameEntry game in uniqueGames)
                 {
                     string imageFileName = Path.GetFileName(game.ImageFilePath);
-                    string gameName = game.Name == unknownName ? imageFileName : game.Name;
+                    string gameName = DisplayName(game);
 
                     try
                     {
-                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                        {
-                            StatusText.Text = $"Restoring {gameName} ({successCount + noArtworkCount + errorCount + 1}/{uniqueGames.Count})...";
-                        });
+                        await SetStatusAsync(report.Step(gameName));
 
                         if (await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName) == ArtworkFiles.ReapplyOutcome.NothingSaved)
                         {
@@ -1148,7 +1125,7 @@ namespace SteamGridDB.Xbox
                         StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                         BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
-                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                        await OnUiThreadAsync(() =>
                         {
                             foreach (GameEntry entry in EntriesSharingImage(game))
                             {
@@ -1167,24 +1144,18 @@ namespace SteamGridDB.Xbox
                     }
                 }
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    if (successCount == 0 && errorCount == 0)
-                    {
-                        StatusText.Text = "No changes found to restore";
-                    }
-                    else
-                    {
-                        StatusText.Text = $"Restore complete: {successCount} restored, {noArtworkCount} had no artwork saved, {errorCount} error{(errorCount == 1 ? string.Empty : "s")}";
-                    }
-                });
+                // Nothing restored and nothing failed means every game simply had no saved artwork,
+                // which is a state of the library rather than a result worth counting out
+                await SetStatusAsync(successCount == 0 && errorCount == 0
+                    ? "No changes found to restore"
+                    : OperationReport.Summary(
+                        $"Restore complete: {successCount} restored",
+                        $"{noArtworkCount} had no artwork saved",
+                        OperationReport.Plural(errorCount, "error")));
             }
             catch (Exception ex)
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Error restoring changes: {ex.Message}";
-                });
+                await SetStatusAsync($"Error restoring changes: {ex.Message}");
 
                 System.Diagnostics.Debug.WriteLine($"Error in RestoreAllChangesAsync: {ex.Message}");
             }
@@ -1222,7 +1193,7 @@ namespace SteamGridDB.Xbox
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                 BitmapImage newImage = await CreateThumbnailAsync(imageFile);
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                await OnUiThreadAsync(() =>
                 {
                     foreach (GameEntry entry in EntriesSharingImage(game))
                     {
@@ -2030,19 +2001,13 @@ namespace SteamGridDB.Xbox
 
             try
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Restoring backup for {backupGameName}...";
-                });
+                await SetStatusAsync($"Restoring backup for {backupGameName}...");
 
                 await RestoreBackupCoreAsync(game, true);
             }
             catch (Exception ex)
             {
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                {
-                    StatusText.Text = $"Error restoring backup: {ex.Message}";
-                });
+                await SetStatusAsync($"Error restoring backup: {ex.Message}");
 
                 System.Diagnostics.Debug.WriteLine($"Error in RestoreBackupAsync for {backupGameName}: {ex.Message}");
             }
@@ -2065,10 +2030,7 @@ namespace SteamGridDB.Xbox
                 {
                     if (updateStatusText)
                     {
-                        await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                        {
-                            StatusText.Text = $"Backup file not found for {backupGameName}";
-                        });
+                        await SetStatusAsync($"Backup file not found for {backupGameName}");
                     }
 
                     return RestoreBackupResult.BackupMissing;
@@ -2081,7 +2043,7 @@ namespace SteamGridDB.Xbox
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                 BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                await OnUiThreadAsync(() =>
                 {
                     foreach (GameEntry entry in EntriesSharingImage(game))
                     {
@@ -2102,10 +2064,7 @@ namespace SteamGridDB.Xbox
             {
                 if (updateStatusText)
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-                    {
-                        StatusText.Text = $"Error restoring backup for {backupGameName}: {ex.Message}";
-                    });
+                    await SetStatusAsync($"Error restoring backup for {backupGameName}: {ex.Message}");
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Error restoring backup for {backupGameName}: {ex.Message}");

@@ -47,9 +47,13 @@ Two consequences worth knowing:
 ## What is not covered
 
 - **`PrimaryWidget.xaml.cs`.** It binds to `Windows.UI.Xaml`, which has no desktop projection. This
-  is the reason `ArtworkFiles` takes a `StorageFolder` and a file name instead of a `GameEntry` -
-  `GameEntry` exposes `Visibility` and `BitmapImage`, and taking one would have dragged the whole
-  module back inside the app container.
+  is the reason `ArtworkFiles` takes a `StorageFolder` and a file name instead of a `GameEntry`, and
+  why `GameImages` is generic over a key selector - `GameEntry` exposes `Visibility` and
+  `BitmapImage`, and taking one would have dragged those modules back inside the app container.
+
+  The bulk operation loops themselves stay in the widget for the same reason: they iterate
+  `GameEntry` and assign to it. What they *compute* - which games to visit, the progress line, the
+  summary - is extracted and covered. What they *do* to the UI is not.
 - **Anything over the network.** `SteamGridDbClient` and most of `StoreNameLookup` call SteamGridDB,
   GOG, Epic and Ubisoft. A test that did that would be grading their uptime. Only the pure part -
   `NormaliseGameName` - is covered.
@@ -67,9 +71,9 @@ only prove that the substitute agrees with itself.
 
 The suite has been checked against deliberate mutations: reversing the "only back up once" rule fails
 `Applying_a_second_time_keeps_the_first_backup` and `Apply_reports_the_backup_that_already_existed`,
-and moving the saved-customisation delete ahead of the backup lookup fails
-`Restore_with_no_backup_keeps_the_saved_customisation`. Worth repeating for any new test that passes
-first time.
+moving the saved-customisation delete ahead of the backup lookup fails
+`Restore_with_no_backup_keeps_the_saved_customisation`, and making the progress counter zero-based
+fails three of the `OperationReport` tests. Worth repeating for any new test that passes first time.
 
 ## Known build wrinkle, unrelated to tests
 
