@@ -44,7 +44,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             Dictionary<string, int> map = await LoadAsync();
 
-            return map.TryGetValue(Key(imageFilePath), out int id) ? id : (int?)null;
+            // UpdateAsync holds `gate` while it mutates this same Dictionary instance in place; a read
+            // that skipped the gate could race that mutation. Same lock, read or write.
+            await gate.WaitAsync();
+
+            try
+            {
+                return map.TryGetValue(Key(imageFilePath), out int id) ? id : (int?)null;
+            }
+            finally
+            {
+                gate.Release();
+            }
         }
 
         /// <summary>

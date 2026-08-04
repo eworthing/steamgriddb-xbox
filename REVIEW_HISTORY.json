@@ -495,6 +495,289 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 2,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": null,
+      "verdict": "Promising, but architecturally immature",
+      "verdict_explanation": "Independent re-derivation from current source (unchanged since f47dcad, loop 1's commit) confirms the prior verdict on its own evidence: PrimaryWidget.xaml.cs still merges three of its original four concerns with no Interface boundary, and AppliedArtworkStore's read/write lock asymmetry (F2) was still live at Step 1 inspection time. This loop closes F2.",
+      "scorecard": {
+        "architecture_quality":      {"score": 5.0, "delta": "SAME", "proof": "PrimaryWidget.xaml.cs (2,530 LOC, re-measured this loop) still merges UI event handling, store-name resolution (PrimaryWidget.xaml.cs:2256-2472), and backup/restore orchestration (RestoreBackupCoreAsync, :2166-2247) with no Interface separating them; unchanged since loop 1.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "state_management":          {"score": 6.5, "delta": "UP", "proof": "AppliedArtworkStore.GetAsync (AppliedArtworkStore.cs:38-59) now holds gate around its TryGetValue read, the same semaphore UpdateAsync (:149-180) already held around its read-modify-write of the identical Dictionary - closing the Applied-artwork-record Authority Map entry from Split-and-ambiguous to Single-and-clear. Structural proof: AppliedArtworkStore.cs diff this loop, lines 47-58 (new await gate.WaitAsync(); try/finally wrapping the existing return) - source the prior loop did not have.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "domain_modeling":           {"score": 5.5, "delta": "SAME", "proof": "Unaffected by this loop's change; SteamGridDbGame.OfficialCapsuleUrl still hand-parsed in SteamGridDbClient.ParseOfficialCapsuleUrl (SteamGridDbClient.cs:144-199) outside the DTO's own deserialization, verified unchanged this loop.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "data_flow":                 {"score": 5.5, "delta": "SAME", "proof": "GOG/Epic/Ubisoft network calls still instantiated directly inside PrimaryWidget's private methods via the shared static sharedHttpClient (PrimaryWidget.xaml.cs:81, fetch methods at :2256-2472), unchanged this loop.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "framework_idioms":          {"score": 6.0, "delta": "SAME", "proof": "Unaffected by this loop's change. Two JSON idioms (DataContractJsonSerializer vs ad hoc Windows.Data.Json) still coexist.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "concurrency":               {"score": 5.5, "delta": "UP", "proof": "The same AppliedArtworkStore.cs fix that raised state_management also closes F2's concurrency hazard (a Dictionary read racing a Dictionary write is exactly as unsafe as two racing writes - now fixed by matching lock discipline). F3 (LoadGameEntriesAsync's fully sequential per-game round-trips, PrimaryWidget.xaml.cs:401-705) remains open and caps this dimension: the four static name-resolution caches (PrimaryWidget.xaml.cs:73-80) are still plain, non-thread-safe Dictionary.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "simplicity":                {"score": 5.5, "delta": "SAME", "proof": "This loop's fix (12 lines added, 1 removed in AppliedArtworkStore.cs) mirrors UpdateAsync's existing lock pattern exactly - no new abstraction, no ceremony, but no consolidation win either (F4's duplicate lazy-cache skeleton is untouched). Net neutral for this dimension.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "test_strategy":             {"score": 3.0, "delta": "SAME", "proof": "No test project exists; standing user instruction prohibits adding one this run. Verified unchanged this loop (no *.csproj matching a test name found; SteamGridDB.Xbox.sln project list unchanged). Named, non-backlog-item blocker, as recorded loop 1.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+        "credibility":                {"score": 5.5, "delta": "SAME", "proof": "Unaffected by this loop's change. The three store-name-resolution methods that swallow failures via Debug.WriteLine only (GetGogGameNameAsync, GetEpicGameNameAsync, LoadUbisoftGameListAsync/GetUbisoftGameNameAsync, PrimaryWidget.xaml.cs:2256-2472) are unchanged.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false}
+      },
+      "authority_map": [
+        {
+          "concern": "Library-operation exclusivity (isLibraryOperationRunning)",
+          "owner": "PrimaryWidget instance",
+          "allowed_writers": ["TryBeginLibraryOperation", "EndLibraryOperation"],
+          "readers": ["IsLibraryOperationBlocking", "header-button click handlers", "EditGameImage_Click", "SearchGameImage_Click", "RestoreBackup_Click"],
+          "persistence_seam": null,
+          "async_mutation_entry_points": ["TryBeginLibraryOperation/EndLibraryOperation via every *_Click handler's try/finally"],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Applied-artwork record (AppliedArtworkStore.applied)",
+          "owner": "AppliedArtworkStore (static, Services/Artwork/)",
+          "allowed_writers": ["UpdateAsync (via SetAsync/ClearAsync), gated by `gate` (AppliedArtworkStore.cs:149-180)"],
+          "readers": ["GetAsync - now also gated by `gate` (AppliedArtworkStore.cs:38-59, this loop's fix)"],
+          "persistence_seam": "applied-artwork.json in ApplicationData.Current.LocalFolder",
+          "async_mutation_entry_points": ["SetAsync (from ReplaceImageCoreAsync)", "ClearAsync (from RestoreBackupCoreAsync)"],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Store-name resolution caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache)",
+          "owner": "PrimaryWidget static fields (conceptually a store-resolution concern, physically on the UI class - F1 remaining scope)",
+          "allowed_writers": ["the matching Get*NameAsync/FindGameByNameAsync method, only from within LoadGameEntriesAsync's sequential per-entry loop"],
+          "readers": ["the same methods (TryGetValue before writing)"],
+          "persistence_seam": null,
+          "async_mutation_entry_points": ["inside LoadGameEntriesAsync's per-entry body"],
+          "verdict": "Single and clear"
+        }
+      ],
+      "strengths": [
+        "ArtworkSource's private-constructor-plus-factory-method design (Services/SteamGridDB/ArtworkSource.cs:15-51) makes 'neither a platform-ID nor a game-ID' unrepresentable. Re-verified unchanged this loop.",
+        "The official-artwork gate (FindOfficialLookalikeAsync, PrimaryWidget.xaml.cs:1444-1515) is a narrow, evidence-tuned veto whose code comments cite a specific regression case (a Mad Max false-positive at a 0.51 match) and the exact slack margin that motivated the floor/ceiling split. Re-verified unchanged this loop.",
+        "This loop's fix mirrors an existing pattern rather than inventing a new one: AppliedArtworkStore.GetAsync now reuses the exact gate/try/finally shape UpdateAsync already used, so the Module gained a correct invariant without a new synchronization primitive or abstraction."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-001",
+          "id": "F1",
+          "title": "PrimaryWidget.xaml.cs merges three unrelated concerns behind zero Interface boundary",
+          "why_it_matters": "The file the churn signal already flagged as the leaky seam (21 edits, 2.6x the next file at loop start) has no module boundary separating UI orchestration from business logic, so a change to any one concern risks touching the others.",
+          "what_is_wrong": "UI event handling, third-party manifest/store-name resolution (GOG/Epic/Ubisoft), and file backup/restore orchestration remain private methods on one 2,530-line Page-derived class with no Interface separating them; the fourth concern (artwork ranking) was already extracted to Services/Artwork/ArtworkRanker.cs in loop 1.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-749 (LoadGameEntriesAsync - manifest parsing + store-name resolution inlined)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2256-2472 (GOG/Epic/Ubisoft store-name fetch methods + FindGameByNameAsync - remaining F1 scope)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2166-2247 (RestoreBackupCoreAsync - backup/restore orchestration)",
+            "REVIEW_HISTORY.json loops[0].discovery.churn_top20 (PrimaryWidget.xaml.cs: 21 edits vs 8 for the next file)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": "true-external",
+          "leverage_impact": "Every future store-name fix or UI change still touches the same file.",
+          "locality_impact": "A maintainer fixing a UI bug still reads through ~2,500 lines including unrelated network-parsing code to find the relevant lines.",
+          "metric_signal": "PrimaryWidget.xaml.cs: 2,530 LOC (re-measured this loop), still the largest file by a wide margin.",
+          "why_weakens_submission": "The module graph is not enforced by source at all in the largest file; ownership of the three remaining distinct concerns is untraceable from any single Module.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Move store-name resolution (GetGogGameNameAsync, GetEpicGameNameAsync, LoadUbisoftGameListAsync, GetUbisoftGameNameAsync, FindGameByNameAsync, NormaliseGameName, plus the four cache fields) into Services/Stores/, alongside the existing EpicLibrary.cs. Backup/restore orchestration is the last remaining slice after that.",
+          "blast_radius": {
+            "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "SteamGridDB.Xbox/Services/Stores/*"],
+            "avoid": ["SteamGridDB.Xbox/Services/SteamGridDB/*", "SteamGridDB.Xbox/Services/Artwork/*"]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-002",
+          "id": "F2",
+          "title": "AppliedArtworkStore.GetAsync reads the shared cache without the lock that guards its writer",
+          "why_it_matters": "A non-thread-safe Dictionary read concurrently with an in-place write can throw or corrupt internal state; the picker's applied-artwork marker can silently go wrong exactly when a fix operation is writing to the same store.",
+          "what_is_wrong": "GetAsync (AppliedArtworkStore.cs:38-48) calls TryGetValue on the shared applied dictionary after LoadAsync returns without acquiring gate, while UpdateAsync (AppliedArtworkStore.cs:138-169) holds gate only around its own read-modify-write of the same dictionary instance - the lock protects the writer against other writers but not readers against the writer.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:38-48",
+            "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:138-169"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "Callers cannot rely on GetAsync being safe to call concurrently with any Set/Clear, so every call site would otherwise have to independently reason about an ordering the Module itself should guarantee.",
+          "locality_impact": "The hazard is contained to this one Module; fixing it here fixes every caller at once.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A concurrency hazard in a Module every artwork-write path depends on is a real ownership defect, even though it has not yet been observed to fire.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Hold gate around the TryGetValue in GetAsync too (or snapshot applied under the gate before releasing it), matching the pattern UpdateAsync already uses.",
+          "blast_radius": {
+            "change": ["SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs"],
+            "avoid": ["everything else"]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-003",
+          "id": "F3",
+          "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
+          "why_it_matters": "Load time scales linearly with library size and network latency on the widget's primary open path - the one flow every user hits every time.",
+          "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks) one game at a time; nothing overlaps the independent per-game network calls.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:401-705 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :585 and store-name fallbacks at :609,631,646,666 with nothing overlapped)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": "true-external",
+          "leverage_impact": "There is only one call site (the load loop); a future second caller of the same pattern would inherit the same linear cost with no leverage from batching, since none exists.",
+          "locality_impact": "The fix is local to LoadGameEntriesAsync's loop body; it does not need to spread to callers.",
+          "metric_signal": "One HTTP round-trip per game per store lookup; a 100-game library issues 100+ sequential requests with no overlap (D2, lens-efficiency.md)",
+          "why_weakens_submission": "Structural waste on the widget's primary hot path. The fix is well-understood (bounded concurrency) but crosses a real risk boundary: gogNameCache, epicNameCache, nameMatchCache, and ubisoftGameLookupCache are plain Dictionary, not thread-safe, and currently rely on this exact sequencing to stay race-free.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Bound concurrency (e.g. SemaphoreSlim(4-8) + Task.WhenAll) around the per-entry body, and switch the four static caches to ConcurrentDictionary before parallelizing - do not parallelize without that change, or the caches race.",
+          "blast_radius": {
+            "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (LoadGameEntriesAsync + the four static cache field declarations)"],
+            "avoid": ["SteamGridDB.Xbox/Services/*"]
+          }
+        },
+        {
+          "loop_local_id": "F4",
+          "stable_id": "F-004",
+          "id": "F4",
+          "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
+          "why_it_matters": "The same ~25-line lazy-load-with-gate skeleton was written twice by hand instead of once; a future third cache (the store-name caches in F1/F3) would make it three.",
+          "what_is_wrong": "AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) both implement: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:95-147",
+            "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs:67-89"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "A shared lazy-cache primitive would pay for itself across at least these two call sites, and the four PrimaryWidget caches touched by F1/F3 later.",
+          "locality_impact": "Today a bug in the locking pattern must be fixed in two places; a shared helper collapses that to one.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Duplicate concurrency boilerplate is exactly the kind of copy-paste-with-slight-variation the leaf-module duplication sweep looks for; it is real but contained.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Extract a small internal AsyncLazy-style helper (check-lock-recheck-populate) that both call sites construct against. Do not add an interface or DI - this is one concrete type serving two internal call sites, not a Seam.",
+          "blast_radius": {
+            "change": ["SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs", "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs", "one new small internal helper"],
+            "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Widening AppliedArtworkStore.GetAsync's lock coverage to match UpdateAsync (F2) - closes a real read/write race; the smallest honest fix reuses the semaphore already scoped to the exact data it protects, adding no new primitive.",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "none this loop (F4's duplicate lazy-cache skeleton remains a deepening candidate, not addressed this loop to keep the fix minimal and reviewable)",
+        "should_not_be_done": "Introduce a ReaderWriterLockSlim, a new cache wrapper type, or an IAppliedArtworkStore interface for this fix - one SemaphoreSlim already correctly scoped to the one Dictionary it protects is the whole fix; anything more is ceremony the Simplify Pressure Test rejects.",
+        "tests_after_fix": "No test project exists (standing user instruction); MSBuild compile is the only regression oracle. This fix is a lock-ordering change (Meta-Rule 4 risk boundary) with no mechanical race-detection tooling available for this UWP/C# stack in this environment."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "title": "Continue the PrimaryWidget.xaml.cs break-up (F1, next slice): move store-name resolution (GOG/Epic/Ubisoft fetch methods + their four caches) into Services/Stores/ alongside the existing EpicLibrary.cs",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "Removes the largest remaining slice of F1 (Serious deduction - higher contest impact than F3/F4's Noticeable weakness, hence reordered to Priority 1 now that F2 is resolved).",
+          "score_impact": "Architecture quality +0.5, Code simplicity +0.5 once verified."
+        },
+        {
+          "priority": 2,
+          "title": "Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups, after switching the four static name-resolution caches to ConcurrentDictionary",
+          "kind": "structural",
+          "rank": "helpful",
+          "why_it_matters": "Removes load latency that scales linearly with library size on the widget's primary flow.",
+          "score_impact": "Concurrency +0.5, Framework idioms +0.5 once verified."
+        },
+        {
+          "priority": 3,
+          "title": "Extract a shared AsyncLazy-style cache helper for AppliedArtworkStore and EpicLibrary",
+          "kind": "simplification",
+          "rank": "helpful",
+          "why_it_matters": "Collapses two hand-copied lazy-load-with-gate skeletons into one owner before a third (the store-name caches) makes it three.",
+          "score_impact": "Code simplicity +0.5 once verified."
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [
+        {
+          "candidate_module": "AsyncLazy-style cache helper for AppliedArtworkStore + EpicLibrary (and eventually the PrimaryWidget store-name caches)",
+          "source_friction_proven": "F4 - identical double-checked-locking skeleton hand-copied between AppliedArtworkStore.cs:95-147 and EpicLibrary.cs:67-89",
+          "why_shallow_or_misplaced": "Each Module re-implements the same generic 'lazily load once behind a gate' behavior instead of delegating to one small internal owner of that pattern.",
+          "behavior_to_move_behind_interface": "check-null, gate.WaitAsync, re-check-null, populate-via-factory, gate.Release",
+          "dependency_category": "in-process",
+          "test_surface_after_change": "No test project (standing instruction); build-verified only, same as today.",
+          "smallest_first_step": "Write the helper against AppliedArtworkStore first (its GetAsync/LoadAsync/UpdateAsync triangle is now internally consistent after F2, giving the cleanest base to extract from), then EpicLibrary once the shape is proven.",
+          "what_not_to_do": "Do not generalize this into a public caching framework or add a second production adapter to justify a Seam - two internal call sites do not need an interface, just a shared internal type."
+        }
+      ],
+      "builder_notes": [
+        {
+          "pattern": "The smallest fix for a lock-coverage gap reuses the lock that already exists - it does not invent a new primitive.",
+          "how_to_recognize": "A SemaphoreSlim/lock already wraps every write to a shared mutable collection; the safe fix for an unguarded reader is wrapping it with the same handle, not a ReaderWriterLockSlim, a new queue, or an actor-style wrapper type.",
+          "smallest_coding_rule": "Before reaching for a new synchronization primitive, check whether an existing one is already scoped to exactly the data in question - if so, widen its coverage, don't add a second one.",
+          "stack_example": "C#: AppliedArtworkStore.GetAsync this loop added await gate.WaitAsync(); try { ... } finally { gate.Release(); } around its existing return statement, reusing the same SemaphoreSlim field UpdateAsync already held; zero new fields, zero new types."
+        },
+        {
+          "pattern": "Churn concentrates where concerns are merged (unchanged from loop 1 - still live).",
+          "how_to_recognize": "One file dominates the six-month edit count and is several times larger than everything else.",
+          "smallest_coding_rule": "When a file's edit count and size both dominate the repo, extract the concern that changed rather than adding to the pile.",
+          "stack_example": "C#/UWP: a Page code-behind file is a natural dumping ground for event handlers; pure business logic does not have to live there."
+        },
+        {
+          "pattern": "Sequential await in a per-item loop hides its own cost until the collection grows (unchanged from loop 1 - F3 still open).",
+          "how_to_recognize": "A foreach loop with an await inside it, over items whose network calls don't depend on each other, no Task.WhenAll/bounded-parallel pattern nearby.",
+          "smallest_coding_rule": "Before parallelizing, confirm what the loop body writes to outside itself is thread-safe first, or the 'optimization' introduces the race the sequential version was accidentally preventing.",
+          "stack_example": "C#: Task.WhenAll over a bounded batch (via SemaphoreSlim) turns N sequential round-trips into N/batch-size overlapped ones, but only after any shared Dictionary the bodies write to becomes a ConcurrentDictionary."
+        }
+      ],
+      "narrative": "Place, not win. This loop closed a real, if narrow, concurrency hazard (F2) with the smallest honest fix available - reusing AppliedArtworkStore's existing lock rather than inventing new synchronization machinery - and the Applied-artwork-record Authority Map entry is now genuinely Single and clear. That is real progress, not cosmetic: state_management and concurrency both moved up on structural proof. But PrimaryWidget.xaml.cs is still the churn-flagged god-class with three of its original four concerns unseparated, LoadGameEntriesAsync still issues one sequential network round-trip per game on the widget's primary flow (F3), and the duplicate lazy-cache skeleton (F4) is untouched. Tests remain absent by standing instruction, so regression resistance is unverifiable beyond a compile check - honestly reflected in the unchanged test_strategy score. Future work risks overengineering only if F1's next slice reaches for an interface or DI container it does not need; the Simplification Check above names that trap explicitly.",
+      "loop_result": {
+        "what_changed": "Closed F2: AppliedArtworkStore.GetAsync (Services/Artwork/AppliedArtworkStore.cs:38-59) now wraps its TryGetValue read in the same gate.WaitAsync()/try/finally/gate.Release() pattern UpdateAsync (:149-180) already used around its read-modify-write of the identical Dictionary instance. No other file touched; no new field, type, or abstraction added.",
+        "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery) passed clean after the change (exit 0, same command as loop 1's baseline). git diff --stat: AppliedArtworkStore.cs | 13 +++++++++++- (12 insertions, 1 deletion - the fix wraps the existing one-line return statement, which is otherwise unchanged).",
+        "risk_boundary_evidence": {
+          "boundary_kind": "lock_ordering",
+          "verification": "reasoning_only",
+          "detail": "No thread sanitizer or concurrency stress-test harness exists for this C#/UWP stack in this environment (no test project per standing instruction; UWP has no TSAN-equivalent tool wired into this build). Verified by inspection: (1) GetAsync's await LoadAsync() always completes and releases gate before GetAsync's own gate.WaitAsync() call, so there is no self-deadlock - SemaphoreSlim(1,1) is not reentrant but these are sequential, non-nested acquisitions; (2) every other access path to the applied Dictionary (UpdateAsync's read-modify-write) already held the same gate before this fix, so GetAsync is the only path that changed; (3) the fix changes only new code (lines 47-58, all additions) around an unchanged return expression, so no other invariant moved.",
+          "mechanically_testable": false
+        },
+        "targeted_finding_status": "resolved",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "GetAsync now wraps its TryGetValue read in gate.WaitAsync()/try/finally/gate.Release() matching UpdateAsync's existing lock scope, closing the unguarded-read-vs-guarded-write race with a minimal in-place fix and no deadlock risk (LoadAsync fully releases gate before returning, so GetAsync's own WaitAsync is sequential, not nested).",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 62193}
+        ]
+      }
     }
   ]
 }

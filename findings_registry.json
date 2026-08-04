@@ -4,15 +4,15 @@
   "entries": [
     {
       "stable_id": "F-001",
-      "title": "PrimaryWidget.xaml.cs merges four unrelated concerns behind zero Interface boundary",
+      "title": "PrimaryWidget.xaml.cs merges three unrelated concerns behind zero Interface boundary",
       "category_hint": "god-class",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [361, 778],
+      "primary_evidence_lines": [332, 749],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -25,6 +25,18 @@
             "evidence_paths_hash": "sha256:14ef4eadcabd92bb0da48f074a31b3aa9f02c981abe08b785bd623a169b6b3db"
           },
           "attempted_remedy_hash": "sha256:70462056638146ca03bfdad7b9f8788e1106c16b224539f2a41b447e373011ac"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "f47dcad",
+          "note": "Re-derived from current source this loop (title/evidence updated to reflect the post-loop-1 state: three concerns remain, line numbers re-verified). Untouched by loop 2's fix, which targeted F-002. Reordered to Priority 1 in loop 2's backlog (Serious severity outranks F-003/F-004's Noticeable once F-002 resolved).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:ac71c4548f793c5213c579b8184b0b898ea546ebef18d743461926e54199b69e",
+            "evidence_paths_hash": "sha256:c6d55c4e43b5ed18b1336c8405a275ef904fa40633f7a9138a0d32fdbae7b25d"
+          },
+          "attempted_remedy_hash": "sha256:c8e58a7b824541f6b10635c9b85ca709b6ece59cce08f7d96f13bc1a7d919856"
         }
       ]
     },
@@ -38,7 +50,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -50,6 +62,18 @@
             "evidence_paths_hash": "sha256:823207f7c1061683829aaace6dccd25df2c956ec8d03cd8a7c06bea36c83af7d"
           },
           "attempted_remedy_hash": "sha256:36764cdb6363a2c73c4ea275838c687aee29c2922c1a66c7aee109e8c9335718"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F2",
+          "status": "resolved",
+          "sha": "PENDING_LOOP2_COMMIT",
+          "note": "GetAsync now wraps TryGetValue in gate.WaitAsync()/try/finally/gate.Release(), matching UpdateAsync's existing lock scope. Reviewer verdict: approved (reality/honesty/regression all passed). sha patched to the real commit sha in a same-loop follow-up commit once HEAD is known (self-referential sha cannot be embedded in the commit that creates it).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:1ba2a4b65055009e2d2648b4498673ce228cc088d564ba2f86e3f9ddfe86ba83",
+            "evidence_paths_hash": "sha256:823207f7c1061683829aaace6dccd25df2c956ec8d03cd8a7c06bea36c83af7d"
+          },
+          "attempted_remedy_hash": "sha256:36764cdb6363a2c73c4ea275838c687aee29c2922c1a66c7aee109e8c9335718"
         }
       ]
     },
@@ -58,12 +82,12 @@
       "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
       "category_hint": "sequential-io",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [430, 734],
+      "primary_evidence_lines": [401, 705],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -75,6 +99,18 @@
             "evidence_paths_hash": "sha256:f8e70a7d1e39f7250c958cc8abd54a35e481eb139c32e17abd53de0f9709a692"
           },
           "attempted_remedy_hash": "sha256:1c1f3b42c9494ed060933e724365f0084ebcebeb3d9f44f4a5d7a3b618b8fc7e"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "f47dcad",
+          "note": "Re-derived from current source this loop (line numbers re-verified at :401-705 with specific await sites cited). Untouched by loop 2's fix, which targeted F-002. Remains Priority 2 in loop 2's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0538c1bcf143338264d1d60cca74875714fcd1a46dd8af36f2d0607816559ca1",
+            "evidence_paths_hash": "sha256:ad1d9051bd92b742800f72133fed70ca45d0a179783380a10677c1794e232d2a"
+          },
+          "attempted_remedy_hash": "sha256:1c1f3b42c9494ed060933e724365f0084ebcebeb3d9f44f4a5d7a3b618b8fc7e"
         }
       ]
     },
@@ -83,12 +119,12 @@
       "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
       "category_hint": "duplicate-lazy-cache",
       "primary_file": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
-      "primary_evidence_lines": [84, 136],
+      "primary_evidence_lines": [95, 147],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -100,6 +136,18 @@
             "evidence_paths_hash": "sha256:1660adc2e959c4916114654d6f0ef465f838e5e6aff9b19bd7406ee41a28ebb5"
           },
           "attempted_remedy_hash": "sha256:da2160576213ca1c210d97dab4d232cb2ff213a4f8731ebe12ab820291f41807"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "f47dcad",
+          "note": "Re-derived from current source this loop (AppliedArtworkStore.LoadAsync line numbers shifted to :95-147 after F2's fix widened GetAsync above it; pattern itself unchanged). Untouched by loop 2's fix. Remains Priority 3 in loop 2's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:674618b406be2f2618bcd9cefd81f92ca44db6862a02c43bfe8a4637f804c54c",
+            "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
+          },
+          "attempted_remedy_hash": "sha256:e8874903abd55069e2dbd5245008c6b924d4df4c725d5798ef8f04d2abef326d"
         }
       ]
     }
