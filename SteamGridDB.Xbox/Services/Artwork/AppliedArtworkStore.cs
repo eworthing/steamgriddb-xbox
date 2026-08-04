@@ -31,8 +31,29 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
         // Loaded once and written through. The widget is the only writer, and a Game Bar widget has a
         // single instance, so there is no reconciling to do against another process.
-        private static readonly AsyncLazyCache<Dictionary<string, int>> appliedCache =
+        private static AsyncLazyCache<Dictionary<string, int>> appliedCache =
             new AsyncLazyCache<Dictionary<string, int>>(gate, LoadMapFromDiskAsync);
+
+        private static StorageFolder recordFolder;
+
+        /// <summary>
+        /// Where the record is kept. Defaults to the widget's own local data, which is what it always
+        /// uses in the app.
+        ///
+        /// Settable because ApplicationData.Current only resolves inside an app container - it is the
+        /// single reason this type could not otherwise be exercised outside one. Assigning also drops
+        /// the loaded map, which belongs to whichever folder it was read from.
+        /// </summary>
+        internal static StorageFolder RecordFolder
+        {
+            get => recordFolder ?? ApplicationData.Current.LocalFolder;
+
+            set
+            {
+                recordFolder = value;
+                appliedCache = new AsyncLazyCache<Dictionary<string, int>>(gate, LoadMapFromDiskAsync);
+            }
+        }
 
         /// <summary>
         /// The artwork applied to an image, or null when the widget did not write it or the record
@@ -102,7 +123,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
+                StorageFile file = await RecordFolder.GetFileAsync(fileName);
                 string json = await FileIO.ReadTextAsync(file);
 
                 if (JsonObject.TryParse(json, out JsonObject root))
@@ -146,7 +167,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                     root[pair.Key] = JsonValue.CreateNumberValue(pair.Value);
                 }
 
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                StorageFile file = await RecordFolder.CreateFileAsync(
                     fileName, CreationCollisionOption.ReplaceExisting);
 
                 await FileIO.WriteTextAsync(file, root.Stringify());

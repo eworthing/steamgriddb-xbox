@@ -25,6 +25,19 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
         private static string fileName = "last-fix.log";
 
+        private static StorageFolder logFolder;
+
+        /// <summary>
+        /// Where the log is written. Defaults to the widget's own local data, which is what it always
+        /// uses in the app; settable because ApplicationData.Current only resolves inside an app
+        /// container.
+        /// </summary>
+        internal static StorageFolder LogFolder
+        {
+            get => logFolder ?? ApplicationData.Current.LocalFolder;
+            set => logFolder = value;
+        }
+
         /// <summary>
         /// Begins a new run, discarding whatever the previous one recorded.
         /// </summary>
@@ -52,7 +65,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                StorageFile file = await LogFolder.CreateFileAsync(
                     fileName, CreationCollisionOption.ReplaceExisting);
 
                 await FileIO.WriteLinesAsync(file, lines);

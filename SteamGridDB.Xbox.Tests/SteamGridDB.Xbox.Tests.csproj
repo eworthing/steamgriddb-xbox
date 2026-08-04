@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Not a UWP project, deliberately. The app is an AppContainerExe and testing it in place would
+      mean deploying an MSIX for every run. Everything under Services\ uses only the WinRT APIs that
+      also project onto desktop .NET - Windows.Storage, Windows.Data.Json, Windows.Graphics.Imaging -
+      so linking those sources into a desktop test host runs the real code against real files in
+      seconds, with no packaging step.
+
+      The one API that does need an app container is ApplicationData.Current; see LocalState below.
+    -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Platforms>AnyCPU;x64</Platforms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SteamGridDB.Xbox.Tests</RootNamespace>
+    <AssemblyName>SteamGridDB.Xbox.Tests</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    The app's sources are linked, not referenced. Two reasons: an AppContainerExe is awkward to
+    reference from a desktop project, and the classes under test are `internal` - compiling them into
+    the test assembly makes them visible without an InternalsVisibleTo the app would otherwise carry
+    purely for the tests' benefit.
+
+    Services\ is globbed rather than listed. The app project cannot glob (legacy csproj, explicit
+    <Compile Include> per file) but this one can, so a new service file is picked up here
+    automatically and only has to be registered once, in the app.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SteamGridDB.Xbox\Services\**\*.cs"
+             Link="AppSource\Services\%(RecursiveDir)%(Filename)%(Extension)" />
+    <!--
+      Models\ is not globbed: GameEntry and GridImageItem bind to Windows.UI.Xaml (Visibility,
+      BitmapImage), which is UWP-only and has no desktop projection. GamePlatform is a plain enum.
+      This is why ArtworkFiles takes a StorageFolder and a file name rather than a GameEntry.
+    -->
+    <Compile Include="..\SteamGridDB.Xbox\Models\GamePlatform.cs"
+             Link="AppSource\Models\GamePlatform.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>
