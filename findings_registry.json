@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 5,
+  "next_serial": 6,
   "entries": [
     {
       "stable_id": "F-001",
@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 6,
+      "last_seen_loop": 7,
       "occurrences": [
         {
           "loop": 1,
@@ -88,6 +88,18 @@
             "evidence_paths_hash": "sha256:84da64c80e994a9585d20ac5d0346e705c41a3d6054aaea33901a3cb80a573ae"
           },
           "attempted_remedy_hash": "sha256:c6f3efedcff6db85f1754846786061f410120ec63fd6720ed7fc4e339c7db77f"
+        },
+        {
+          "loop": 7,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "9c7ce51",
+          "note": "Re-derived fully fresh this loop (Discovery flagged drift; loop 6's evidence was stale - the user's own commits 08f40f6/9c7ce51 had already extracted the backup/restore and bulk-orchestration slices loop 6 last saw merged in). Re-reading current source found a third, previously-uncredited merged concern (a UI-free artwork-selection algorithm) and closed that slice this loop via Services/Artwork/ArtworkDownloader.cs (new). Core claim (LoadGameEntriesAsync's manifest-parsing, the bulk-operation loops) remains merged in PrimaryWidget.xaml.cs; targeted_finding_status: carried_forward. Not marked resolved.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:b1d30d69ec48952dadbd510ce872e5000d4506ea2209505fda2a24a79de558ab",
+            "evidence_paths_hash": "sha256:562d8c69f3fe12c73f0a6a2971f92894fe6f08faa7b144eaf2ff1fb3ad73a820"
+          },
+          "attempted_remedy_hash": "sha256:e96edecd481d4bb6e23924d1bf3230c93fa66fed39a8854a84427db6f022546b"
         }
       ]
     },
@@ -144,7 +156,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 6,
+      "last_seen_loop": 7,
       "occurrences": [
         {
           "loop": 1,
@@ -216,6 +228,18 @@
             "evidence_paths_hash": "sha256:355f1b2f878b0dc6b28fdf7a4d1a0a47a6f59eadb32bf6d61ae0ebe1500740e5"
           },
           "attempted_remedy_hash": "sha256:ad1c8704cc884fc626cc11f387934947eb7f4a07b2d037ff91a094140421250d"
+        },
+        {
+          "loop": 7,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "9c7ce51",
+          "note": "Re-verified this loop directly against current source: LoadGameEntriesAsync's sequencing is unaffected by this loop's fix (relocating the artwork-selection algorithm to Services/Artwork/ArtworkDownloader.cs, a downstream concern). Line numbers shifted only because the relocated constants/field sat above line 331. Still ruled out by the same operational constraint; the new 104-test suite does not cover network calls (TESTING.md), so the drift does not lift this constraint. Priority 3 in loop 7's backlog (behind F1 and the new F-005).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:adb789f69d8cb9dc1756bcc8f1e0015fbe6328b429d3fada3b2181f4302697b1",
+            "evidence_paths_hash": "sha256:5aeb7d6760852e1b251434eed69e19b3a22a948ba4d1e5a1811ec2b6c4287f8b"
+          },
+          "attempted_remedy_hash": "sha256:885f2a7dc4b0cd8b561d22e81404e6da762b4acaeae831cd65a8a8b3c8f13a27"
         }
       ]
     },
@@ -304,6 +328,35 @@
             "evidence_paths_hash": "sha256:b6e088c690f3609bb25c5aeda74a3c4d193c85daf7276779e968deec3360ae0c"
           },
           "attempted_remedy_hash": "sha256:b54b1fa29a9026edd60c3c9eb54685f5d5aeb1b20ba342c62951ddb12942945f"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-005",
+      "title": "ArtworkRanker.RankGrids' style-priority ordering has no test mixing text-bearing and icon-like styles, so a sort-direction inversion would pass silently",
+      "category_hint": "missing-test-mutation-gap",
+      "primary_file": "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs",
+      "primary_evidence_lines": [
+        195,
+        195
+      ],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 7,
+      "first_seen_sha": "9c7ce51",
+      "last_seen_loop": 7,
+      "occurrences": [
+        {
+          "loop": 7,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "9c7ce51",
+          "note": "New this loop: found via the mandatory mutation-test mental-model check in method.md Step 8, performed fresh against current source ahead of scoring test_strategy >= 8. GridStylePriority is directly unit-tested (0/1 return values), but every RankGrids composite test uses the Grid() factory's default style on all candidates, so the ascending .ThenBy(GridStylePriority) tie-break is never exercised with differing values. Independently verified: flipping .ThenBy to .ThenByDescending changes no existing test's outcome.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2df252ef0e086f30db0181644881248fa109ac3afaaa263011180725448e26cb",
+            "evidence_paths_hash": "sha256:f78567483a63e1e3b4894fdbd18973f01f4547ad85fd0fdffc1046125363ac22"
+          },
+          "attempted_remedy_hash": "sha256:432c7a4c228356eb6521f1ee4fb8208cd4c9edf544d76eb2970a044c690fdc4b"
         }
       ]
     }

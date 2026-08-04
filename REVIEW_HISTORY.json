@@ -2400,6 +2400,496 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 7,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": {
+        "refreshed_at_loop": 7,
+        "refreshed_reason": "codebase drifted between loop 6 commit 21e7c62 and HEAD 9c7ce51; user added a real test project, invalidating the loop 1-6 'no test project exists' ground truth",
+        "drift_commits": [
+          "d98dde8",
+          "f61e8d4",
+          "08f40f6",
+          "9c7ce51"
+        ],
+        "source_roots": [
+          "SteamGridDB.Xbox/"
+        ],
+        "test_command": "powershell -NoProfile -File ./run-tests.ps1",
+        "test_command_verified": "104 passed, 0 failed at loop 7 Step 1 (before fix) and after fix (787 ms)",
+        "build_command": "\"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe\" SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo",
+        "build_command_verified": "exit 0 at loop 7 Step 1 (before fix) and after fix",
+        "ground_truth_rule": "both test command and build command must pass for a loop to count as green",
+        "test_scope": "full",
+        "test_filter": null,
+        "test_project": {
+          "path": "SteamGridDB.Xbox.Tests/",
+          "loc": 1502,
+          "test_count": 104,
+          "linkage": "links SteamGridDB.Xbox/Services/**/*.cs via <Compile Include>, does not reference the AppContainerExe",
+          "not_covered": [
+            "PrimaryWidget.xaml.cs (Windows.UI.Xaml, no desktop projection)",
+            "network calls",
+            "artwork aesthetics"
+          ]
+        },
+        "app_source_loc": 5358,
+        "largest_files": [
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+            "loc": 2132
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+            "loc": 413
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs",
+            "loc": 381
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+            "loc": 317
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkFiles.cs",
+            "loc": 221
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs",
+            "loc": 207
+          }
+        ],
+        "churn_top20": [
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+            "edits": 27
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+            "edits": 8
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GameEntry.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GridImageItem.cs",
+            "edits": 3
+          }
+        ],
+        "adrs": [],
+        "context_md": null,
+        "prior_audit_docs": [
+          {
+            "path": "CODE-REVIEW.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "ARTWORK-SELECTION.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "TESTING.md",
+            "date": "2026-08-04"
+          }
+        ],
+        "selected_lens": "lens-generic.md",
+        "loaded_lenses": [
+          "lens-generic.md",
+          "lens-security.md",
+          "lens-efficiency.md"
+        ],
+        "working_tree_dirty_paths": [],
+        "preflight_exit": 0,
+        "standing_user_constraints": {
+          "skip_tests": "SUPERSEDED - user built a 104-test suite themselves (d98dde8/08f40f6/9c7ce51); loop 1-6 Test-strategy blocker is dead",
+          "f003_network_behavior": "STILL RECORDED AS BINDING - must not change observable per-game network-call behavior against third-party APIs without a behavioral oracle; the new suite does not cover the network so the drift does not lift this"
+        }
+      },
+      "verdict": "Promising, but architecturally immature",
+      "verdict_explanation": "Independent re-derivation from current source found the user closed the loop-1-6 test-strategy blocker and two of PrimaryWidget's four original merged concerns (backup/restore, bulk-operation orchestration) themselves, before this loop began. Re-reading PrimaryWidget fresh surfaced a third merged concern loop 6 never named (a UI-free artwork-selection algorithm), which this loop relocated into a new Services/Artwork/ArtworkDownloader.cs. F1's core claim stays carried_forward; test_strategy moved the most on real Authority-Map and mutation-test evidence, the latter surfacing a real gap now queued as F-005.",
+      "scorecard": {
+        "architecture_quality": {
+          "score": 6.5,
+          "delta": "UP",
+          "proof": "PrimaryWidget.xaml.cs shrank 2132 -> 1957 lines this loop (git diff --stat: 179 deletions/5 insertions in PrimaryWidget.xaml.cs, 195 new lines in Services/Artwork/ArtworkDownloader.cs). DownloadArtworkAsync/DownloadBestTileFillingImageAsync/FindOfficialLookalikeAsync verified (grep) to reference zero PrimaryWidget instance state, now live in one 195-line module with 3 real call sites, build-verified.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "state_management": {
+          "score": 7.0,
+          "delta": "UP",
+          "proof": "AppliedArtworkStore.RecordFolder/FixLog.LogFolder (added d98dde8, this drift window) are settable properties whose setter correctly recreates appliedCache on reassignment (AppliedArtworkStore.cs:47-56) rather than serving a stale map - a new mutation vector handled correctly, proof the single-writer contract holds under a case it did not have to handle before.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "domain_modeling": {
+          "score": 5.5,
+          "delta": "SAME",
+          "proof": "SteamGridDbClient.ParseOfficialCapsuleUrl (SteamGridDbClient.cs:144-199) unchanged this drift window (file absent from git diff --stat 21e7c62..9c7ce51 and from this loop's own diff) - no structural proof to move this dimension (G8/G26).",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "data_flow": {
+          "score": 6.0,
+          "delta": "SAME",
+          "proof": "This loop's fix is in-process relocation of already-pure, already-leaf logic - no dependency moved, no new port, no cycle. Consistent with loops 4-6's convention of crediting this diff shape to architecture_quality/simplicity, not data_flow.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "framework_idioms": {
+          "score": 6.0,
+          "delta": "SAME",
+          "proof": "The DataContractJsonSerializer/Windows.Data.Json split in SteamGridDbClient.cs is unchanged this drift window (file untouched) - no structural proof to move this dimension.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "concurrency": {
+          "score": 6.5,
+          "delta": "UP",
+          "proof": "AsyncLazyCacheTests.cs (new this drift window, f61e8d4) stress-tests AsyncLazyCache<T>.GetOrLoadAsync with 32 concurrent callers against a delayed loader, asserting the loader runs exactly once - turns loop 6's reasoning_only risk-boundary evidence for this exact lock-ordering crossing into empirically-tested behavior. F-003's sequential per-game round-trips remain open, still blocked by operational constraint.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "simplicity": {
+          "score": 8.0,
+          "delta": "UP",
+          "proof": "This loop's ArtworkDownloader.cs extraction plus SetStatusAsync/OnUiThreadAsync (landed 9c7ce51) now own nearly all UI-thread dispatch - grep-verified only 4 raw Dispatcher.RunAsync calls remain in the 1957-line PrimaryWidget.xaml.cs, 2 inside the two helpers themselves, 1 for a genuine cross-thread BitmapImage construction, 1 fire-and-forget focus call. GameImages/OperationReport (9c7ce51) each collapsed 3 hand-copied implementations into one.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "test_strategy": {
+          "score": 8.0,
+          "delta": "UP",
+          "proof": "Full re-derivation (loop-1-6 'no test project' blocker superseded). Authority-Map cross-check performed fresh: AppliedArtworkStore/ArtworkFiles/ArtworkRanker/AsyncLazyCache/GameImages/JsonRead/OperationReport/TileImage each have a direct test file with real-outcome assertions. TESTING.md's app-csproj-explicit-vs-test-csproj-glob claim independently verified by reading both .csproj files. Mutation-test check performed against current source surfaced a real gap (Finding #2, now F-005). Ceiling held at 8 per the anti-anchor rule: PrimaryWidget's own shell concerns (architecturally untestable, no desktop projection) and the newly-relocated ArtworkDownloader's network dependency (same pre-existing documented carve-out as StoreNameLookup) are two named, disclosed gap categories, not at most one.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "credibility": {
+          "score": 7.0,
+          "delta": "UP",
+          "proof": "New mutation-verified evidence this drift window directly proves several load-bearing invariants hold under regression pressure, not just inspection: ArtworkFilesTests mutation-checks backup-before-write and locate-before-delete ordering (TESTING.md names the specific reversed mutations both catch), OperationReportTests mutation-checks the off-by-one 9c7ce51's commit message says it fixed, AsyncLazyCacheTests empirically proves load-once under 32 concurrent callers. Capped below 8: PrimaryWidget.xaml.cs's remaining 1957 lines (60% of app source) are still unverified by anything but inspection and a green compile.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        }
+      },
+      "authority_map": [
+        {
+          "concern": "Library-operation exclusivity",
+          "owner": "PrimaryWidget instance",
+          "allowed_writers": [
+            "TryBeginLibraryOperation",
+            "EndLibraryOperation"
+          ],
+          "readers": [
+            "IsLibraryOperationBlocking",
+            "all four header-button click handlers",
+            "EditGameImage_Click",
+            "SearchGameImage_Click",
+            "RestoreBackup_Click"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "TryBeginLibraryOperation/EndLibraryOperation, called from every *_Click handler via a try/finally"
+          ],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Artwork-selection algorithm (candidate download, tile-fill pick, official-lookalike veto)",
+          "owner": "Services/Artwork/ArtworkDownloader (new, static, this loop)",
+          "allowed_writers": [],
+          "readers": [
+            "PrimaryWidget.FixLibraryAsync",
+            "DownloadAndReplaceImageCoreAsync",
+            "TryFixFromPortraitArtAsync"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Applied-artwork record (AppliedArtworkStore.appliedCache)",
+          "owner": "AppliedArtworkStore (static, Services/Artwork/)",
+          "allowed_writers": [
+            "UpdateAsync (via SetAsync/ClearAsync), gated by gate"
+          ],
+          "readers": [
+            "GetAsync, also gated by gate (F-002, resolved loop 2)"
+          ],
+          "persistence_seam": "applied-artwork.json in RecordFolder (defaults to ApplicationData.Current.LocalFolder)",
+          "async_mutation_entry_points": [
+            "SetAsync (from ReplaceImageCoreAsync)",
+            "ClearAsync (from RestoreBackupCoreAsync)"
+          ],
+          "verdict": "Single and clear"
+        }
+      ],
+      "strengths": [
+        "ArtworkSource's private-constructor-plus-factory-method design (Services/SteamGridDB/ArtworkSource.cs:15-51) makes \"neither a platform-ID nor a game-ID\" unrepresentable - a genuine smart-constructor, not decoration. Re-verified unchanged this loop.",
+        "AsyncLazyCache<T> takes the caller's own lock as a constructor argument instead of owning a private one, keeping AppliedArtworkStore's F-002 fix intact through the loop-6 refactor - and is now empirically stress-tested under 32 concurrent callers (AsyncLazyCacheTests.cs, this drift window), not merely reasoned about.",
+        "The official-artwork gate (FindOfficialLookalikeAsync, now Services/Artwork/ArtworkDownloader.cs:112-183) is a narrow, evidence-tuned veto whose code comments cite the specific regression case and slack margin that motivated it - moved verbatim this loop, comments intact.",
+        "ArtworkRankerTests.cs (new this drift window, f61e8d4) pins several artwork-ranking decisions the code comments explain but nothing previously enforced - PNG-over-JPEG tried and reverted, SteamGridDB's own \"official\" icon style tried and rejected, the mockup-vocabulary word-boundary rule. A future edit that silently re-breaks any of these now fails a test."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-001",
+          "id": "F1",
+          "title": "PrimaryWidget.xaml.cs still merges UI event handling and multi-concern orchestration behind zero Interface boundary",
+          "why_it_matters": "The churn-flagged file (27 edits over 6 months, still the largest in the repo) continues to bundle several structurally distinct concerns with no Module boundary between them, so a change to any one risks disturbing the others.",
+          "what_is_wrong": "PrimaryWidget.xaml.cs is 1957 lines after this loop's fix (was 2132 at Step 1 inspection, 2278 before loop 6's drift window) - re-derived fresh this loop rather than carried from loop 6's text, since the user's own out-of-band commits (08f40f6, 9c7ce51) had already extracted the backup/restore file-operations (ArtworkFiles) and the bulk-operation primitives (GameImages, OperationReport) loop 6 last saw merged in, so loop 6's evidence ('backup/restore orchestration... remain private members on one 2,278-line class') was stale before this loop began. Re-reading the current file top to bottom found a third, previously-uncredited merged concern: the artwork-selection algorithm (download candidates, pick the one that fills the tile, veto it against Valve's official capsule when the pick looks nothing like the real cover) had zero references to any PrimaryWidget instance state - no Dispatcher, no StatusText, no GameEntries, no CurrentSelectedGame - across all three of its methods, meaning it was sitting inside the 2132-line UI class for no structural reason. This loop's fix moves those three methods (DownloadArtworkAsync, DownloadBestTileFillingImageAsync, FindOfficialLookalikeAsync) plus their three tuning constants and the shared HttpClient into a new Services/Artwork/ArtworkDownloader.cs. What remains merged in PrimaryWidget: (1) UI event handling proper - dialogs, *_Click handlers, panel show/hide animations - correctly stays, inherently UI-bound; (2) LoadGameEntriesAsync (PrimaryWidget.xaml.cs:331-709, ~378 lines) interleaves pure manifest-JSON parsing and platform-ID extraction with UI-bound work (OnUiThreadAsync calls bracketing the loop, CreateThumbnailAsync mid-loop for image decode) - untouched this loop, now the largest remaining merged-concern candidate; (3) the three bulk-operation loops (RevertAllToDefaultAsync/FixLibraryAsync/RestoreAllChangesAsync) still iterate GameEntry directly and call Dispatcher-bound helpers, but this is now a source-verified platform constraint rather than an unattempted extraction - GameEntry.Image/HasBackup bind Windows.UI.Xaml types with no desktop projection, the exact boundary TESTING.md documents and SmokeTests.cs pins.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (1957 lines total post-fix; wc -l before/after this loop: 2132 -> 1957)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:331-709 (LoadGameEntriesAsync - manifest parsing interleaved with OnUiThreadAsync/CreateThumbnailAsync, unaffected by this loop's fix, now the largest remaining merged-concern candidate)",
+            "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs (new this loop, 195 lines - the previously-merged artwork-selection algorithm, now a standalone module with zero PrimaryWidget-instance-state dependency)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "The three moved methods now have one home (ArtworkDownloader) instead of being reachable only by editing the 1,957+-line UI class; a future caller can call the selection algorithm without pulling in PrimaryWidget.",
+          "locality_impact": "A maintainer tuning the official-artwork gate's floor/ceiling constants, or debugging a wrong pick, now reads a 195-line file with a single responsibility instead of finding the logic 1,200+ lines into a UI-event-handling class.",
+          "metric_signal": "PrimaryWidget.xaml.cs: 2132 -> 1957 lines this loop (-175, -8.2%); Services/Artwork/ArtworkDownloader.cs: 195 lines, new.",
+          "why_weakens_submission": "Ownership of the two concerns still remaining merged in PrimaryWidget (manifest-parsing, bulk-operation orchestration) is still untraceable from any single Module besides the UI class itself; the churn-flagged file, while smaller, is still well above the one-or-two-shallow-wrapper bar the architecture-quality 7-anchor requires.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "F1's remaining scope is now LoadGameEntriesAsync's manifest-parsing (folder iteration, gameCache JSON walk, platform-ID/Epic-catalog-ID extraction) versus its UI-bound tail (CreateThumbnailAsync image decode, the two OnUiThreadAsync brackets). This is a bigger, more entangled slice than this loop's fix: the parsing loop calls ArtworkFiles.HasBackupAsync and CreateThumbnailAsync mid-body (UI-thread-affine), and builds the final GameEntry (a UWP-bound type) inline rather than after a clean parse/hydrate split. Re-run the Simplify Pressure Test fresh before attempting - name explicitly which lines are pure JSON/string work versus which need to stay because they call into UWP-only decode/storage APIs, rather than carrying forward a blanket 'needs a decision' or 'mechanical move' label without re-deriving it.",
+          "blast_radius": {
+            "change": [
+              "PrimaryWidget.xaml.cs (LoadGameEntriesAsync's manifest-parsing lines only)",
+              "a new Services/Library manifest-parsing helper (if the split survives fresh SPT)"
+            ],
+            "avoid": [
+              "Services/Artwork/ArtworkDownloader.cs",
+              "Services/Artwork/ArtworkFiles.cs",
+              "Services/Artwork/ArtworkRanker.cs",
+              "Services/Stores/*",
+              "Services/Library/GameImages.cs",
+              "Services/Library/OperationReport.cs"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-005",
+          "id": "F2",
+          "title": "ArtworkRanker.RankGrids' style-priority ordering has no test mixing text-bearing and icon-like styles, so a sort-direction inversion would pass silently",
+          "why_it_matters": "RankGrids is the ranking algorithm behind every automatic artwork pick on the widget's primary flow; an inverted style-priority tie-break would silently prefer icon-like art over box-art-style uploads library-wide, with no test catching it.",
+          "what_is_wrong": "ArtworkRanker.cs:195 sorts candidates with .ThenBy(r => GridStylePriority(r.Grid.Style)) - GridStylePriority returns 0 for text-bearing styles (alternate/white_logo/blurred) and 1 for icon-like ones (ArtworkRanker.cs:74-77), so ascending order is load-bearing: text-bearing art must sort first. GridStylePriority itself is directly unit-tested (ArtworkRankerTests.cs:50-66, confirms the 0/1 return values), but every RankGrids test in the 'Grid ordering' section (ArtworkRankerTests.cs:161-244) constructs its candidates with the Grid() factory's default style ('alternate') on both sides of the comparison, so GridStylePriority evaluates to the same tie value (0,0) in every RankGrids test case - independently verified by reading the factory default (ArtworkRankerTests.cs:23) and every call site in that section. Mutation check performed directly against current source: flipping .ThenBy to .ThenByDescending at ArtworkRanker.cs:195 changes nothing observable in any of the 10 existing RankGrids/RankIcons tests, since no test constructs two grids with different GridStylePriority values and asserts their relative order.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:195 (.ThenBy(r => GridStylePriority(r.Grid.Style)) - the load-bearing ascending sort)",
+            "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:74-77 (GridStylePriority - 0 for text-bearing, 1 for icon-like)",
+            "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:21-41 (Grid() factory - style defaults to \"alternate\" and every RankGrids test in the file uses this default on all candidates)",
+            "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:161-244 (all six RankGrids ordering tests - none varies style across candidates within one call)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "One call site (RankGrids), but it is the ranking function every automatic-fix and manual-picker artwork list goes through - a regression here is library-wide, not local to one caller.",
+          "locality_impact": "The fix is one new test case inside ArtworkRankerTests.cs's existing 'Grid ordering' section; no production code changes.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A source-level mutation (sort-direction flip) on a central, primary-flow ranking rule passes the entire 104-test suite undetected - exactly the missing-test-surface gap the mutation-test check in method.md Step 8 is designed to surface before scoring test_strategy at its 9-anchor.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Add one RankGrids test case constructing two candidates with different styles (one from TextBearingGridStyles, one not) and asserting the text-bearing one sorts first - mirrors the existing 'Foreign_language_artwork_sorts_behind_english_and_untagged' test's shape exactly. No production code change; the ranking logic is already correct, only the test surface is missing.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs (one new test method)"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs",
+              "everything else"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-003",
+          "id": "F3",
+          "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
+          "why_it_matters": "Load time scales linearly with library size and network latency on the widget's primary open path - the one flow every user hits every time.",
+          "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks, routed through StoreNameLookup and EpicLibrary) one game at a time; nothing overlaps the independent per-game network calls. Re-verified this loop directly against current source: LoadGameEntriesAsync's sequencing is unaffected by this loop's fix, which relocated the artwork-selection algorithm (a downstream, per-fix concern) out of PrimaryWidget entirely, not the per-game load loop itself; line numbers shifted only because the relocated code sat earlier in the file (constants block + sharedHttpClient field, both above line 331). This run's own operating constraints continue to rule out attempting this finding: parallelising these per-game round-trips would change the observable request count, order, and timing against third-party APIs (GOG, a community database, Ubisoft's GitHub-hosted list), which this run has been instructed not to do blind, absent a behavioural oracle to grade the result against - and the new test suite explicitly does not cover network calls (TESTING.md: 'Anything over the network... Only NormaliseGameName is covered'), so the drift that added the test suite does not supply that oracle.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:331-709 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :569 and the store-name fallbacks at :591,600,609,629, with nothing overlapped - re-verified at current line numbers this loop after this loop's own edit shifted them up by removing the artwork-selection constants that sat above this method)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": "true-external",
+          "leverage_impact": "There is only one call site (the load loop); a future second caller of the same pattern would inherit the same linear cost with no leverage from batching, since none exists.",
+          "locality_impact": "The fix is local to LoadGameEntriesAsync's loop body and StoreNameLookup's cache field declarations; it does not need to spread to callers.",
+          "metric_signal": "One HTTP round-trip per game per store lookup; a 100-game library issues 100+ sequential requests with no overlap (D2, lens-efficiency.md).",
+          "why_weakens_submission": "Structural waste on the widget's primary hot path. The fix is well-understood (bounded concurrency) but is out of scope for this run by explicit instruction, not by mechanical difficulty.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Blocked for the duration of this run by an explicit operational constraint (must not change per-game network-call count, order, or behavior against third-party APIs without a behavioral oracle) - not by a mechanical difficulty. If that constraint is lifted in a future run: bound concurrency (e.g. SemaphoreSlim(4-8) + Task.WhenAll) around the per-entry body, and switch StoreNameLookup's four cache fields to ConcurrentDictionary before parallelizing.",
+          "blast_radius": {
+            "change": [
+              "PrimaryWidget.xaml.cs (LoadGameEntriesAsync)",
+              "Services/Stores/StoreNameLookup.cs (the four cache fields)"
+            ],
+            "avoid": [
+              "Services/Artwork/ArtworkDownloader.cs",
+              "Services/Artwork/*",
+              "Services/SteamGridDB/*"
+            ]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Relocating DownloadArtworkAsync, DownloadBestTileFillingImageAsync and FindOfficialLookalikeAsync - plus the three tuning constants and the shared HttpClient they alone used - out of PrimaryWidget.xaml.cs into Services/Artwork/ArtworkDownloader.cs. Passes the deletion test in reverse: these methods had zero references to PrimaryWidget instance state, so their presence inside the UI class added ownership ambiguity without buying anything a PrimaryWidget-hosted method would need.",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "PrimaryWidget.xaml.cs shrank 2132 -> 1957 lines (net -175); the using Windows.Web.Http; import and the sharedHttpClient field left the UI class entirely, since nothing else in it used HTTP directly.",
+        "should_not_be_done": "Attempting LoadGameEntriesAsync's manifest-parsing split in the same loop - it is a materially bigger, more entangled slice that was not vetted this loop; attempting it without a fresh Simplify Pressure Test risks a costume-layer split that looks clean but leaves the UI-thread coupling load-bearing in the 'pure' half. Also should not attempt the RankGrids test gap (F-005) or F-003 (concurrency) this loop - F1 is the higher-priority (Serious > Noticeable) finding and the protocol selects a single highest-priority item per loop.",
+        "tests_after_fix": "No new tests added or needed - this is a pure relocation (byte-identical method bodies), not a deepening of a previously-shallow module, so Replace-don't-layer's tests-at-the-new-Interface requirement does not apply; the same regression oracle (104 tests + green MSBuild) that covered zero of this logic before this loop's move still covers zero of it after, which is not a regression - TESTING.md's documented network-call carve-out already excluded this logic's category from coverage before it was extracted."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "title": "Attempt LoadGameEntriesAsync's manifest-parsing/UI-decode split (F1's next honest slice)",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "F1 remains the largest Serious deduction on the board; this is the largest remaining merged-concern candidate in PrimaryWidget.xaml.cs.",
+          "score_impact": "Architecture quality +0.5-1.0 and Code simplicity +0.5 if verified and the split survives fresh SPT without introducing UI-thread coupling into the 'pure' half."
+        },
+        {
+          "priority": 2,
+          "title": "Add the missing RankGrids style-priority mixed-style test case (F-005)",
+          "kind": "simplification",
+          "rank": "helpful",
+          "why_it_matters": "test_strategy's current 8.0 ceiling is partly explained by this named, source-backed gap; closing it removes one of the two disclosed coverage-gap categories.",
+          "score_impact": "Test strategy +0.5-1.0 once verified."
+        },
+        {
+          "priority": 3,
+          "title": "Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups (F-003)",
+          "kind": "structural",
+          "rank": "minor",
+          "why_it_matters": "Removes load latency that scales linearly with library size on the widget's primary flow, whenever this run's operational constraint is lifted. Blocked for the duration of this run.",
+          "score_impact": "Concurrency +0.5, Framework idioms +0.5 once verified (future run)."
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [],
+      "builder_notes": [
+        {
+          "pattern": "A Serious finding's own evidence can go stale between loops even when no contest loop touched the file in the meantime - the user's own out-of-band commits had already fixed part of F1's cited evidence (backup/restore orchestration) before this loop's Step 1 began.",
+          "how_to_recognize": "Discovery flags drift commits since the last loop; re-reading the finding's cited file top-to-bottom (not trusting the prior loop's line numbers or claim text) is the only way to catch a partially-resolved claim before re-attempting work that is already done.",
+          "smallest_coding_rule": "On any loop where Discovery reports drift, re-derive every open finding's evidence from current source before selecting Priority 1 - a stale Claim can point you at a fix that no longer needs making, while the real remaining slice goes unnoticed.",
+          "stack_example": "C# - this loop's actual highest-leverage find (the UI-free artwork-selection algorithm) was not the thing loop 6's F1 text described at all; it only surfaced from reading RestoreBackupCoreAsync's neighbors, not from trusting the prior loop's evidence block."
+        },
+        {
+          "pattern": "A method with zero references to its enclosing class's instance state - no this., no UI-framework field access - sitting inside a large god-class is a clean, low-risk extraction candidate regardless of whether it is architecturally 'deep': the absence of coupling is itself the friction proof, cheaper to verify than a full deletion test.",
+          "how_to_recognize": "A private method inside a large class whose body never references this, the class's own fields, or framework-bound UI types, even though sibling methods in the same class reference them constantly.",
+          "smallest_coding_rule": "Before proposing a bigger, riskier extraction, grep every candidate method's body against the enclosing class's field names - a zero-hit method is safe to move verbatim; a method with even one UI-field reference needs the harder parse/hydrate split treatment instead.",
+          "stack_example": "C# - DownloadArtworkAsync/DownloadBestTileFillingImageAsync/FindOfficialLookalikeAsync referenced only static helpers (FixLog, ArtworkSignature, TileImage, ArtworkRanker) and their own parameters; zero PrimaryWidget field references, confirmed by grep before the move, not after."
+        },
+        {
+          "pattern": "Mutation-testing your own test suite (not just running it) surfaces gaps that passing-test-count metrics hide completely - a function can be both directly unit-tested in isolation and silently untested inside a composite caller, when every composite test happens to hold the isolated function's input constant.",
+          "how_to_recognize": "A helper function is unit-tested with varied inputs, but every test of the caller that uses the helper as one tie-break among several constructs its test fixtures with the same value for that one input across every case.",
+          "smallest_coding_rule": "For any multi-key sort/rank function, check that at least one test in the composite-behavior suite varies each individual key while holding the others constant - not just that the key's own extraction function is separately unit-tested.",
+          "stack_example": "C# - ArtworkRanker.GridStylePriority is directly unit-tested with both 0- and 1-returning inputs, but every RankGrids composite test used the same default style on all candidates, so the ascending-vs-descending direction of that one .ThenBy clause was never exercised by anything."
+        }
+      ],
+      "narrative": "Place, not win. This loop's real news is upstream of anything a contest loop did: the user closed the loop-1-6 record's single biggest blocker themselves, writing a 104-test suite with real, mutation-verified assertions and moving two of PrimaryWidget.xaml.cs's four original merged concerns (backup/restore, bulk-operation orchestration) out on their own, before this loop's Step 1 even started. This loop's job was honest re-derivation, not confirmation - re-reading PrimaryWidget.xaml.cs fresh surfaced a third merged concern loop 6 never named (the artwork-selection algorithm, provably UI-free) and closed it the same way the user's own commits closed the other two: a plain relocation, no new Seam, verified by a green build both before and after. F1 stays carried_forward - LoadGameEntriesAsync and the bulk-operation loops are real, remaining merged concerns - but the finding's own evidence is now current, not stale. test_strategy moved the most (3.0 -> 8.0) on real evidence: an Authority-Map cross-check and a hands-on mutation-test check both performed against current source, the latter honestly surfacing a real gap (F-005) rather than rubber-stamping the test count. F-003's concurrency residual remains explicitly out of scope for this entire run by operational instruction; AsyncLazyCache<T>'s lock discipline is now empirically stress-tested, which is different progress on a different question. Runtime ownership is trustworthy for what has been resolved and now partly test-verified rather than purely inspected; concurrency is not yet fully trustworthy on the still-open F-003 path. Future work has one honestly-scoped, not-yet-attempted path for F1 and one cheap, concrete fix for the newly-found test gap, both named plainly.",
+      "loop_result": {
+        "what_changed": "Relocated DownloadArtworkAsync, DownloadBestTileFillingImageAsync and FindOfficialLookalikeAsync - plus the maxArtworkCandidates/officialArtworkFloor/officialArtworkCeiling constants and the sharedHttpClient field they alone used - verbatim from PrimaryWidget.xaml.cs into a new Services/Artwork/ArtworkDownloader.cs (195 lines). Re-pointed the three PrimaryWidget call sites (FixLibraryAsync, DownloadAndReplaceImageCoreAsync, TryFixFromPortraitArtAsync) to the new ArtworkDownloader.* names. Removed the now-unused using Windows.Web.Http; import. Registered the new file in SteamGridDB.Xbox.csproj.",
+        "evidence_change_is_honest": "Both regression oracles passed clean before and after: run-tests.ps1 (104 passed, 0 failed, both runs) and MSBuild (exit 0, both runs, same command as every prior loop). Move traced method-by-method: DownloadArtworkAsync's try/catch, DownloadBestTileFillingImageAsync's candidate-scan loop and fallback tracking, and FindOfficialLookalikeAsync's floor/ceiling gate and replacement scan are unchanged character-for-character except internal call qualification and the constants' visibility (private const -> internal const, needed because PrimaryWidget's TryFixFromPortraitArtAsync still reads MaxCandidates from outside the new class). Grep-verified post-edit that no stray reference to the removed methods, constants, or sharedHttpClient field remains anywhere in PrimaryWidget.xaml.cs. The test project's Services/**/*.cs glob (SteamGridDB.Xbox.Tests.csproj) picked up ArtworkDownloader.cs automatically; its continued 104/104 pass independently confirms the new file compiles cleanly in the desktop-projected context too. Changes only where the artwork-selection algorithm's code lives, not the number of network calls, ranking order, tile-fill check, official-artwork gate values, or any other selection/download behavior - confirmed by the independent implementation-reviewer pass.",
+        "risk_boundary_evidence": {
+          "boundary_kind": "cross_file_visibility",
+          "verification": "compile_matrix",
+          "detail": "The three moved methods and the MaxCandidates constant went from private (PrimaryWidget-only) to internal (assembly-visible), because PrimaryWidget still calls ArtworkDownloader.DownloadArtworkAsync/MaxCandidates from TryFixFromPortraitArtAsync and DownloadAndReplaceImageCoreAsync, which live in a different file now. Both regression-oracle configurations this codebase has were compiled clean after the visibility change: the UWP AppContainerExe build (MSBuild, exit 0) which references PrimaryWidget.xaml.cs and the new ArtworkDownloader.cs together in the same compilation, and the desktop net8.0-windows test build (run-tests.ps1, 104/104 passed) which links ArtworkDownloader.cs directly via the test project's Services/**/*.cs glob. Widening private to internal in a single assembly with no InternalsVisibleTo boundary carries no cross-assembly exposure risk in this codebase's shape (confirmed by reading both .csproj files directly this loop) - the only thing that could break from this specific change is a call site failing to resolve, which either compile config would catch immediately as a hard compile error, and both did not.",
+          "mechanically_testable": true
+        },
+        "targeted_finding_status": "carried_forward",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+          "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+          "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "The three artwork-selection methods, three constants, and sharedHttpClient field are verifiably gone from PrimaryWidget.xaml.cs and relocated byte-identical (verified against git show HEAD) into ArtworkDownloader.cs with all three call sites re-pointed and no dangling references anywhere in the repo.",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {
+            "attempt": 1,
+            "outcome": "ok",
+            "error": null,
+            "duration_ms": 135287
+          }
+        ]
+      }
     }
   ]
 }
