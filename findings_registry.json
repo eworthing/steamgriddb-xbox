@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 6,
+  "next_serial": 7,
   "entries": [
     {
       "stable_id": "F-001",
@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 1,
@@ -100,6 +100,18 @@
             "evidence_paths_hash": "sha256:562d8c69f3fe12c73f0a6a2971f92894fe6f08faa7b144eaf2ff1fb3ad73a820"
           },
           "attempted_remedy_hash": "sha256:e96edecd481d4bb6e23924d1bf3230c93fa66fed39a8854a84427db6f022546b"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "7fa0548",
+          "note": "Re-derived fresh this loop per method.md Step 1.7's Anchor-check: loop 7's queued remedy (a clean two-phase manifest-parsing/UI-decode split) does not survive a full top-to-bottom read of LoadGameEntriesAsync - image decode, backup checks, and network name-resolution are genuinely interleaved per entry, not separable into two contiguous phases. Downgraded per Simplify Pressure Test; a narrower, corrected next slice (pure field-extraction only) is named instead. This loop's actual fix (F-006, a distinct defect) touched only the field-parsing lines within this method, not its overall shape. targeted_finding_status: carried_forward.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:11db818c6f6b39df1bdfdd8390ef6e2a8206327da39f21290181846830916f00",
+            "evidence_paths_hash": "sha256:4ecfad3a95a41f39964a612250300f827a2867c79b7f173044cab295a1e672d7"
+          },
+          "attempted_remedy_hash": "sha256:51131d764c924a5637ac611cb24bf52eea13373037f38b768a302d1def9af2c6"
         }
       ]
     },
@@ -156,7 +168,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 1,
@@ -240,6 +252,18 @@
             "evidence_paths_hash": "sha256:5aeb7d6760852e1b251434eed69e19b3a22a948ba4d1e5a1811ec2b6c4287f8b"
           },
           "attempted_remedy_hash": "sha256:885f2a7dc4b0cd8b561d22e81404e6da762b4acaeae831cd65a8a8b3c8f13a27"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "7fa0548",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched in sequencing shape by this loop's fix (F-006, confined to field-parsing lines within LoadGameEntriesAsync). Await sites shifted to :590,612,621,630 (was :569,591,600,609,629 at loop 7) purely from Finding #1's added null-guard lines above them. Still ruled out by the same standing operational constraint. Priority 3 in loop 8's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:267670a3b6e07b805ac51a94e775bc30354dd1ec6292f5688ff961287012e582",
+            "evidence_paths_hash": "sha256:6b560ba7460cbc9f365057b2016937d9eb9119aee1d73131b8ed35cc6ee6177d"
+          },
+          "attempted_remedy_hash": "sha256:9e47b640b49f9d3c1818ae2b8c468c39fb7cd7c5d306d66887821fb419f41b64"
         }
       ]
     },
@@ -344,7 +368,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "9c7ce51",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 7,
@@ -357,6 +381,47 @@
             "evidence_paths_hash": "sha256:f78567483a63e1e3b4894fdbd18973f01f4547ad85fd0fdffc1046125363ac22"
           },
           "attempted_remedy_hash": "sha256:432c7a4c228356eb6521f1ee4fb8208cd4c9edf544d76eb2970a044c690fdc4b"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "7fa0548",
+          "note": "Re-verified this loop: ArtworkRanker.cs and ArtworkRankerTests.cs both absent from this loop's diff. Priority 2 in loop 8's backlog (behind F-001, ahead of F-003).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a76d5a888bfef8041138bb4a48b35f0cda0eda713de34d6e96b487b4bd2347f0",
+            "evidence_paths_hash": "sha256:bef49e9f64bdf5e7489e1bee4d78abe13821f2cb24a44c9874b549e705b9b4e5"
+          },
+          "attempted_remedy_hash": "sha256:3c4fcb5ccfa7fc2b32dfb878b244567418172a210d5a0a2a6b3bec049788ad42"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-006",
+      "title": "LoadGameEntriesAsync's manifest parser bypassed JsonRead at five call sites, so one JSON-null field silently dropped the rest of that folder's games",
+      "category_hint": "unsafe-json-accessor",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [
+        452,
+        537
+      ],
+      "test_failed": "n/a",
+      "severity": "Serious deduction",
+      "first_seen_loop": 8,
+      "first_seen_sha": "7fa0548",
+      "last_seen_loop": 8,
+      "occurrences": [
+        {
+          "loop": 8,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "New this loop, and resolved the same loop: found while re-deriving F-001's evidence per the Anchor-check requirement, then independently verified via a new xunit test (JsonReadTests.cs) that the raw Windows.Data.Json GetNamedString overloads throw InvalidOperationException on a present-JSON-null member and that ContainsKey does not guard against it. All five call sites (id, addedDate, imagePath, title, installLocation/executableName) now route through JsonRead. Reviewer verdict: approved (reality/honesty/regression all passed). sha patched to the real commit sha in a same-loop follow-up commit once HEAD is known (self-referential sha cannot be embedded in the commit that creates it - same constraint loop 2's F-002 resolution hit).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:854a37b8032727fd419521ace18354cbb5eaa858f38296cb22918dbeacd0c2fa",
+            "evidence_paths_hash": "sha256:a0b6a7d8a81d525752155837e21d03d7ac02fc4831f80a80948b8d3572ee94af"
+          },
+          "attempted_remedy_hash": "sha256:6d5ab0b62a52f5e68a8c7bfd1bac9d803d3b2f6019a90c7649c636afa4aedde1"
         }
       ]
     }

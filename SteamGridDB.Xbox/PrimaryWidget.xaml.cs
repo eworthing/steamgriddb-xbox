@@ -17,6 +17,7 @@ using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
 
 using SteamGridDB.Xbox.Models;
+using SteamGridDB.Xbox.Services;
 using SteamGridDB.Xbox.Services.Artwork;
 using SteamGridDB.Xbox.Services.Library;
 using SteamGridDB.Xbox.Services.SteamGridDB;
@@ -448,17 +449,24 @@ namespace SteamGridDB.Xbox
 
                                     JsonObject entryObject = entry.Value.GetObject();
 
+                                    // Get the ID from the "id" property (not from the key). JsonRead
+                                    // treats a present-but-JSON-null "id" the same as a missing one -
+                                    // the raw GetNamedString/ContainsKey pair below did not: ContainsKey
+                                    // returns true for a null-valued member, and GetNamedString throws
+                                    // InvalidOperationException on one, which nothing here caught, so a
+                                    // single null "id" anywhere in a folder's manifest silently dropped
+                                    // every entry after it in that folder (see JsonRead.cs's docstring
+                                    // for the same failure class shipping once already).
+                                    string entryId = JsonRead.String(entryObject, "id");
+
                                     // Only process entries that have an "id" property
-                                    if (!entryObject.ContainsKey("id"))
+                                    if (string.IsNullOrEmpty(entryId))
                                     {
                                         continue;
                                     }
 
-                                    // Get the ID from the "id" property (not from the key)
-                                    string entryId = entryObject.GetNamedString("id");
-
                                     // Parse addedDate - it's stored as a string in JSON
-                                    string addedDateString = entryObject.GetNamedString("addedDate", "0");
+                                    string addedDateString = JsonRead.String(entryObject, "addedDate") ?? "0";
                                     long timestamp = 0;
 
                                     if (!string.IsNullOrEmpty(addedDateString) && long.TryParse(addedDateString, out long parsedTimestamp))
@@ -471,7 +479,16 @@ namespace SteamGridDB.Xbox
 
                                     if (platform == GamePlatform.Custom) // Custom contains full path for the image filename
                                     {
-                                        imageFilePath = entryObject.GetNamedString("imagePath");
+                                        imageFilePath = JsonRead.String(entryObject, "imagePath");
+
+                                        if (string.IsNullOrEmpty(imageFilePath))
+                                        {
+                                            // Same outcome as the folder-resolution failure below - no
+                                            // path means nothing on disk this entry could point at
+                                            staleEntryCount++;
+
+                                            continue;
+                                        }
 
                                         try
                                         {
@@ -533,8 +550,12 @@ namespace SteamGridDB.Xbox
 
                                     if (platform == GamePlatform.Custom)
                                     {
-                                        gameName = entryObject.GetNamedString("title");
-                                        externalPlatformId = Path.Combine(entryObject.GetNamedString("installLocation"), entryObject.GetNamedString("executableName"));
+                                        // gameName keeps its "Unknown" default (set above) when title is
+                                        // missing or JSON null, same as every other platform's fallback
+                                        gameName = JsonRead.String(entryObject, "title") ?? gameName;
+                                        externalPlatformId = Path.Combine(
+                                            JsonRead.String(entryObject, "installLocation") ?? string.Empty,
+                                            JsonRead.String(entryObject, "executableName") ?? string.Empty);
                                     }
                                     else
                                     {

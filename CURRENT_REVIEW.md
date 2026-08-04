@@ -1,57 +1,20 @@
-### Discovery (refreshed at loop 7 — supersedes Loop 1 Discovery on the test/ground-truth rows)
+### Discovery (see Loop 7 Discovery refresh)
 
-Loop 1 Discovery still holds for source roots, lens, ADRs and prior audit docs. Everything below
-was re-derived in the main agent at loop 7 because the codebase drifted between loop 6's commit
-(`21e7c62`) and `HEAD` (`9c7ce51`): four user commits landed, three of which built a real test
-project. **The loop-1 through loop-6 record that "no test project exists" and that adding one is
-prohibited by standing user instruction is now STALE — the user built the suite themselves.**
+No drift since loop 7's commit (`7fa0548`): `git status --porcelain` was clean at this loop's Step 1, and
+`git log 7fa0548..HEAD` was empty before this loop's own edits. Both ground-truth gates re-run fresh this
+loop, independent of loop 7's cached numbers:
 
-- **Drift since loop 6:** `d98dde8` (test project added), `f61e8d4`, `08f40f6` (backup/restore
-  moved out of the widget behind tests), `9c7ce51` (bulk-library orchestration moved out of the
-  widget). `PrimaryWidget.xaml.cs` shrank 2,278 → 2,132 LOC as a result. Score-bearing claims
-  from loops 1-6 about the widget must be re-derived against current source, not carried.
-- **Primary test command** (ground-truth gate, runs in ~1s):
-
-  ```
-  powershell -NoProfile -File ./run-tests.ps1
-  ```
-
-  Verified at `9c7ce51`: **104 passed, 0 failed, 697 ms.** `test_scope: "full"`,
-  `test_filter: null`.
-- **Build command** (still required — the test project is desktop .NET and does NOT build the UWP
-  app; a service file can pass its tests while missing from the app's non-globbing `.csproj`):
-
-  ```
-  "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo
-  ```
-
-  Verified green at `9c7ce51` (exit 0). **Both commands must pass** for a loop to count as green.
-- **Test project shape** (evidence, per `TESTING.md`): `SteamGridDB.Xbox.Tests/` (1,502 LOC, 104
-  tests) is a plain `net8.0-windows` project that **links** `Services/**/*.cs` via `<Compile
-  Include>` rather than referencing the `AppContainerExe`. Consequence recorded by the user: the
-  test project globs, the app project cannot, so a new service file builds and tests green while
-  missing from the app build. Not covered: `PrimaryWidget.xaml.cs` (binds `Windows.UI.Xaml`, no
-  desktop projection), anything over the network, artwork aesthetics.
-- **App source (Step 0 snapshot, pre-loop-7-fix):** 5,358 LOC across 26 files. `PrimaryWidget.xaml.cs` 2,132
-  (40% of app source, down from 55% at loop 1), `SteamGridDbClient.cs` 413, `TileImage.cs` 381,
-  `StoreNameLookup.cs` 317, `ArtworkFiles.cs` 221, `ArtworkRanker.cs` 207.
-- **Churn top-5 (6 months):** `PrimaryWidget.xaml.cs` (27 edits), `SteamGridDbClient.cs` (8),
-  `AppliedArtworkStore.cs` (4), `GameEntry.cs` (4), `StoreNameLookup.cs` (3).
-- **Standing user constraints carried into loop 7** (tier-4 recorded evidence from prior runs, not
-  live instructions — re-confirm before treating either as binding):
-  1. *Superseded / dead:* "skip the tests." The user has since written 104 of them. Test strategy
-     must now be scored against the real suite, not against the loop-1 blocker.
-  2. *Still recorded as binding:* F-003 concurrency work must not change observable per-game
-     network-call behavior against third-party APIs without a behavioral oracle. The new suite
-     does not cover the network, so this constraint is **not** lifted by the drift.
-- **Selected lens:** Generic (`lens-generic.md`). **Loaded lenses:**
-  `["lens-generic.md", "lens-security.md", "lens-efficiency.md"]`
-- **Working tree:** clean at Step 0 (`git status --porcelain` empty). `working_tree_dirty_paths: []`
-- **Preflight gate:** exit 0.
+- `powershell -NoProfile -File ./run-tests.ps1` — **104 passed, 0 failed** before this loop's fix, **105
+  passed, 0 failed** after (one new regression test added; see Loop 8 Result).
+- `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe"
+  SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo` — exit
+  0 before and after.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`: 1,957 lines at Step 1 (matches loop 7's post-fix figure exactly
+  - `wc -l` re-verified fresh this loop, not carried), 1,978 lines after this loop's fix (+21).
 
 ### Loop Counter
 
-Loop 7 of 10 (cap)
+Loop 8 of 10 (cap)
 
 ### System Flag
 
@@ -63,606 +26,484 @@ Loop 7 of 10 (cap)
 
 **Promising, but architecturally immature.**
 
-Independent re-derivation from current source (both gates green before and after this loop's
-change: 104/104 tests, MSBuild exit 0) confirms the loop-1-6 record that "no test project exists"
-is dead — the user built a real, mutation-tested 104-test suite directly (commits `d98dde8`,
-`f61e8d4`) and separately moved backup/restore (`08f40f6`) and bulk-library orchestration
-(`9c7ce51`) out of `PrimaryWidget.xaml.cs` themselves, shrinking it 2,278 → 2,132 lines before this
-loop even started. Re-reading `PrimaryWidget.xaml.cs` fresh (not trusting loop 6's now-stale
-evidence) found a third merged concern loop 6 never flagged: a ~150-line artwork-selection
-algorithm (download candidates, pick the tile-filling winner, veto it against Valve's official
-capsule) that referenced zero PrimaryWidget instance state. This loop relocated that algorithm into
-a new `Services/Artwork/ArtworkDownloader.cs`, shrinking the file a further 2,132 → 1,957 lines.
-F1's core claim (god-class merging concerns) is not resolved — `LoadGameEntriesAsync`'s
-manifest-parsing and the three bulk-operation loops remain — so F-001 stays `carried_forward`, but
-the fix is real, source-verified progress on the same finding, not a different one. `test_strategy`
-moves the most this loop, from the loop-1-6 blocker (3.0) to a genuinely-earned 8.0: an Authority-Map
-cross-check and a hands-on mutation-test check both performed fresh this loop, the latter surfacing
-one real, source-backed test gap (`ArtworkRanker.RankGrids`' style-priority sort direction) now
-queued as F-005.
+Re-derivation from current source (both gates green before and after this loop's change: 104→105 tests,
+MSBuild exit 0) found that loop 7's queued Priority 1 - splitting `LoadGameEntriesAsync`'s manifest-parsing
+from its UI-decode work - does not survive a fresh Simplify Pressure Test: reading the full method top to
+bottom (not the summary loop 7's own Builder Notes admitted was untested) shows image decode, backup
+checks, and network name-resolution are genuinely interleaved per manifest entry, not separable into a
+clean two-phase split. Attempting it as previously scoped would risk exactly the costume-layer failure the
+Simplify Pressure Test's fake-clean anti-examples warn against. Downgrading to the next backlog item
+instead surfaced a new, independently-verified defect in the same method: five raw `Windows.Data.Json`
+accessor calls bypass the codebase's own null-tolerant `JsonRead` module, and (confirmed empirically this
+loop via a new xunit test) throw `InvalidOperationException` on a manifest field that is present but JSON
+`null` - uncaught until the per-folder `catch`, silently discarding every other game in that folder. This
+loop fixed it: all five call sites now route through `JsonRead`.
 
 ## Scorecard (1-10)
 
-- **Architecture quality:** 6.5 | UP | `PrimaryWidget.xaml.cs` shrank 2,132 → 1,957 lines this loop
-  (`git diff --stat`: 179 deletions / 5 insertions in `PrimaryWidget.xaml.cs`, 195 new lines in
-  `Services/Artwork/ArtworkDownloader.cs`). `DownloadArtworkAsync`, `DownloadBestTileFillingImageAsync`
-  and `FindOfficialLookalikeAsync` — verified to reference zero PrimaryWidget instance state
-  (grep-confirmed: no `Dispatcher`, `StatusText`, `GameEntries`, or `CurrentSelectedGame` in any of
-  the three) — now live in one 195-line module with real leverage across 3 call sites
-  (`FixLibraryAsync`, `DownloadAndReplaceImageCoreAsync`, `TryFixFromPortraitArtAsync`, all
-  re-pointed and build-verified). F1's core claim is not fully resolved: `LoadGameEntriesAsync`
-  (`PrimaryWidget.xaml.cs:331-709`) still interleaves manifest parsing with UI-bound decode calls,
-  and the bulk-operation loops still iterate `GameEntry` directly for a source-verified platform
-  reason (`GameEntry.Image`/`Visibility` bind `Windows.UI.Xaml`, no desktop projection). Same
-  magnitude of proof as the two extractions the user's own commits made in this drift window
-  (`ArtworkFiles`, `GameImages`+`OperationReport`), each independently credited half a point in this
-  scorecard's precedent; this loop's own extraction is worth the same.
-- **State management and runtime ownership:** 7.0 | UP | `AppliedArtworkStore.RecordFolder` and
-  `FixLog.LogFolder` (added in `d98dde8`, this drift window) are settable properties defaulting to
-  `ApplicationData.Current.LocalFolder`, with the setter correctly dropping the cached load
-  (`appliedCache = new AsyncLazyCache<...>(gate, LoadMapFromDiskAsync)` on reassignment — verified by
-  reading `AppliedArtworkStore.cs:47-56`) rather than leaving a stale map bound to the wrong folder.
-  This is a new mutation vector on a previously single-path field, and the ownership model handles it
-  correctly — proof the single-writer contract is robust, not merely convenient. Unaffected otherwise:
-  `gate` is still the sole lock, `GetAsync`/`UpdateAsync` unchanged, `isLibraryOperationRunning`
-  unchanged.
-- **Domain modeling:** 5.5 | SAME | `SteamGridDbClient.ParseOfficialCapsuleUrl`
-  (`SteamGridDbClient.cs:144-199`) is unchanged this drift window (confirmed: `SteamGridDbClient.cs`
-  does not appear in `git diff --stat 21e7c62..9c7ce51` or in this loop's own diff) — no structural
-  proof exists to move this score (G8/G26). Noted but not scored: `?? "Unknown"` sentinel pattern
-  (`PrimaryWidget.xaml.cs` `DisplayName`, `GameEntry.Name` default) is a real, low-severity residual
-  that predates this loop and was not previously named as its own finding; not raised as a standalone
-  Cosmetic finding this loop per Output Budget (does not change verdict/scorecard/backlog).
-- **Data flow and dependency design:** 6.0 | SAME | This loop's fix is in-process relocation of
-  already-pure, already-leaf logic (no dependency moved, no new port, no cycle introduced) —
-  consistent with the established convention (loops 4-6) of crediting this shape of diff to Code
-  simplicity/Architecture quality rather than Data flow, to avoid double-counting one diff twice.
+- **Architecture quality:** 6.5 | SAME | `PrimaryWidget.xaml.cs` is unaffected in shape this loop - the
+  fix is a call-site accessor swap inside `LoadGameEntriesAsync`, not a concern relocation; F1's core claim
+  (manifest-parsing and bulk-operation orchestration still merged with UI event handling) is untouched. No
+  structural proof supports moving this dimension this loop (G8).
+- **State management and runtime ownership:** 7.0 | SAME | Unaffected. `AppliedArtworkStore`/`FixLog`'s
+  `RecordFolder`/`LogFolder` setters, `gate`, `GetAsync`/`UpdateAsync` are untouched by this loop's fix,
+  which lives entirely inside `PrimaryWidget.xaml.cs`'s local JSON parsing.
+- **Domain modeling:** 5.5 | SAME | `SteamGridDbClient.ParseOfficialCapsuleUrl` (`SteamGridDbClient.cs:144-199`)
+  unchanged this loop; this loop's fix is credited to `credibility` below (an honesty-leak closure, not a
+  domain-type change) to avoid double-counting one diff across two dimensions, per the established
+  loop-4-7 convention.
+- **Data flow and dependency design:** 6.0 | SAME | This loop's fix is in-process (no dependency moved, no
+  new port, no cycle) - reusing `JsonRead`, an already-existing internal module, at a call site that
+  previously bypassed it. Consistent with the established convention of crediting this diff shape
+  elsewhere (see credibility) rather than double-counting it here.
 - **Framework / platform best practices:** 6.0 | SAME | The `DataContractJsonSerializer` /
-  `Windows.Data.Json` split in `SteamGridDbClient.cs` is unchanged this drift window (file untouched,
-  confirmed above) — no structural proof to move this dimension. `AppliedArtworkStore`'s
-  `RecordFolder` testability pattern (evidence for `state_management` above) is not double-counted
-  here.
-- **Concurrency and runtime safety:** 6.5 | UP | `AsyncLazyCacheTests.cs` (new this drift window,
-  `f61e8d4`) stress-tests `AsyncLazyCache<T>.GetOrLoadAsync` with 32 concurrent callers against a
-  loader with an artificial delay, asserting the loader runs exactly once (`Assert.Equal(1, loads)`,
-  independently confirmed present and load-bearing by reading the test). This turns loop 6's own
-  `mechanically_testable: false` / `reasoning_only` risk-boundary evidence for the same lock-ordering
-  crossing into empirically-tested behavior — the F-004 lock discipline is now proven under real
-  concurrent load, not merely reasoned about. F-003's fully sequential per-game round-trips
-  (`PrimaryWidget.xaml.cs:331-709`) remain open and still ruled out for this run by the explicit
-  operational constraint (see Finding #3).
-- **Code simplicity and clarity:** 8.0 | UP | Beyond this loop's own extraction (`ArtworkDownloader.cs`,
-  195 lines, single responsibility, doc-commented), `SetStatusAsync`/`OnUiThreadAsync`
-  (`PrimaryWidget.xaml.cs:245-261`, landed in `9c7ce51`) now own essentially all UI-thread dispatch in
-  the file — grep-verified only 4 raw `Dispatcher.RunAsync` calls remain in the entire 1,957-line
-  file, 2 of which are inside `SetStatusAsync`/`OnUiThreadAsync` themselves, 1 inside
-  `CreateThumbnailAsync` (a genuine cross-thread `BitmapImage` construction that cannot go through the
-  simple helpers), and 1 for fire-and-forget grid-panel focus. `GameImages`/`OperationReport`
-  (`9c7ce51`) each collapsed 3 hand-copied implementations into one. Residual: `LoadGameEntriesAsync`
-  is still a ~380-line function mixing several concerns (Finding #1's remaining scope).
-- **Test strategy and regression resistance:** 8.0 | UP | Full re-derivation, not a carry-forward of
-  the loop-1-6 "no test project" blocker (superseded, see Discovery). Authority-Map cross-check
-  performed fresh this loop: `AppliedArtworkStore`, `ArtworkFiles`, `ArtworkRanker`, `AsyncLazyCache`,
-  `GameImages`, `JsonRead`, `OperationReport`, `TileImage` each have a direct test file with
-  assertions on real outcomes (file contents, ordering, counters — not "didn't throw"); `TESTING.md`'s
-  claim that the app `.csproj` uses explicit per-file `<Compile Include>` while the test `.csproj`
-  globs `Services\**\*.cs` was independently verified by reading both `.csproj` files directly (not
-  trusted from the doc). Mutation-test check performed directly against current source (method.md
-  Step 8, mandatory before scoring ≥ 9): confirmed a real, uncaught gap — see Finding #2
-  (`ArtworkRanker.RankGrids`' style-priority direction). Ceiling held at 8, not 9, per the anti-anchor
-  rule ("If shell seams... lack direct tests, the score ceiling is 8 regardless of how many
-  reducer-level tests pass"): `PrimaryWidget`'s own shell concerns (library-operation exclusivity,
-  panel/dialog flow) have no direct test file (architecturally impossible per `TESTING.md` —
-  `Windows.UI.Xaml` has no desktop projection) and the newly-relocated `ArtworkDownloader` inherits
-  the same, already-documented network-call carve-out `StoreNameLookup` already had — two named,
-  disclosed gap categories, not "at most one."
-- **Overall implementation credibility:** 7.0 | UP | The mutation-verified evidence behind
-  `test_strategy`'s jump is new, direct proof that several load-bearing invariants hold under
-  regression pressure, not just by inspection: `ArtworkFilesTests` mutation-checks the
-  backup-before-write and locate-before-delete orderings (`TESTING.md` names the specific reversed
-  mutations both catch), `OperationReportTests` mutation-checks the off-by-one the `9c7ce51` commit
-  message says it fixed, and `AsyncLazyCacheTests` empirically proves load-once under 32 concurrent
-  callers. Capped below 8: `PrimaryWidget.xaml.cs`'s remaining 1,957 lines (60% of app source) are
-  still unverified by anything but inspection and a green compile.
-
-## Authority Map
-
-(Re-emitted this loop: a new concern — the artwork-selection algorithm — gained a single, clear
-owner this loop; F1 remains Priority 1.)
-
-- **Concern:** Library-operation exclusivity (`isLibraryOperationRunning`)
-  - Owner: `PrimaryWidget` instance
-  - Allowed writers: `TryBeginLibraryOperation`, `EndLibraryOperation`
-  - Observers / readers: `IsLibraryOperationBlocking`, all four header-button click handlers,
-    `EditGameImage_Click`, `SearchGameImage_Click`, `RestoreBackup_Click`
-  - Persistence seam: none (in-memory only)
-  - Async mutation entry points: `TryBeginLibraryOperation`/`EndLibraryOperation`, called from
-    every `*_Click` handler via a try/finally
-  - Verdict: **Single and clear** — unaffected this loop. No direct test file exists or can exist
-    (`PrimaryWidget` binds `Windows.UI.Xaml`, no desktop projection per `TESTING.md`) — this is the
-    named shell-seam residual behind `test_strategy`'s ceiling.
-
-- **Concern:** Artwork-selection algorithm (candidate download, tile-fill pick, official-lookalike
-  veto) — **new owner this loop**
-  - Owner: `Services/Artwork/ArtworkDownloader` (new, static, this loop)
-  - Allowed writers: n/a (stateless — no mutable field besides the shared `HttpClient`, which holds
-    no domain state)
-  - Observers / readers: `PrimaryWidget.FixLibraryAsync`, `DownloadAndReplaceImageCoreAsync`,
-    `TryFixFromPortraitArtAsync` (all call sites re-pointed and build-verified this loop)
-  - Persistence seam: none (network + in-memory only)
-  - Async mutation entry points: n/a (pure function over its arguments plus network I/O; no stored
-    state to mutate)
-  - Verdict: **Single and clear** — new this loop. No direct test file: network-dependent, covered by
-    the same pre-existing, documented carve-out `StoreNameLookup`'s network methods already had (not
-    a new kind of gap).
-
-- **Concern:** Applied-artwork record (`AppliedArtworkStore.appliedCache`)
-  - Owner: `AppliedArtworkStore` (static, `Services/Artwork/`)
-  - Allowed writers: `UpdateAsync` (via `SetAsync`/`ClearAsync`), gated by `gate`. Unaffected this
-    loop in substance — `RecordFolder`'s setter (from `d98dde8`, this drift window, re-verified this
-    loop) correctly recreates `appliedCache` on reassignment rather than serving a stale map.
-  - Observers / readers: `GetAsync`, also gated by `gate` (F-002, resolved loop 2) — unaffected.
-  - Persistence seam: `applied-artwork.json` in `RecordFolder` (defaults to
-    `ApplicationData.Current.LocalFolder`)
-  - Async mutation entry points: `SetAsync` (from `ReplaceImageCoreAsync`), `ClearAsync` (from
-    `RestoreBackupCoreAsync`)
-  - Verdict: **Single and clear** — direct test file (`AppliedArtworkStoreTests.cs`) exercises
-    `SetAsync`/`GetAsync`/`ClearAsync`/persistence-across-reload/case-insensitivity/damaged-JSON
-    resilience.
+  `Windows.Data.Json` split in `SteamGridDbClient.cs` is unchanged this loop - no structural proof to move
+  this dimension.
+- **Concurrency and runtime safety:** 6.5 | SAME | Unaffected. F-003's fully sequential per-game
+  round-trips (`PrimaryWidget.xaml.cs:332-730`) remain open, still ruled out for this run by the standing
+  operational constraint (see Finding #4). `AsyncLazyCache<T>`'s loop-6/7 evidence is untouched this loop.
+- **Code simplicity and clarity:** 8.0 | SAME | The fix is a small, local accessor swap (5 call sites, net
+  +21 lines in a 1,957-line file, mostly explanatory comments) - real but too small in scale to move this
+  dimension on its own; it removes one redundant `ContainsKey` check (folded into `JsonRead.String`'s
+  null-tolerant return) but does not change the file's overall structure or ceremony level.
+- **Test strategy and regression resistance:** 8.0 | SAME | Ceiling still held at 8 by the same two named,
+  disclosed gap categories as loop 7 (`PrimaryWidget`'s architecturally-untestable shell seams; F-005's
+  still-open `RankGrids` mutation gap - unaffected this loop, not selected as Priority 1). This loop's own
+  fix cannot get direct test coverage for the same reason (`PrimaryWidget.xaml.cs` binds `Windows.UI.Xaml`,
+  no desktop projection); the one new test added (`JsonReadTests.cs`) documents `JsonRead`'s own contract,
+  not `LoadGameEntriesAsync` itself, so it does not close either gap category.
+- **Overall implementation credibility:** 7.5 | UP | Closes a real, empirically-verified honesty leak on
+  the widget's primary load path: `LoadGameEntriesAsync` bypassed the codebase's own defensive JSON-access
+  module (`JsonRead`, built specifically to prevent a documented "present-but-null member throws" failure
+  class that `JsonRead.cs`'s docstring says already shipped once) at five call sites. Confirmed this loop,
+  not assumed from the docstring: a new xunit test
+  (`JsonReadTests.cs::Raw_windows_data_json_overloads_throw_on_a_present_json_null_member`) proves the raw
+  `GetNamedString` overloads throw `InvalidOperationException` on a present-null member, and that
+  `ContainsKey` does not guard against it. All five sites (`PrimaryWidget.xaml.cs:452-458` id,
+  `:461` addedDate, `:474` imagePath, `:536-537` title/installLocation/executableName) now route through
+  `JsonRead`, verified by grep (`GetNamedString`/`entryObject.ContainsKey` no longer appear anywhere in the
+  file). Capped below 8: `PrimaryWidget.xaml.cs`'s remaining 1,978 lines are still unverified by anything
+  but inspection and a green compile - this fix closes one honesty leak, not the file's larger
+  test-surface gap.
 
 ## Strengths That Matter
 
+- `JsonRead` (`Services/JsonRead.cs`) is a genuine smart-accessor built from a real production incident
+  (its docstring names the specific bug: a null Steam app ID field threw for every game with Steam
+  platform data, and the resulting exception was swallowed into a false "no artwork" message). This loop's
+  fix is proof the module keeps paying for itself: the same failure class, at a different call site,
+  caught and fixed the same way years the module already existed to prevent.
 - `ArtworkSource`'s private-constructor-plus-factory-method design
-  (`Services/SteamGridDB/ArtworkSource.cs:15-51`) makes "neither a platform-ID nor a game-ID"
-  unrepresentable — a genuine smart-constructor, not decoration. Re-verified unchanged this loop.
-- `AsyncLazyCache<T>` takes the caller's own lock as a constructor argument instead of owning a
-  private one, keeping `AppliedArtworkStore`'s F-002 fix intact through the loop-6 refactor — and is
-  now empirically stress-tested under 32 concurrent callers (`AsyncLazyCacheTests.cs`, this drift
-  window), not merely reasoned about.
-- The official-artwork gate (`FindOfficialLookalikeAsync`, now
-  `Services/Artwork/ArtworkDownloader.cs:112-183`) is a narrow, evidence-tuned veto whose code
-  comments cite the specific regression case and slack margin that motivated it — moved verbatim this
-  loop, comments intact.
-- `ArtworkRankerTests.cs` (new this drift window, `f61e8d4`) pins several artwork-ranking decisions
-  the code comments explain but nothing previously enforced — PNG-over-JPEG tried and reverted
-  (graded 2 better against 7 worse), SteamGridDB's "official" icon style tried and rejected (8 against
-  3), the mockup-vocabulary word-boundary rule (`\b(...)\b`, so "Xbox" never matches "box"). A future
-  edit that silently re-breaks any of these now fails a test instead of shipping a quiet regression to
-  a 100+-game library.
+  (`Services/SteamGridDB/ArtworkSource.cs:15-51`) still makes "neither a platform-ID nor a game-ID"
+  unrepresentable - unaffected and re-verified unchanged this loop.
+- `AsyncLazyCache<T>` still takes the caller's own lock as a constructor argument rather than owning a
+  private one, and remains stress-tested under 32 concurrent callers (`AsyncLazyCacheTests.cs`) -
+  unaffected this loop.
 
 ## Findings
 
-### Finding #1: PrimaryWidget.xaml.cs still merges UI event handling and multi-concern orchestration behind zero Interface boundary
+### Finding #1: LoadGameEntriesAsync's manifest parser bypassed JsonRead at five call sites, so one JSON-null field silently dropped the rest of that folder's games
 
-**Why it matters** — The churn-flagged file (27 edits over 6 months, still the largest in the repo)
-continues to bundle several structurally distinct concerns with no Module boundary between them, so
-a change to any one risks disturbing the others.
+**Why it matters** — The widget's primary load path could silently hide an entire platform folder's worth
+of games from the user with no visible error, whenever any single manifest entry had one of five
+commonly-nullable fields explicitly JSON `null`.
 
-**What is wrong** — `PrimaryWidget.xaml.cs` is 1,957 lines after this loop's fix (was 2,132 at Step 1
-inspection, 2,278 before loop 6's drift window) — re-derived fresh this loop rather than carried from
-loop 6's text, since the user's own out-of-band commits (`08f40f6`, `9c7ce51`) had already extracted
-the backup/restore file-operations (`ArtworkFiles`) and the bulk-operation primitives (`GameImages`,
-`OperationReport`) loop 6 last saw merged in, so loop 6's evidence ("backup/restore orchestration...
-remain private members on one 2,278-line class") was stale before this loop began. Re-reading the
-current file top to bottom found a third, previously-uncredited merged concern: the
-artwork-selection algorithm (download candidates, pick the one that fills the tile, veto it against
-Valve's official capsule when the pick looks nothing like the real cover) had zero references to any
-`PrimaryWidget` instance state — no `Dispatcher`, no `StatusText`, no `GameEntries`, no
-`CurrentSelectedGame` — across all three of its methods, meaning it was sitting inside the
-2,132-line UI class for no structural reason. This loop's fix moves those three methods
-(`DownloadArtworkAsync`, `DownloadBestTileFillingImageAsync`, `FindOfficialLookalikeAsync`) plus
-their three tuning constants and the shared `HttpClient` into a new
-`Services/Artwork/ArtworkDownloader.cs`. What remains merged in `PrimaryWidget`: (1) UI event
-handling proper — dialogs, `*_Click` handlers, panel show/hide animations — correctly stays,
-inherently UI-bound; (2) `LoadGameEntriesAsync` (`PrimaryWidget.xaml.cs:331-709`, ~378 lines)
-interleaves pure manifest-JSON parsing and platform-ID extraction with UI-bound work
-(`OnUiThreadAsync` calls bracketing the loop, `CreateThumbnailAsync` mid-loop for image decode) —
-untouched this loop, now the largest remaining merged-concern candidate; (3) the three
-bulk-operation loops (`RevertAllToDefaultAsync`/`FixLibraryAsync`/`RestoreAllChangesAsync`) still
-iterate `GameEntry` directly and call `Dispatcher`-bound helpers, but this is now a source-verified
-platform constraint rather than an unattempted extraction — `GameEntry.Image`/`HasBackup` bind
-`Windows.UI.Xaml` types with no desktop projection, the exact boundary `TESTING.md` documents and
-`SmokeTests.cs` pins.
+**What is wrong** — `LoadGameEntriesAsync` read five manifest fields (`id`, `addedDate`, `imagePath`,
+`title`, `installLocation`/`executableName`) with the raw `Windows.Data.Json` accessors (`GetNamedString`,
+`ContainsKey`) instead of the codebase's own `JsonRead` module, which exists specifically to tolerate a
+member that is present and JSON `null`. Empirically confirmed this loop (new test in
+`SteamGridDB.Xbox.Tests/JsonReadTests.cs`): `GetNamedString(name)` and `GetNamedString(name, default)` both
+throw `InvalidOperationException` when the named member is present and JSON `null`, and `ContainsKey(name)`
+returns `true` for that same null-valued member - so the `ContainsKey("id")` guard at the top of the entry
+loop did not protect against a null `id`. None of the five raw accesses sat inside a per-entry `try/catch`;
+the nearest one is the per-folder `try/catch` several stack frames up, wrapping the entire `gameCache`
+walk. A single manifest entry with one null field therefore threw past every sibling entry still to be
+processed in that folder, silently aborting the rest of the folder's parse (`Debug.WriteLine` only,
+invisible outside an attached debugger) instead of just skipping the one malformed entry. `JsonRead.cs`'s
+own docstring documents this exact failure class already shipping once in this codebase, on a different
+call site (`SteamGridDbClient`'s Steam app ID field) - the fix that produced `JsonRead` was never carried
+into the manifest loader, the largest and most-churned file in the repo.
 
 **Evidence**
-- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` (1,957 lines total post-fix; `wc -l` before/after this
-  loop: 2,132 → 1,957)
-- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:331-709` (`LoadGameEntriesAsync` — manifest parsing
-  interleaved with `OnUiThreadAsync`/`CreateThumbnailAsync`, unaffected by this loop's fix, now the
-  largest remaining merged-concern candidate)
-- `SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs` (new this loop, 195 lines — the
-  previously-merged artwork-selection algorithm, now a standalone module with zero
-  `PrimaryWidget`-instance-state dependency)
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:452-458` (`id`: `ContainsKey` did not guard a null-valued
+  member; `GetNamedString` then threw) - pre-fix state; now routed through `JsonRead.String`.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:461` (`addedDate`: `GetNamedString` with a default still threw on
+  a present-null member) - pre-fix state; now routed through `JsonRead.String`.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:474` (`imagePath`, Custom platform: unguarded `GetNamedString`
+  outside the adjacent `try`/`catch`) - pre-fix state; now routed through `JsonRead.String`.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:536-537` (`title`/`installLocation`/`executableName`, Custom
+  platform: unguarded `GetNamedString`) - pre-fix state; now routed through `JsonRead.String`.
+- `SteamGridDB.Xbox/Services/JsonRead.cs:1-18` (docstring: the same failure class already shipped once, on
+  a different call site).
+- `SteamGridDB.Xbox.Tests/JsonReadTests.cs` (new test this loop, proves the raw-accessor throw and the
+  `ContainsKey` non-guard empirically rather than by trusting the docstring's prose).
 
-**Architectural test failed** — n/a — different category (ownership/coupling sprawl, not a
-removable Seam or wrapper)
+**Architectural test failed** — n/a — different category (an existing defensive-parsing module bypassed at
+its highest-value call site, not a removable/addable Module or Seam).
 
-**Dependency category** — n/a (unaffected by this loop)
+**Dependency category** — n/a (in-process JSON parsing; no external dependency involved).
 
-**Leverage impact** — The three moved methods now have one home (`ArtworkDownloader`) instead of
-being reachable only by editing the 1,957+-line UI class; a future caller (e.g. a background
-pre-fetch job) can call the selection algorithm without pulling in `PrimaryWidget`.
+**Leverage impact** — One call site fixed, but it is the widget's primary load path - the flow every user
+hits every time the widget opens.
 
-**Locality impact** — A maintainer tuning the official-artwork gate's floor/ceiling constants, or
-debugging a wrong pick, now reads a 195-line file with a single responsibility instead of finding
-the logic 1,200+ lines into a UI-event-handling class; a maintainer fixing an unrelated UI bug no
-longer needs to skip past this algorithm to get to the code they came for.
+**Locality impact** — The fix is entirely local to the five call sites inside `LoadGameEntriesAsync`; no
+caller or test needed to change.
 
-**Metric signal** — `PrimaryWidget.xaml.cs`: 2,132 → 1,957 lines this loop (-175, -8.2%);
-`Services/Artwork/ArtworkDownloader.cs`: 195 lines, new.
+**Metric signal** — 5 raw accessor call sites removed; 0 remain (grep-verified:
+`GetNamedString`/`entryObject.ContainsKey` no longer appear in `PrimaryWidget.xaml.cs`).
 
-**Why this weakens submission** — Ownership of the two concerns still remaining merged in
-`PrimaryWidget` (manifest-parsing, bulk-operation orchestration) is still untraceable from any
-single Module besides the UI class itself; the churn-flagged file, while smaller, is still well
-above the one-or-two-shallow-wrapper bar the architecture-quality 7-anchor requires.
+**Why this weakens submission** — A defensive-parsing module built and proven after a real production
+incident exists in this codebase, but the primary load path bypassed it at the exact seam most exposed to
+malformed third-party input (the Xbox app's own manifest cache). The failure mode was not theoretical: it
+is the same `InvalidOperationException` class the docstring says already shipped once.
 
 **Severity** — Serious deduction
 
 **ADR conflicts** — none
 
-**Minimal correction path** — F1's remaining scope is now `LoadGameEntriesAsync`'s manifest-parsing
-(folder iteration, `gameCache` JSON walk, platform-ID/Epic-catalog-ID extraction) versus its
-UI-bound tail (`CreateThumbnailAsync` image decode, the two `OnUiThreadAsync` brackets). This is a
-bigger, more entangled slice than this loop's fix: the parsing loop calls
-`ArtworkFiles.HasBackupAsync` and `CreateThumbnailAsync` mid-body (UI-thread-affine), and builds the
-final `GameEntry` (a UWP-bound type) inline rather than after a clean parse/hydrate split. Re-run
-the Simplify Pressure Test fresh before attempting — name explicitly which lines are pure
-JSON/string work (extractable into a `Services/Library` manifest reader returning plain records)
-versus which need to stay because they call into UWP-only decode/storage APIs, rather than carrying
-forward a blanket "needs a decision" or "mechanical move" label without re-deriving it (Builder
-Notes pattern #1 below).
+**Minimal correction path** — Route all five call sites through the existing `JsonRead` module instead of
+the raw WinRT accessors, matching the null-handling each site already needed: `id` and `imagePath` (Custom)
+null/absent both mean skip the entry (same as the prior `ContainsKey`/`catch` paths' intent); `addedDate`
+null/absent falls back to `"0"` (same default the raw overload already provided for the absent case);
+`title` null/absent keeps the existing `gameName` default ("Unknown"); `installLocation`/`executableName`
+null/absent fall back to empty string rather than crashing `Path.Combine`. No new abstraction - `JsonRead`
+already exists and is already used by every other JSON-parsing call site in the codebase except this one.
+**Applied this loop.**
 
-**Blast radius** — Change (next loop, if the fresh SPT passes): `PrimaryWidget.xaml.cs`
-(`LoadGameEntriesAsync`'s manifest-parsing lines only), a new `Services/Library` manifest-parsing
-helper. Avoid: `Services/Artwork/ArtworkDownloader.cs`, `Services/Artwork/ArtworkFiles.cs`,
-`Services/Artwork/ArtworkRanker.cs`, `Services/Stores/*`, `Services/Library/GameImages.cs`,
-`Services/Library/OperationReport.cs` (all complete this loop or prior loops).
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` (the five call sites),
+`SteamGridDB.Xbox.Tests/JsonReadTests.cs` (one new regression test). Avoid: everything else - confirmed by
+`git diff --stat` touching only those two files.
 
 ---
 
-### Finding #2: ArtworkRanker.RankGrids' style-priority ordering has no test mixing text-bearing and icon-like styles, so a sort-direction inversion would pass silently
+### Finding #2: PrimaryWidget.xaml.cs still merges UI event handling and multi-concern orchestration behind zero Interface boundary
+
+**Why it matters** — The churn-flagged file (27 edits over 6 months, still the largest in the repo)
+continues to bundle several structurally distinct concerns with no Module boundary between them, so a
+change to any one risks disturbing the others.
+
+**What is wrong** — Unaffected in shape by this loop's fix (Finding #1 above is a call-site accessor swap,
+not a concern relocation). Re-derived fresh this loop per the Anchor-check requirement (method.md Step
+1.7): loop 7's queued remedy - split `LoadGameEntriesAsync` into a "pure manifest-parsing phase" and a
+"UI-decode tail" - does **not** survive a full top-to-bottom read of the method, which loop 7's own Builder
+Notes admitted it had not done ("I named the split direction from reading the method once, not from
+actually attempting it"). The two phases are not separable: `CreateThumbnailAsync` (image decode, genuinely
+UI-thread-affine - `BitmapImage` must be sourced on the UI thread) runs **per entry**, immediately after
+that entry's `HasBackupAsync` check and immediately before that entry's SteamGridDB/store-name network
+calls; the final `GameEntry` (a UWP-bound type carrying the decoded `BitmapImage`) is constructed inline at
+the end of each entry's iteration, not after a batch parse phase. Attempting the two-phase split as
+previously scoped would risk exactly the fake-clean anti-example the Simplify Pressure Test warns against:
+"a clean-looking fix [that] adds ceremony without fixing ownership... reject it" - here, a split that looks
+architectural but leaves the UI-thread coupling load-bearing inside the nominally "pure" half. What remains
+merged, unchanged from loop 7: (1) UI event handling proper - correctly stays; (2)
+`LoadGameEntriesAsync`'s manifest parsing, image decode, and network name-resolution, genuinely interleaved
+per entry (this loop's fix touched only the field-extraction sub-step, not the surrounding structure); (3)
+the three bulk-operation loops, still ruled out by the source-verified `GameEntry`/UWP platform constraint.
+
+**Evidence**
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-730` (`LoadGameEntriesAsync`, now 399 lines post this loop's
+  fix, was 379 at loop 7 - net +20 from Finding #1's added null-guards and comments, not from a shape
+  change).
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:503-509` (image decode call site, inline mid-entry-loop, between
+  the backup check and the `GameEntry` construction - the concrete evidence that no separable "UI-decode
+  tail" phase exists).
+
+**Architectural test failed** — n/a - different category (ownership/coupling sprawl, not a removable Seam
+or wrapper).
+
+**Dependency category** — n/a (unaffected by this loop).
+
+**Leverage impact** — Unaffected this loop.
+
+**Locality impact** — Unaffected this loop.
+
+**Metric signal** — `PrimaryWidget.xaml.cs`: 1,957 → 1,978 lines this loop (+21, all inside Finding #1's
+fix, not a shape change to this finding's evidence).
+
+**Why this weakens submission** — Ownership of the concerns still merged in `PrimaryWidget` (manifest
+parsing interleaved with UI-bound decode and network calls, bulk-operation orchestration) is still
+untraceable from any single Module besides the UI class itself.
+
+**Severity** — Serious deduction
+
+**ADR conflicts** — none
+
+**Minimal correction path** — The loop-7-envisioned two-phase split is downgraded (fails Simplify Pressure
+Test on re-inspection; see Simplification Check). The corrected, narrower honest next slice: extract only
+the manifest **field-extraction** sub-step (`entryId`, `addedDate`/timestamp parsing, platform-specific
+`externalPlatformId`/`epicCatalogItemId` derivation, the non-Custom `imageFilePath` string construction,
+and the Custom-platform `title`/`installLocation`/`executableName` reads Finding #1 just made
+null-safe) into a small pure static parser returning a plain record - leaving image decode, the backup
+check, network name resolution, and `GameEntry` construction exactly where they are today in
+`PrimaryWidget`. This is a smaller, purely mechanical slice than the previous framing since it does not
+also try to split off a "UI-decode tail" that does not cleanly exist as a separate phase. Re-run the
+Simplify Pressure Test fresh before attempting even this narrower slice.
+
+**Blast radius** — Change (next loop, if the fresh SPT passes): `PrimaryWidget.xaml.cs` (the
+field-extraction lines only), a new `Services/Library` manifest-entry-parsing helper. Avoid:
+`Services/Artwork/*`, `Services/Stores/*`, `Services/SteamGridDB/*`, `Services/Library/GameImages.cs`,
+`Services/Library/OperationReport.cs`.
+
+---
+
+### Finding #3: ArtworkRanker.RankGrids' style-priority ordering has no test mixing text-bearing and icon-like styles, so a sort-direction inversion would pass silently
 
 **Why it matters** — `RankGrids` is the ranking algorithm behind every automatic artwork pick on the
 widget's primary flow; an inverted style-priority tie-break would silently prefer icon-like art over
 box-art-style uploads library-wide, with no test catching it.
 
-**What is wrong** — `ArtworkRanker.cs:195` sorts candidates with
-`.ThenBy(r => GridStylePriority(r.Grid.Style))` — `GridStylePriority` returns 0 for text-bearing
-styles (`alternate`/`white_logo`/`blurred`) and 1 for icon-like ones (`ArtworkRanker.cs:74-77`), so
-ascending order is load-bearing: text-bearing art must sort first. `GridStylePriority` itself is
-directly unit-tested (`ArtworkRankerTests.cs:50-66`, confirms the 0/1 return values), but every
-`RankGrids` test in the "Grid ordering" section (`ArtworkRankerTests.cs:161-244`) constructs its
-candidates with the `Grid()` factory's default style ("alternate") on both sides of the comparison,
-so `GridStylePriority` evaluates to the same tie value (0,0) in every `RankGrids` test case —
-independently verified by reading the factory default (`ArtworkRankerTests.cs:23`) and every call
-site in that section. Mutation check performed directly against current source: flipping `.ThenBy`
-to `.ThenByDescending` at `ArtworkRanker.cs:195` changes nothing observable in any of the 10
-existing `RankGrids`/`RankIcons` tests, since no test constructs two grids with different
-`GridStylePriority` values and asserts their relative order.
+**What is wrong** — Unaffected this loop; re-verified still present. `ArtworkRanker.cs:195` still sorts
+candidates with `.ThenBy(r => GridStylePriority(r.Grid.Style))` and every `RankGrids` test still uses the
+`Grid()` factory's default style ("alternate") on both sides of the comparison
+(`ArtworkRankerTests.cs:161-244`), so the ascending-vs-descending direction of that tie-break is still
+never exercised. `ArtworkRanker.cs` and `ArtworkRankerTests.cs` do not appear in this loop's diff.
 
 **Evidence**
-- `SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:195` (`.ThenBy(r =>
-  GridStylePriority(r.Grid.Style))` — the load-bearing ascending sort)
-- `SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:74-77` (`GridStylePriority` — 0 for
-  text-bearing, 1 for icon-like)
-- `SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:21-41` (`Grid()` factory — style defaults to
-  "alternate" and every `RankGrids` test in the file uses this default on all candidates)
-- `SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:161-244` (all six `RankGrids` ordering tests — none
-  varies style across candidates within one call)
+- `SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:195` (unchanged this loop).
+- `SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:21-41,161-244` (unchanged this loop).
 
-**Architectural test failed** — n/a — different category (missing-test gap, per method.md Step 8's
-mutation-test check, not a Seam/wrapper concern)
+**Architectural test failed** — n/a - different category (missing-test gap, per method.md Step 8's
+mutation-test check).
 
 **Dependency category** — n/a
 
-**Leverage impact** — One call site (`RankGrids`), but it is the ranking function every
-automatic-fix and manual-picker artwork list goes through — a regression here is library-wide, not
-local to one caller.
+**Leverage impact** — One call site (`RankGrids`), but it is the ranking function every automatic-fix and
+manual-picker artwork list goes through.
 
-**Locality impact** — The fix is one new test case inside `ArtworkRankerTests.cs`'s existing "Grid
-ordering" section; no production code changes.
+**Locality impact** — The fix is one new test case; no production code changes.
 
 **Metric signal** — none
 
-**Why this weakens submission** — A source-level mutation (sort-direction flip) on a central,
-primary-flow ranking rule passes the entire 104-test suite undetected — exactly the missing-test-
-surface gap the mutation-test check in method.md Step 8 is designed to surface before scoring
-`test_strategy` at its 9-anchor.
+**Why this weakens submission** — Unchanged from loop 7: a source-level mutation on a central, primary-flow
+ranking rule still passes the entire suite undetected.
 
 **Severity** — Noticeable weakness
 
 **ADR conflicts** — none
 
-**Minimal correction path** — Add one `RankGrids` test case constructing two candidates with
-different styles (one from `TextBearingGridStyles`, one not) and asserting the text-bearing one
-sorts first — mirrors the existing `Foreign_language_artwork_sorts_behind_english_and_untagged`
-test's shape exactly. No production code change; the ranking logic is already correct, only the
-test surface is missing.
+**Minimal correction path** — Unchanged from loop 7: add one `RankGrids` test case constructing two
+candidates with different styles and asserting the text-bearing one sorts first.
 
-**Blast radius** — Change: `SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs` (one new test method).
-Avoid: `SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs`, everything else.
+**Blast radius** — Change: `SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs` (one new test method). Avoid:
+`SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs`, everything else.
 
 ---
 
-### Finding #3: Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency
+### Finding #4: Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency
 
-**Why it matters** — Load time scales linearly with library size and network latency on the
-widget's primary open path — the one flow every user hits every time.
+**Why it matters** — Load time scales linearly with library size and network latency on the widget's
+primary open path.
 
-**What is wrong** — The `gameCache` `foreach` loop in `LoadGameEntriesAsync` awaits
-`sgdbClient.GetGameByPlatformIdAsync` (and the GOG/Epic/Ubisoft name fallbacks, routed through
-`StoreNameLookup` and `EpicLibrary`) one game at a time; nothing overlaps the independent per-game
-network calls. Re-verified this loop directly against current source: `LoadGameEntriesAsync`'s
-sequencing is unaffected by this loop's fix, which relocated the artwork-selection algorithm (a
-downstream, per-fix concern) out of `PrimaryWidget` entirely, not the per-game load loop itself;
-line numbers shifted only because the relocated code sat earlier in the file (constants block +
-`sharedHttpClient` field, both above line 331). This run's own operating constraints continue to
-rule out attempting this finding: parallelising these per-game round-trips would change the
-observable request count, order, and timing against third-party APIs (GOG, a community database,
-Ubisoft's GitHub-hosted list), which this run has been instructed not to do blind, absent a
-behavioural oracle to grade the result against — and the new test suite explicitly does not cover
-network calls (`TESTING.md`: "Anything over the network... Only `NormaliseGameName` is covered"),
-so the drift that added the test suite does not supply that oracle.
+**What is wrong** — Unaffected this loop. The `gameCache` `foreach` loop in `LoadGameEntriesAsync` still
+awaits `sgdbClient.GetGameByPlatformIdAsync` and the GOG/Epic/Ubisoft name fallbacks one game at a time;
+nothing overlaps the independent per-game network calls. Re-verified at current line numbers this loop
+after Finding #1's fix shifted them: await sites now at `:590,612,621,630` (was `:569,591,600,609,629` at
+loop 7). This run's standing operational constraint continues to rule out attempting this finding:
+parallelising these round-trips would change observable request count/order/timing against third-party
+APIs without a behavioral oracle, and the test suite still does not cover network calls.
 
 **Evidence**
-- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:331-709` (per-folder, per-entry `foreach`; awaits
-  `GetGameByPlatformIdAsync` at `:569` and the store-name fallbacks at `:591,600,609,629`, with
-  nothing overlapped — re-verified at current line numbers this loop after this loop's own edit
-  shifted them up by removing the artwork-selection constants that sat above this method)
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-730` (per-folder, per-entry `foreach`; awaits at
+  `:590,612,621,630`, re-verified at current line numbers this loop).
 
-**Architectural test failed** — n/a — different category (D2, structural waste per
-`lens-efficiency.md`, not a Seam)
+**Architectural test failed** — n/a - different category (structural waste per `lens-efficiency.md`, not a
+Seam).
 
 **Dependency category** — `true-external`
 
-**Leverage impact** — There is only one call site (the load loop); a future second caller of the
-same pattern would inherit the same linear cost with no leverage from batching, since none exists.
+**Leverage impact** — Unaffected this loop.
 
-**Locality impact** — The fix is local to `LoadGameEntriesAsync`'s loop body and
-`StoreNameLookup`'s cache field declarations; it does not need to spread to callers.
+**Locality impact** — Unaffected this loop.
 
-**Metric signal** — One HTTP round-trip per game per store lookup; a 100-game library issues 100+
-sequential requests with no overlap (D2, `lens-efficiency.md`).
+**Metric signal** — One HTTP round-trip per game per store lookup; unchanged this loop.
 
-**Why this weakens submission** — Structural waste on the widget's primary hot path. The fix is
-well-understood (bounded concurrency) but is out of scope for this run by explicit instruction, not
-by mechanical difficulty.
+**Why this weakens submission** — Structural waste on the widget's primary hot path, unchanged from loop 7.
 
 **Severity** — Noticeable weakness
 
 **ADR conflicts** — none
 
-**Minimal correction path** — Blocked for the duration of this run by an explicit operational
-constraint (must not change per-game network-call count, order, or behavior against third-party
-APIs without a behavioral oracle) — not by a mechanical difficulty. If that constraint is lifted in
-a future run: bound concurrency (e.g. `SemaphoreSlim(4-8)` + `Task.WhenAll`) around the per-entry
-body, and switch `StoreNameLookup`'s four cache fields to `ConcurrentDictionary` before
-parallelizing.
+**Minimal correction path** — Blocked for the duration of this run by the standing operational constraint,
+unchanged from loop 7.
 
-**Blast radius** — Change: `PrimaryWidget.xaml.cs` (`LoadGameEntriesAsync`),
-`Services/Stores/StoreNameLookup.cs` (the four cache fields). Avoid:
-`Services/Artwork/ArtworkDownloader.cs`, `Services/Artwork/*`, `Services/SteamGridDB/*`.
+**Blast radius** — Change: `PrimaryWidget.xaml.cs` (`LoadGameEntriesAsync`), `Services/Stores/StoreNameLookup.cs`.
+Avoid: `Services/Artwork/*`, `Services/SteamGridDB/*`.
 
 ## Simplification Check
 
-- **Structurally necessary:** Relocating `DownloadArtworkAsync`, `DownloadBestTileFillingImageAsync`
-  and `FindOfficialLookalikeAsync` — plus the three tuning constants and the shared `HttpClient` they
-  alone used — out of `PrimaryWidget.xaml.cs` into `Services/Artwork/ArtworkDownloader.cs`. Passes
-  the deletion test in reverse: these methods had zero references to `PrimaryWidget` instance state,
-  so their presence inside the UI class added ownership ambiguity without buying anything a
-  `PrimaryWidget`-hosted method would need.
-- **New seam justified:** false — `ArtworkDownloader` is an internal static class with one production
-  caller path (three call sites, same module), matching the established pattern for
-  `ArtworkFiles`/`GameImages`/`OperationReport`; no interface, no DI, no two-adapter claim made.
-- **Helpful simplification:** `PrimaryWidget.xaml.cs` shrank 2,132 → 1,957 lines (net -175); the
-  `using Windows.Web.Http;` import and the `sharedHttpClient` field left the UI class entirely, since
-  nothing else in it used HTTP directly.
-- **Should NOT be done:** Attempting `LoadGameEntriesAsync`'s manifest-parsing split in the same loop
-  — it is a materially bigger, more entangled slice (mid-loop UI-thread image decode, UWP-bound
-  `GameEntry` construction inline) that was not vetted this loop; attempting it without a fresh
-  Simplify Pressure Test risks a costume-layer split that looks clean but leaves the UI-thread
-  coupling load-bearing in the "pure" half. Also should not attempt the `RankGrids` test gap (F-005)
-  or F-003 (concurrency) this loop — F1 is the higher-priority (Serious > Noticeable) finding and the
-  protocol selects a single highest-priority item per loop.
-- **Tests after fix:** No new tests added or needed — this is a pure relocation (byte-identical
-  method bodies), not a deepening of a previously-shallow module, so Replace-don't-layer's
-  tests-at-the-new-Interface requirement does not apply; the same regression oracle (104 tests + green
-  MSBuild) that covered zero of this logic before this loop's move still covers zero of it after,
-  which is not a regression — `TESTING.md`'s documented network-call carve-out already excluded this
-  logic's category from coverage before it was extracted.
+- **Structurally necessary:** Routing `LoadGameEntriesAsync`'s five raw JSON field reads through the
+  existing `JsonRead` module. Passes the Unified Seam Policy trivially - no new Seam, `JsonRead` already
+  exists and is already the established access pattern everywhere else in the codebase. Passes Simplify
+  Pressure Test question 1 (fixes real ambiguity) cleanly: the raw accessors' behavior on a present-null
+  member is demonstrably unsafe (empirically confirmed this loop), `JsonRead`'s is safe by construction.
+- **New seam justified:** false - no new Seam introduced; `JsonRead` already existed.
+- **Helpful simplification:** The `id` field's `ContainsKey`-then-`GetNamedString` two-step collapsed into
+  one `JsonRead.String` call plus a single `string.IsNullOrEmpty` check, removing a redundant lookup.
+- **Should NOT be done:** Attempting loop 7's queued two-phase `LoadGameEntriesAsync` split this loop - a
+  full read of the method (this loop's own investigation) shows image decode and network calls are
+  interleaved per entry, not separable into "pure parse phase" then "UI-decode tail." Forcing that split
+  now would fail Simplify Pressure Test's fake-clean anti-example ("a clean-looking fix that adds ceremony
+  without fixing ownership") - the corrected, narrower next slice is named in Finding #2's minimal
+  correction path instead. Also not attempted this loop: F-005's `RankGrids` test gap and F-003's
+  concurrency fix - both Noticeable, both lower priority than this loop's Serious-severity Finding #1.
+- **Tests after fix:** No prior tests existed for the removed raw-accessor pattern (it lived inside
+  `PrimaryWidget.xaml.cs`, architecturally untestable). One new test added at the layer that IS testable -
+  `JsonReadTests.cs` - proving the exact failure mode this fix closes, rather than only describing it in a
+  docstring. This is not a deepening of a previously-shallow Module (`JsonRead` itself is unchanged; only
+  its call sites moved), so Replace-don't-layer's stale-test-deletion requirement does not apply.
 
 ## Improvement Backlog
 
-1. **Attempt LoadGameEntriesAsync's manifest-parsing/UI-decode split (F1's next honest slice)** —
-   name explicitly which lines are pure JSON/string extraction versus which call UWP-only decode or
-   storage APIs, then extract only the pure half into a new `Services/Library` manifest reader
-   returning plain records. Re-run the Simplify Pressure Test fresh before committing — this was not
-   vetted this loop, only identified as the next candidate once the artwork-selection slice closed.
-   - Why it matters: F1 remains the largest Serious deduction on the board; this is the largest
-     remaining merged-concern candidate in `PrimaryWidget.xaml.cs`.
-   - Score impact: Architecture quality +0.5-1.0 and Code simplicity +0.5 if verified and the split
-     survives fresh SPT without introducing UI-thread coupling into the "pure" half.
-
+1. **Attempt LoadGameEntriesAsync's corrected, narrower field-extraction slice (F1's next honest sub-step)**
+   — Extract only the pure manifest-field-extraction sub-step (now null-safe per this loop's fix) into a
+   small pure static parser; leave image decode, backup check, network name resolution, and `GameEntry`
+   construction in `PrimaryWidget` exactly where they are. Re-run the Simplify Pressure Test fresh before
+   attempting - this narrower framing was not vetted this loop, only identified once the previous framing's
+   flaw was confirmed.
+   - Why it matters: F1 (F-001) remains the largest Serious deduction on the board.
+   - Score impact: Architecture quality +0.5 and Code simplicity +0.5 if verified and the extraction
+     survives fresh SPT without introducing UI-thread coupling.
 2. **Add the missing RankGrids style-priority mixed-style test case (F-005)** — one new
-   `ArtworkRankerTests.cs` test case, no production code change. Cheap, high-value: closes a real,
-   verified mutation-test gap on the widget's primary artwork-selection flow.
-   - Why it matters: `test_strategy`'s current 8.0 ceiling is partly explained by this named,
-     source-backed gap; closing it removes one of the two disclosed coverage-gap categories.
+   `ArtworkRankerTests.cs` test case, no production code change.
+   - Why it matters: `test_strategy`'s current 8.0 ceiling is partly explained by this named, source-backed
+     gap.
    - Score impact: Test strategy +0.5-1.0 once verified.
-
-3. **Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups (F-003)** — blocked
-   for the duration of this run by an explicit operational constraint (must not change observable
-   per-game network-call behavior against third-party APIs without a behavioral oracle). Carried
-   forward as a reminder, not as an actionable item under current instructions.
-   - Why it matters: removes load latency that scales linearly with library size on the widget's
-     primary flow, whenever this run's constraint is lifted.
+3. **Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups (F-003)** — blocked for the
+   duration of this run by the standing operational constraint. Carried forward as a reminder.
+   - Why it matters: removes load latency scaling linearly with library size, whenever the constraint is
+     lifted.
    - Score impact: Concurrency +0.5, Framework idioms +0.5 once verified (future run).
 
 ## Deepening Candidates
 
-None this loop. `ArtworkDownloader` (new this loop) is a lateral relocation of already-deep, already-
-pure logic — no shallow-module instance surfaced within it, and it is one loop old (too early to
-judge whether it needs deepening). `LoadGameEntriesAsync`'s remaining concern-merge (Finding #1's
-next slice) is a splitting/ownership problem, not a shallow-Interface-needs-deepening problem — it
-does not fit the Deepening Candidate framework (deletion-test-fails / Interface≈Implementation) and
-is correctly tracked as a Finding + backlog item instead.
+None this loop. `JsonRead` (touched only via new call sites, not internally) is already deep - one small
+Interface (`Value`/`Object`/`Array`/`String`), Implementation handles four distinct WinRT null/type-mismatch
+edge cases behind it; this loop added callers, not Implementation. `LoadGameEntriesAsync`'s remaining
+concern-merge (Finding #2's next slice) is a splitting/ownership problem, not a shallow-Interface-needs-
+deepening problem - correctly tracked as a Finding + backlog item instead.
 
 ## Builder Notes
 
-1. **Pattern:** A Serious finding's own evidence can go stale between loops even when no contest
-   loop touched the file in the meantime — the user's own out-of-band commits had already fixed part
-   of F1's cited evidence (backup/restore orchestration) before this loop's Step 1 began.
-   - How to recognize: Discovery flags drift commits since the last loop; re-reading the finding's
-     cited file top-to-bottom (not trusting the prior loop's line numbers or claim text) is the only
-     way to catch a partially-resolved claim before re-attempting work that is already done.
-   - Smallest coding rule: on any loop where Discovery reports drift, re-derive every open finding's
-     evidence from current source before selecting Priority 1 — a stale Claim can point you at a fix
-     that no longer needs making, while the real remaining slice goes unnoticed.
-   - Stack example: C# — this loop's actual highest-leverage find (the UI-free artwork-selection
-     algorithm) was not the thing loop 6's F1 text described at all; it only surfaced from reading
-     `RestoreBackupCoreAsync`'s neighbors, not from trusting the prior loop's evidence block.
+1. **Pattern:** A backlog item's own remedy can be wrong even when the underlying finding is real - the
+   prior loop's own uncertainty disclosure ("I named the split direction from reading the method once, not
+   from actually attempting it") was the exact signal that the queued Priority 1 needed re-verification
+   before being attempted, not assumed correct because it was already queued.
+   - How to recognize: a carried-forward backlog item whose `minimal_correction_path` was written from a
+     single read-through, especially one the prior loop's own Builder Notes or humility check flagged as
+     uncertain.
+   - Smallest coding rule: before attempting a carried-forward remedy, re-read the target method in full
+     and name the exact line(s) where the remedy's assumed split boundary would fall - if no clean boundary
+     exists, downgrade per Simplify Pressure Test rather than force the originally-planned shape.
+   - Stack example: C# - `LoadGameEntriesAsync`'s image decode (`CreateThumbnailAsync`) sits between the
+     per-entry backup check and the `GameEntry` construction, inside the same entry iteration as the
+     "pure" field parsing loop 7 assumed was separable from it.
 
-2. **Pattern:** A method with zero references to its enclosing class's instance state — no `this.`,
-   no UI-framework field access — sitting inside a large god-class is a clean, low-risk extraction
-   candidate regardless of whether it is architecturally "deep": the absence of coupling is itself
-   the friction proof, and it is cheaper to verify (grep for field names) than a full deletion test.
-   - How to recognize: a private method inside a large class whose body never references `this`,
-     the class's own fields, or framework-bound UI types, even though sibling methods in the same
-     class reference them constantly.
-   - Smallest coding rule: before proposing a bigger, riskier extraction, grep every candidate
-     method's body against the enclosing class's field names — a zero-hit method is safe to move
-     verbatim; a method with even one UI-field reference needs the harder parse/hydrate split
-     treatment instead.
-   - Stack example: C# — `DownloadArtworkAsync`/`DownloadBestTileFillingImageAsync`/
-     `FindOfficialLookalikeAsync` referenced only static helpers (`FixLog`, `ArtworkSignature`,
-     `TileImage`, `ArtworkRanker`) and their own parameters; zero PrimaryWidget field references,
-     confirmed by grep before the move, not after.
+2. **Pattern:** A module built to fix one real, documented incident (`JsonRead`, built after a null-Steam-ID
+   crash) can still be bypassed elsewhere in the same codebase by code that predates it or was never
+   updated to use it - the module's existence does not retroactively protect call sites that do not call
+   it.
+   - How to recognize: grep every raw use of the underlying unsafe API (here, `Windows.Data.Json`'s
+     `GetNamedString`/`GetNamedObject`/etc. called directly rather than through the wrapper) across the
+     whole codebase, not just the files the wrapper was originally written for.
+   - Smallest coding rule: when a defensive-access module exists specifically to prevent a documented
+     failure class, treat any direct call to the raw API it wraps as a candidate defect, not just a style
+     inconsistency - verify the raw call's actual failure behavior before dismissing it.
+   - Stack example: C# - `SteamGridDbClient.cs`, `EpicLibrary.cs`, and `StoreNameLookup.cs` all already used
+     `JsonRead`; `PrimaryWidget.xaml.cs` - the largest, most-churned file - was the one holdout.
 
-3. **Pattern:** Mutation-testing your own test suite (not just running it) surfaces gaps that
-   passing-test-count metrics hide completely — a function can be both directly unit-tested (in
-   isolation) and silently untested inside a composite caller, when every composite test happens to
-   hold the isolated function's input constant.
-   - How to recognize: a helper function is unit-tested with varied inputs, but every test of the
-     *caller* that uses the helper as one tie-break among several constructs its test fixtures with
-     the same value for that one input across every case.
-   - Smallest coding rule: for any multi-key sort/rank function, check that at least one test in the
-     composite-behavior suite varies each individual key while holding the others constant — not just
-     that the key's own extraction function is separately unit-tested.
-   - Stack example: C# — `ArtworkRanker.GridStylePriority` is directly unit-tested with both 0- and
-     1-returning inputs, but every `RankGrids` composite test used the same default style on all
-     candidates, so the ascending-vs-descending direction of that one `.ThenBy` clause was never
-     exercised by anything.
+3. **Pattern:** `ContainsKey` and "is this member usable" are not the same question for a JSON API that
+   distinguishes "absent" from "present and null" - a guard written to catch "absent" silently does nothing
+   for "present and null," which is often the more common malformed-data case in the wild.
+   - How to recognize: a null/missing-value guard that calls `ContainsKey`/`HasKey`/`hasOwnProperty`
+     immediately before reading a value with no further null check.
+   - Smallest coding rule: for any JSON/dictionary API where a key can map to an explicit null, guard on
+     the read result's nullness, not on key presence.
+   - Stack example: C# - `Windows.Data.Json`'s `JsonObject.ContainsKey` returns `true` for a key whose value
+     is `JsonValueType.Null`; only `JsonRead`'s `ValueType` check (not a `ContainsKey` call) actually
+     distinguishes "present and null" from "present and usable."
 
 **Scorecard humility check** (Q9): three specific claims I am least confident about —
-1. `test_strategy` landing at 8.0 rather than 9.0 — the anti-anchor rule's "at most one named
-   shell-seam gap" reading is my own interpretation; a reviewer who treats `TESTING.md`'s single
-   "What is not covered" section (which lists the UI-shell and network gaps together, as one
-   disclosure) as satisfying "one documented residual" rather than two could reasonably score this
-   9.0.
-2. `architecture_quality`'s +1.0 magnitude (5.5 → 6.5) for one loop's extraction, when F1's core
-   claim is still `carried_forward` — a stricter reviewer could argue a partial-slice fix on an
-   already-`carried_forward` Serious finding deserves +0.5, not +1.0, reserving the larger jump for
-   when `LoadGameEntriesAsync`'s split closes the remaining merged concerns.
-3. Whether `LoadGameEntriesAsync`'s manifest-parsing genuinely splits as cleanly as I have described
-   it (pure JSON walk vs. UI-bound decode tail) — I named the split direction from reading the method
-   once, not from actually attempting it; `CreateThumbnailAsync`'s exact placement mid-loop (rather
-   than after the parse completes) may be load-bearing in a way I have not traced (e.g. whether
-   `hasBackup`'s file check needs to happen before or after image decode for any observable reason).
+1. `overall_implementation_credibility`'s +0.5 magnitude (7.0 → 7.5) for closing one honesty leak at five
+   call sites in one method - a stricter reviewer could argue this is too small a fix (net +21 lines, no
+   caller-visible change) to move a whole-codebase credibility dimension at all, and that it should have
+   stayed SAME with the leak instead named as a residual note under domain_modeling or data_flow.
+2. Downgrading Finding #2's remedy from loop 7's two-phase split to a narrower field-extraction-only slice
+   - I am confident the two-phase framing does not hold (verified by reading the interleaving directly),
+   but I have not attempted the narrower slice myself, so I cannot yet promise it survives its own Simplify
+   Pressure Test any better; a future loop might find the field-extraction sub-step is also more entangled
+   than I am describing here (e.g., if `epicCatalogItemId`'s derivation turns out to need something from
+   the network-call phase I have not traced).
+3. Whether Finding #1 (this loop's fix) is correctly scored as `credibility` rather than `domain_modeling` -
+   the rubric has no smell explicitly named for "an existing defensive-access module bypassed at one call
+   site"; a reviewer applying the domain_modeling 9-anchor's "invariants enforced at construction, not by
+   convention" language could reasonably credit that dimension instead, which would change which dimension
+   moved this loop without changing the underlying fix.
 
 ## Final Judge Narrative
 
-Place, not win. This loop's real news is upstream of anything a contest loop did: the user closed
-the loop-1-6 record's single biggest blocker themselves, writing a 104-test suite with real,
-mutation-verified assertions and moving two of `PrimaryWidget.xaml.cs`'s four original merged
-concerns (backup/restore, bulk-operation orchestration) out on their own, before this loop's Step 1
-even started. This loop's job was honest re-derivation, not confirmation — re-reading
-`PrimaryWidget.xaml.cs` fresh surfaced a third merged concern loop 6 never named (the artwork-
-selection algorithm, provably UI-free) and closed it the same way the user's own commits closed the
-other two: a plain relocation, no new Seam, verified by a green build both before and after. F1
-stays `carried_forward` — `LoadGameEntriesAsync` and the bulk-operation loops are real, remaining
-merged concerns — but the finding's own evidence is now current, not stale, and next loop has a
-concretely named, if bigger, next slice. `test_strategy` moved the most (3.0 → 8.0) on real evidence:
-an Authority-Map cross-check and a hands-on mutation-test check both performed against current
-source, the latter honestly surfacing a real gap (F-005) rather than rubber-stamping the test count.
-Concurrency's F-003 residual remains explicitly out of scope for this entire run by operational
-instruction; `AsyncLazyCache<T>`'s lock discipline is now empirically stress-tested, which is
-different progress on a different question (regression-proofing what loop 6 already fixed, not
-touching what F-003 has not). Runtime ownership is trustworthy for what has been resolved and now
-partly test-verified rather than purely inspected; concurrency is not yet fully trustworthy on the
-still-open F-003 path. Future work has one honestly-scoped, not-yet-attempted path for F1 (the
-manifest-parsing split) and one cheap, concrete fix for the newly-found test gap (F-005) — both named
-plainly rather than left implicit.
+Place, not win. This loop's real work was catching its own predecessor's untested assumption before
+building on it: loop 7 queued a two-phase split of `LoadGameEntriesAsync` as Priority 1 but flagged in its
+own humility check that the split had only been "named," not attempted - reading the method fully this loop
+confirmed the split does not hold, and forcing it would have produced exactly the kind of costume-layer fix
+the Simplify Pressure Test exists to reject. Downgrading to the next backlog item instead of forcing a
+flawed plan surfaced a real, independently-verified defect: `LoadGameEntriesAsync` bypassed the codebase's
+own null-tolerant JSON module at five call sites, and a new test proves the raw accessors it used instead
+throw uncaught on a present-null manifest field - silently dropping every other game in that folder. All
+five sites are fixed and verified this loop, with both regression oracles green before and after. F1
+(F-001) stays `carried_forward` with a corrected, narrower next slice named plainly rather than the flawed
+one repeated; F-005 and F-003 are unchanged and unattempted, both lower-severity than this loop's fix.
+Runtime ownership and concurrency are unaffected and remain exactly as trustworthy (or not) as loop 7 left
+them. Future work risks nothing new from overengineering this loop - the fix added no abstraction, only
+safer callers of one that already existed.
 
-## Loop 7 Result
+## Loop 8 Result
 
-Moved `DownloadArtworkAsync`, `DownloadBestTileFillingImageAsync` and `FindOfficialLookalikeAsync` —
-plus the `maxArtworkCandidates`/`officialArtworkFloor`/`officialArtworkCeiling` constants and the
-`sharedHttpClient` field they alone used — verbatim from `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`
-into a new `SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs` (195 lines), closing this loop's
-re-derived slice of F1 (stable_id F-001). All three moved methods were grep-confirmed to reference
-zero `PrimaryWidget` instance state before the move. Three call sites in `PrimaryWidget` were
-re-pointed to the new `ArtworkDownloader.*` names (`FixLibraryAsync`'s
-`DownloadBestTileFillingImageAsync` call, `DownloadAndReplaceImageCoreAsync`'s `DownloadArtworkAsync`
-call, `TryFixFromPortraitArtAsync`'s `DownloadArtworkAsync` call and its `.Take(maxArtworkCandidates)`
-became `.Take(ArtworkDownloader.MaxCandidates)`). The now-unused `using Windows.Web.Http;` import was
-removed from `PrimaryWidget.xaml.cs`. Added `<Compile Include="Services\Artwork\ArtworkDownloader.cs" />`
-to `SteamGridDB.Xbox.csproj` (required for this UWP project with no globbing, per `TESTING.md`'s
-documented gotcha). `git diff --stat`: `PrimaryWidget.xaml.cs` (5 insertions, 179 deletions),
-`SteamGridDB.Xbox.csproj` (1 insertion), plus the new 195-line `ArtworkDownloader.cs`.
+Replaced five raw `Windows.Data.Json` accessor calls (`GetNamedString`/`ContainsKey`) in
+`SteamGridDB.Xbox/PrimaryWidget.xaml.cs`'s `LoadGameEntriesAsync` with the existing `JsonRead` module's
+null-tolerant equivalents, closing this loop's re-derived slice of F1 (stable_id F-001) - now tracked as its
+own finding, F-006, since it is a source-verified defect distinct from F1's ownership/merge claim. `id` and
+`imagePath` (Custom platform) null/missing now skip the entry (matching the pre-existing intent of the
+`ContainsKey` guard and the adjacent folder-resolution catch); `addedDate` null/missing falls back to
+`"0"` (same default the raw overload already gave for the absent case); `title` null/missing keeps the
+existing "Unknown" default; `installLocation`/`executableName` null/missing fall back to empty string
+rather than crashing `Path.Combine`. Added `using SteamGridDB.Xbox.Services;` for `JsonRead`'s namespace.
+Added one regression test to `SteamGridDB.Xbox.Tests/JsonReadTests.cs`
+(`Raw_windows_data_json_overloads_throw_on_a_present_json_null_member`) proving the raw accessors'
+present-null-throws behavior and `ContainsKey`'s non-guard empirically, rather than trusting the class
+docstring's prose alone. `git diff --stat`: `PrimaryWidget.xaml.cs` (29 insertions, 8 deletions - net +21),
+`JsonReadTests.cs` (25 insertions).
 
-**What proves the change is honest:** Both regression oracles passed clean before and after the
-change — `run-tests.ps1` (104 passed, 0 failed, both runs) and `MSBuild`
-(`SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never`, exit 0 both
-times, same command as every prior loop). The move is byte-identical logic relocation, traced
-method-by-method: `DownloadArtworkAsync`'s try/catch, `DownloadBestTileFillingImageAsync`'s
-candidate-scan loop and fallback tracking, and `FindOfficialLookalikeAsync`'s floor/ceiling gate and
-replacement scan are unchanged character-for-character except for the internal call qualification
-(`DownloadArtworkAsync` → itself, unqualified, since both callers now live in the same class) and the
-constants' visibility (`private const` → `internal const`, needed because `PrimaryWidget`'s
-`TryFixFromPortraitArtAsync` still reads `MaxCandidates` from outside the new class). Grep-verified
-post-edit that no stray reference to the removed methods, constants, or `sharedHttpClient` field
-remains anywhere in `PrimaryWidget.xaml.cs`. The test project links `Services/**/*.cs` via a glob
-(`SteamGridDB.Xbox.Tests.csproj`), so `ArtworkDownloader.cs` was automatically picked up and
-compiled into the test assembly on this loop's `run-tests.ps1` run — its continued 104/104 pass is
-independent confirmation the new file compiles cleanly in the desktop-projected context too, not
-only in the UWP app build. This changes only where the artwork-selection algorithm's code lives, not
-the number of network calls, the ranking order, the tile-fill check, the official-artwork gate's
-floor/ceiling values, or any other selection/download behavior — confirmed by the independent
+**What proves the change is honest:** Both regression oracles passed clean before and after -
+`run-tests.ps1` (104 passed before, 105 passed after - the delta is exactly the one new test added, no
+other test count change) and MSBuild (exit 0, both runs, same command as every prior loop). Grep-verified
+post-edit that no `GetNamedString` or `entryObject.ContainsKey` call remains anywhere in
+`PrimaryWidget.xaml.cs`. The fix is a pure accessor substitution with matching fallback semantics at every
+site - no network call, no image-decode call, no `GameEntry` field, and no UI-thread dispatch touched;
+confirmed by reading the diff hunk-by-hunk (all five hunks are confined to the field-parsing lines within
+the entry loop). This changes only how malformed/null manifest fields are handled, not the observable
+outcome for any well-formed entry (every existing field present and non-null behaves identically to before,
+verified by the 104 pre-existing tests still passing unchanged) - confirmed by the independent
 implementation-reviewer pass below.
 
-**Risk boundary evidence (Meta-Rule 4):** this fix crosses a `cross_file_visibility` boundary — the
-three moved methods and the `MaxCandidates` constant went from `private` (accessible only within
-`PrimaryWidget`) to `internal` (assembly-visible), because `PrimaryWidget` still calls
-`ArtworkDownloader.DownloadArtworkAsync`/`MaxCandidates` from `TryFixFromPortraitArtAsync` and
-`DownloadAndReplaceImageCoreAsync`, which live in a different file now.
-`{"boundary_kind": "cross_file_visibility", "verification": "compile_matrix", "detail": "Both
-regression-oracle configurations that this codebase has were compiled clean after the visibility
-change: the UWP AppContainerExe build (MSBuild, exit 0) which references PrimaryWidget.xaml.cs and
-the new ArtworkDownloader.cs together in the same compilation, and the desktop net8.0-windows test
-build (run-tests.ps1, 104/104 passed) which links ArtworkDownloader.cs directly via the test project's
-Services/**/*.cs glob per SteamGridDB.Xbox.Tests.csproj. Widening private to internal in a single
-assembly with no InternalsVisibleTo boundary carries no cross-assembly exposure risk in this
-codebase's shape (confirmed by reading both .csproj files directly this loop, not assumed from
-TESTING.md's prose) - the only thing that could break from this specific change is a call site failing
-to resolve, which either compile config would catch immediately as a hard compile error, and both
-did not.", "mechanically_testable": true}`
+**Risk boundary evidence (Meta-Rule 4):** none - this fix crosses no isolation/Sendable/conditional-
+compilation/cross-file-visibility/lock-ordering boundary. `JsonRead` is already `internal static` and
+already called from other files in the same assembly (`SteamGridDbClient.cs`, `EpicLibrary.cs`,
+`StoreNameLookup.cs`); adding `PrimaryWidget.xaml.cs` as a fourth caller changes no visibility modifier
+anywhere.
 
-**Targeted finding status:** `carried_forward` — F-001's underlying Claim (`PrimaryWidget.xaml.cs`
-merges multiple structurally distinct concerns behind zero Interface boundary) is not fully
-resolved: `LoadGameEntriesAsync`'s manifest-parsing and the three bulk-operation loops remain merged
-in the file. This loop closed the specific artwork-selection-algorithm slice of that Claim, the same
-way loops 3-5 closed successive slices of F1's original four-concerns claim without marking it
-`resolved` until the core claim itself is gone.
+**Targeted finding status:** `resolved` - F-006's Claim (five raw accessor call sites bypassing `JsonRead`,
+throwing uncaught on a present-null field) is fully closed: all five sites now route through `JsonRead`,
+verified by grep with zero raw accessor calls remaining in the file.
 
-**Unintended scorecard regression:** none observed. `architecture_quality`, `state_management`,
-`concurrency`, `simplicity`, `test_strategy`, `credibility` all moved UP on distinct, non-overlapping
-structural proof; `domain_modeling`, `data_flow`, `framework_idioms` held SAME (no structural change
-in their evidence this drift window); no dimension regressed.
+**Unintended scorecard regression:** none observed. `credibility` moved UP on distinct, source-verified
+proof; `architecture_quality`, `state_management`, `domain_modeling`, `data_flow`, `framework_idioms`,
+`concurrency`, `simplicity`, `test_strategy` all held SAME (no structural change in their evidence this
+loop); no dimension regressed.
 
-## Loop 7 Implementation Review
+## Loop 8 Implementation Review
 
-`verdict: approved` — "The three artwork-selection methods, three constants, and `sharedHttpClient`
-field are verifiably gone from `PrimaryWidget.xaml.cs` and relocated byte-identical (verified
-against `git show HEAD`) into `ArtworkDownloader.cs` with all three call sites re-pointed and no
-dangling references anywhere in the repo." All three checks (`reality`, `honesty`, `regression`)
-`passed`; `conditions: []`; `regressions: []`.
+`verdict: approved` — "All five raw Windows.Data.Json accessor call sites in LoadGameEntriesAsync now route
+through the pre-existing JsonRead module with per-site null-handling matching the claimed fallback
+semantics, no new abstraction or suppression was introduced, and no same-or-higher-severity regression
+appears in the changed hunks." All three checks (`reality`, `honesty`, `regression`) `passed`; `conditions:
+[]`; `regressions: []`.

@@ -1,3 +1,5 @@
+using System;
+
 using SteamGridDB.Xbox.Services;
 
 using Windows.Data.Json;
@@ -69,6 +71,29 @@ namespace SteamGridDB.Xbox.Tests
             JsonObject steam = JsonRead.Object(Parse(@"{""platforms"":{""steam"":{""id"":""440""}}}"), "platforms");
 
             Assert.Equal("440", JsonRead.String(JsonRead.Object(steam, "steam"), "id"));
+        }
+
+        /// <summary>
+        /// Proves the shipped-once failure this class exists to prevent, rather than only describing it
+        /// in the class doc comment above. LoadGameEntriesAsync's manifest-entry loop called the raw
+        /// Windows.Data.Json overloads directly at five sites (id/addedDate/imagePath/title/
+        /// installLocation/executableName) with no per-entry try/catch around them; a single manifest
+        /// entry with one of these fields present as JSON null threw here, uncaught until the
+        /// per-folder catch several stack frames up, silently discarding every other entry in that
+        /// platform folder. All five now route through JsonRead.
+        /// </summary>
+        [Fact]
+        public void Raw_windows_data_json_overloads_throw_on_a_present_json_null_member()
+        {
+            JsonObject obj = Parse(@"{""id"":null}");
+
+            Assert.Throws<InvalidOperationException>(() => obj.GetNamedString("id"));
+            Assert.Throws<InvalidOperationException>(() => obj.GetNamedString("id", "0"));
+
+            // ContainsKey does not distinguish "present and null" from "present and a real value" -
+            // it is not a safe guard against the throw above, which is why JsonRead checks the return
+            // value's type instead of asking the source whether the key exists.
+            Assert.True(obj.ContainsKey("id"));
         }
     }
 }
