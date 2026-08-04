@@ -537,44 +537,16 @@ namespace SteamGridDB.Xbox
                                         imageFileName = "Not found";
                                     }
 
-                                    string gameName = unknownName;
-
-                                    // The store's own game ID, as SteamGridDB knows it. There is deliberately
-                                    // no second "Xbox-side" ID on the entry: the two are equal for every store
-                                    // except Epic, where reaching for the wrong one silently breaks lookups.
-                                    string externalPlatformId;
-
-                                    // Epic's other identifier. The name sources are keyed on this, while
-                                    // SteamGridDB is keyed on the appName, so both have to be kept.
-                                    string epicCatalogItemId = null;
-
-                                    if (platform == GamePlatform.Custom)
-                                    {
-                                        // gameName keeps its "Unknown" default (set above) when title is
-                                        // missing or JSON null, same as every other platform's fallback
-                                        gameName = JsonRead.String(entryObject, "title") ?? gameName;
-                                        externalPlatformId = Path.Combine(
-                                            JsonRead.String(entryObject, "installLocation") ?? string.Empty,
-                                            JsonRead.String(entryObject, "executableName") ?? string.Empty);
-                                    }
-                                    else
-                                    {
-                                        externalPlatformId = entryId.Substring(entryId.IndexOf(':') + 1);
-
-                                        if (platform == GamePlatform.Epic)
-                                        {
-                                            // Xbox stores Epic entries as "epic:<namespace>:<catalogItemId>:<appName>".
-                                            // SteamGridDB's egs identifier is the appName - the last segment
-                                            // (for example "Sugar" for Rocket League), not the catalog item ID.
-                                            string[] parts = entryId.Split(':');
-
-                                            if (parts.Length >= 3)
-                                            {
-                                                externalPlatformId = parts[parts.Length - 1];
-                                                epicCatalogItemId = parts.Length >= 4 ? parts[2] : null;
-                                            }
-                                        }
-                                    }
+                                    // The store's own game ID, as SteamGridDB knows it, and the default
+                                    // display name: derived by ManifestEntryIdentity, which owns the
+                                    // platform-specific rules (Custom's title/installLocation/executableName
+                                    // reads; every other platform's id-prefix strip; Epic's further split
+                                    // into an appName and a separately-kept catalog item ID) so they are
+                                    // testable on their own rather than only by inspection here.
+                                    ManifestEntryIdentity.Result identity = ManifestEntryIdentity.Derive(entryObject, platform, entryId, unknownName);
+                                    string gameName = identity.GameName;
+                                    string externalPlatformId = identity.ExternalPlatformId;
+                                    string epicCatalogItemId = identity.EpicCatalogItemId;
 
                                     bool hasSteamGridDBMatch = false;
                                     string officialCapsuleUrl = null;

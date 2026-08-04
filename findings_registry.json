@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 7,
+  "next_serial": 8,
   "entries": [
     {
       "stable_id": "F-001",
@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 1,
@@ -112,6 +112,18 @@
             "evidence_paths_hash": "sha256:4ecfad3a95a41f39964a612250300f827a2867c79b7f173044cab295a1e672d7"
           },
           "attempted_remedy_hash": "sha256:51131d764c924a5637ac611cb24bf52eea13373037f38b768a302d1def9af2c6"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "71224de",
+          "note": "This loop attempted (and this time verified via a fresh Simplify Pressure Test) the narrower field-extraction slice loop 8 queued: the platform-specific identifier/name-derivation logic (gameName default, externalPlatformId, epicCatalogItemId, including Epic's colon-split parsing) moved from PrimaryWidget.xaml.cs:540-577 into a new pure static module, Services/Library/ManifestEntryIdentity.cs, with 9 new direct tests. Confirmed zero data dependency on the surrounding image-decode/backup-check block in either direction, so it moved without reordering. The core claim (image decode, backup checks, network name-resolution, and UI orchestration still merged in LoadGameEntriesAsync/PrimaryWidget) remains untouched; loop_result.targeted_finding_status: carried_forward. No further slice queued this loop without fresh re-verification.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2c6ec1a75c13d89244c35784a4bbf4dc89933b04af46b41a2d892d8f4633f41d",
+            "evidence_paths_hash": "sha256:e55fe06ef29348d4249b3164d59fb38da3b188fc27a4076e372796ba816a4094"
+          },
+          "attempted_remedy_hash": "sha256:fe2267b0f6760576053d335d9f7f446c3606846cf8b79d8c3773b5796b6d26cd"
         }
       ]
     },
@@ -264,6 +276,18 @@
             "evidence_paths_hash": "sha256:6b560ba7460cbc9f365057b2016937d9eb9119aee1d73131b8ed35cc6ee6177d"
           },
           "attempted_remedy_hash": "sha256:9e47b640b49f9d3c1818ae2b8c468c39fb7cd7c5d306d66887821fb419f41b64"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "71224de",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched in sequencing shape by this loop's fix (confined to the platform-identity field-extraction sub-step). Await sites shifted to :562,584,593,602 (was :590,612,621,630 at loop 8) purely from Finding #1's extraction removing lines above them. Still ruled out by the same standing operational constraint. New this loop: identified that StoreNameLookup's three unlocked static caches (StoreNameLookup.cs:27-32) would need synchronization added if this constraint is ever lifted - confirmed via codebase-wide grep that no concurrent call path exists today, so this is not a separate live defect. Priority 3 in loop 9's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:267670a3b6e07b805ac51a94e775bc30354dd1ec6292f5688ff961287012e582",
+            "evidence_paths_hash": "sha256:6b560ba7460cbc9f365057b2016937d9eb9119aee1d73131b8ed35cc6ee6177d"
+          },
+          "attempted_remedy_hash": "sha256:9e47b640b49f9d3c1818ae2b8c468c39fb7cd7c5d306d66887821fb419f41b64"
         }
       ]
     },
@@ -393,6 +417,18 @@
             "evidence_paths_hash": "sha256:bef49e9f64bdf5e7489e1bee4d78abe13821f2cb24a44c9874b549e705b9b4e5"
           },
           "attempted_remedy_hash": "sha256:3c4fcb5ccfa7fc2b32dfb878b244567418172a210d5a0a2a6b3bec049788ad42"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "71224de",
+          "note": "Re-verified this loop: ArtworkRanker.cs and ArtworkRankerTests.cs both absent from this loop's diff, confirmed via direct read (ArtworkRanker.cs:195 unchanged) and helper-assisted test-file review. Priority 1 in loop 9's backlog (F-001 had no queued remedy this loop; F-005 is the next honest, cheapest win).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a76d5a888bfef8041138bb4a48b35f0cda0eda713de34d6e96b487b4bd2347f0",
+            "evidence_paths_hash": "sha256:bef49e9f64bdf5e7489e1bee4d78abe13821f2cb24a44c9874b549e705b9b4e5"
+          },
+          "attempted_remedy_hash": "sha256:3c4fcb5ccfa7fc2b32dfb878b244567418172a210d5a0a2a6b3bec049788ad42"
         }
       ]
     },
@@ -422,6 +458,35 @@
             "evidence_paths_hash": "sha256:a0b6a7d8a81d525752155837e21d03d7ac02fc4831f80a80948b8d3572ee94af"
           },
           "attempted_remedy_hash": "sha256:6d5ab0b62a52f5e68a8c7bfd1bac9d803d3b2f6019a90c7649c636afa4aedde1"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-007",
+      "title": "ArtworkDownloader's tile-fill gate and TileImage's vertical-crop algorithm have zero test coverage at any interface, direct or indirect",
+      "category_hint": "missing-test-coverage-gap",
+      "primary_file": "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs",
+      "primary_evidence_lines": [
+        40,
+        122
+      ],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 9,
+      "first_seen_sha": "71224de",
+      "last_seen_loop": 9,
+      "occurrences": [
+        {
+          "loop": 9,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "71224de",
+          "note": "New this loop, surfaced while independently re-deriving test_strategy from source (helper-assisted read, verified directly). ArtworkDownloader.cs's three internal entry points have no test file (confirmed by directory listing); TileImage.cs's FillsTileAsync/CropPortraitToTileAsync (and the private BestVerticalCropAsync reachable only through the latter) are untested - TileImageTests.cs's four Fact methods (grep-verified) exercise only EnsurePngAsync. Priority 2 in loop 9's backlog, behind F-005 (cheaper, older, no new fixtures needed).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:ee7ef5e349e01e92692e1ad85e072c88efbda67c8435722853aafb69711fbbf6",
+            "evidence_paths_hash": "sha256:657409640147fffa4154b2b1070e20e5a8611fecbc7ca82887ae3dfd9fc227e2"
+          },
+          "attempted_remedy_hash": "sha256:f16c0069245b9383fabdb65d68e302b3991678341f30a3486f6ff0fe1b3a2948"
         }
       ]
     }
