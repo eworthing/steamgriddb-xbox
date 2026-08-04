@@ -176,7 +176,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 double candidateMatch = official.ColourMatch(candidate);
                 double candidateLayout = official.LayoutMatch(candidate);
 
-                if (candidateMatch <= officialArtworkCeiling || candidateLayout < chosenLayout
+                if (!PassesColourAndLayoutGate(candidateMatch, candidateLayout, chosenLayout)
                     || !await TileImage.FillsTileAsync(candidateBytes))
                 {
                     FixLog.Write($"    {rankedGrids[i].Id}: colour {candidateMatch:F2}, layout {candidateLayout:F2} vs {chosenLayout:F2} - rejected");
@@ -190,6 +190,21 @@ namespace SteamGridDB.Xbox.Services.Artwork
             }
 
             return (null, 0);
+        }
+
+        /// <summary>
+        /// Two of the replacement gate's three checks (see <see cref="FindOfficialLookalikeAsync"/>):
+        /// close enough to the official capsule's colour, and no worse a layout match than the artwork
+        /// it would replace. Kept separate from the third check, whether the candidate fills the tile,
+        /// because that one needs a decode this gate exists partly to avoid paying for when colour or
+        /// layout alone already reject the candidate.
+        /// </summary>
+        /// <param name="candidateMatch">Candidate's <see cref="ArtworkSignature.ColourMatch"/> against the official capsule.</param>
+        /// <param name="candidateLayout">Candidate's <see cref="ArtworkSignature.LayoutMatch"/> against the official capsule.</param>
+        /// <param name="chosenLayout">The artwork currently chosen's layout match against the official capsule - the bar the candidate must not fall below.</param>
+        internal static bool PassesColourAndLayoutGate(double candidateMatch, double candidateLayout, double chosenLayout)
+        {
+            return candidateMatch > officialArtworkCeiling && candidateLayout >= chosenLayout;
         }
     }
 }

@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 12,
+      "last_seen_loop": 13,
       "occurrences": [
         {
           "loop": 1,
@@ -160,6 +160,17 @@
             "evidence_paths_hash": "sha256:cda0a07cd2672b51689817718c8fd1fce2dcaaa180a53f71c3d6f25debb78aca"
           },
           "attempted_remedy_hash": "sha256:6f10bb32563e047f6ffb78410b706bc19c444bb86b92160c2ec08096e21b2574"
+        },
+        {
+          "loop": 13,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "e0245c4",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:17af73773e2a2f59c82717c07faf59e717d0624e8e60190631a8b8c16854e51e",
+            "evidence_paths_hash": "sha256:cda0a07cd2672b51689817718c8fd1fce2dcaaa180a53f71c3d6f25debb78aca"
+          },
+          "attempted_remedy_hash": "sha256:6f10bb32563e047f6ffb78410b706bc19c444bb86b92160c2ec08096e21b2574"
         }
       ]
     },
@@ -216,7 +227,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 12,
+      "last_seen_loop": 13,
       "occurrences": [
         {
           "loop": 1,
@@ -358,6 +369,17 @@
           "fingerprint": {
             "claim_consequence_hash": "sha256:4f2c345babb5f0676f31b8c04d14546f1b8249964513ad81776f6c48fac47989",
             "evidence_paths_hash": "sha256:04f287e8db6511f9c80f9d076da7c97e5f62117a9521b390a2ffd76656442065"
+          },
+          "attempted_remedy_hash": "sha256:b1b780524ff409da4e0bb2b9472891d0668c72159eb9503a18c84136e88650e8"
+        },
+        {
+          "loop": 13,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "e0245c4",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:684e06c5b38d52273883cb5ba004282e4cc51ee19f68cbfa15a6c1997d9b6570",
+            "evidence_paths_hash": "sha256:a436cdb6ac7696c0c100d5f5518bb0dfe2150afee3af693723848514a2105e3c"
           },
           "attempted_remedy_hash": "sha256:b1b780524ff409da4e0bb2b9472891d0668c72159eb9503a18c84136e88650e8"
         }
@@ -558,7 +580,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "71224de",
-      "last_seen_loop": 12,
+      "last_seen_loop": 13,
       "occurrences": [
         {
           "loop": 9,
@@ -607,6 +629,17 @@
             "evidence_paths_hash": "sha256:eb6c05b07ae53d9f37d7e20072d5517c66df304656594a5342997c6839fbe2b9"
           },
           "attempted_remedy_hash": "sha256:38e11884d982068d9f8ce883298f1c0a7d8ff2f34193bf5e74a8ec51aeb18d76"
+        },
+        {
+          "loop": 13,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "e0245c4",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:11da4d9fdccb70394089e1d65e30cbf3e655f24f13265528670e0204dcf9dca9",
+            "evidence_paths_hash": "sha256:793960aba2150da274f9b36a1966b0b66ab8e9bebaae23b83ae13146a1a64d21"
+          },
+          "attempted_remedy_hash": "sha256:39b52d323916320f5de14122c0c4fc8b7a8c9b0f1da404456457ddfb2be966e3"
         }
       ]
     },

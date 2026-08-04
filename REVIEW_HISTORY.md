@@ -4969,3 +4969,232 @@ other dimension changed.
 assertions, the three mutation-verification claims check out exactly against current FixLog.cs source, and
 the diff touches zero production code." All three checks (`reality`, `honesty`, `regression`) `passed`;
 `conditions: []`; `regressions: []`.
+
+--- Loop 13 (UTC 2026-08-04T17:37:02Z) ---
+
+### Discovery
+See Loop 1 Discovery (refreshed Loop 7). Ground truth this loop: 125 tests passing before / 131 after;
+MSBuild exit 0 both runs; zero source drift since loop 12's commit `e0245c4`. Selected lens: Generic
+(C#/.NET / UWP-hosted WinUI stack).
+
+### Loop Counter
+Loop 13 of 15
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+
+**Promising, but architecturally immature.**
+
+Both gates green before and after (125->131 tests, MSBuild exit 0). This loop's dispatch instructions asked
+for two things to be weighed honestly rather than accepted from the prior loop: (1) re-verify `test_strategy`'s
+9.5 against current source rather than defend loop 12's number, and (2) hold loop 12's queued Priority 1 (a
+settable static `Fetcher` delegate on `ArtworkDownloader`) hard against the Unified Seam Policy before
+building it. Both were done. On (2): the Fetcher-delegate proposal is **rejected** — its "second adapter"
+would have to be a hand-built fake fabricating network response bytes (unproven behavior-faithful, the exact
+gap loop 12's own Scorecard Humility Check already flagged), and a settable static delegate is unowned
+mutable global state, which the dispatch correctly identified as the shape the Unified Seam Policy and
+Ownership & State standards exist to catch. A narrower, honest alternative existed instead and was built:
+`FindOfficialLookalikeAsync`'s replacement gate already reduces its inputs to plain doubles before deciding
+— pure computation needing no seam, no fake, and no new mutable state. Extracted that decision into
+`ArtworkDownloader.PassesColourAndLayoutGate` and added `ArtworkDownloaderTests.cs` (6 tests), independently
+mutation-verified against all three logical mutations the boolean expression admits. This closes the exact
+nameable mutation loop 12's own mandatory mutation-test check named. On (1): `test_strategy` holds at 9.5
+**SAME**, not UP — the residual narrows (the specific named mutation is now caught) but does not close (the
+network fetch itself and the two orchestration loops' boundary conditions remain untested), and the rubric's
+score grid has no rung between 9.5 and 10, so SAME is the mechanically correct call, not a conservative one.
+No dimension moved this loop; this is an honest all-SAME loop with real, source-proven forward motion inside
+one dimension's residual, consistent with the dispatch's explicit "honest SAME beats a fabricated UP"
+framing.
+
+## Scorecard (1-10)
+
+- **Architecture quality:** 7.0 | SAME | `PrimaryWidget.xaml.cs` confirmed byte-identical since loop 9's
+  commit `05501e0` via `git diff --stat 05501e0 HEAD` (empty); re-read `LoadGameEntriesAsync` (`:332-611`)
+  directly this loop and confirmed the same merge of image decode (`CreateThumbnailAsync`), backup check
+  (`ArtworkFiles.HasBackupAsync`, `:516`), and per-game network resolution (`:562,584,593,602`) persists
+  inside the nested `foreach` at `:436`. This loop's own diff (`ArtworkDownloader.cs`'s `PassesColourAndLayoutGate`
+  extraction) is a small, local, in-file predicate extraction — real but not large enough to move the
+  macro-level Module-graph judgment this dimension scores; not double-counted here (credited to
+  `test_strategy` below).
+- **State management and runtime ownership:** 7.0 | SAME | `AppliedArtworkStore.cs` and `FixLog.cs`
+  production code confirmed byte-identical to HEAD this loop. The new `PassesColourAndLayoutGate` method is
+  pure and stateless — no new mutable state, no new writer, confirmed by direct read
+  (`ArtworkDownloader.cs:205-208`).
+- **Domain modeling:** 5.5 | SAME | Not re-litigated this loop per this run's standing finding (loop 11
+  SPT-rejected a construction-time-invariant fix on the wire DTOs). Confirmed via `git diff --stat` (empty
+  on `SteamGridDbGame.cs`/`ArtworkSource.cs`) that no new evidence exists this loop to reopen that question.
+- **Data flow and dependency design:** 6.0 | SAME | `StoreNameLookup.cs` read fresh this loop: the three
+  unlocked static caches (`:27-31`) confirmed unchanged. This loop's new `PassesColourAndLayoutGate` method
+  takes explicit parameters only (no ambient reads) — too small relative to the dimension's standing
+  concerns to move the score.
+- **Framework / platform best practices:** 6.0 | SAME | Not re-litigated this loop per this run's standing
+  finding (loop 11 SPT-rejected the `DataContractJsonSerializer`/`Windows.Data.Json` split). Confirmed via
+  `git diff --stat` (empty on `SteamGridDbClient.cs`) that no new evidence exists this loop.
+- **Concurrency and runtime safety:** 6.5 | SAME | F-003's sequential per-game awaits
+  (`PrimaryWidget.xaml.cs:562,584,593,602`) re-confirmed at identical line numbers via this loop's own direct
+  read.
+- **Code simplicity and clarity:** 8.5 | SAME | This loop's production diff is one extracted pure predicate
+  in `ArtworkDownloader.cs` (16 insertions, 1 deletion) — a real, small, honest extraction, but per this
+  run's anti-double-counting convention the credit goes entirely to `test_strategy`.
+- **Test strategy and regression resistance:** 9.5 | SAME | Re-verified the 9.5 against current source per
+  this loop's explicit dispatch instruction, not defended from loop 12's number. The 9-anchor is still met:
+  exactly one Authority-Map gap remains, now narrower. Rejected loop 12's queued Fetcher-delegate remedy
+  against the Unified Seam Policy (see Finding #2) and instead extracted `ArtworkDownloader.
+  PassesColourAndLayoutGate` (`:205-208`), adding `ArtworkDownloaderTests.cs` (6 tests). Independently
+  mutation-verified three times: (1) `candidateMatch > officialArtworkCeiling` to `>=` — 1 failure, reverted;
+  (2) `candidateLayout >= chosenLayout` to `>` — 1 failure, reverted; (3) `&&` to `||` — 3 failures, reverted;
+  131/131 re-confirmed green after each revert. This closes the specific nameable mutation loop 12's own
+  mandatory mutation-test mental-model check named (`ArtworkDownloader.cs`'s old `:179`, `candidateLayout <
+  chosenLayout`). **Not promoted to 10**: a fresh mutation-test check this loop names a different,
+  still-uncaught mutation — `DownloadBestTileFillingImageAsync`'s fallback-candidate capture (`:85-89`).
+  `ArtworkSignature.cs` also has zero test coverage (confirmed via grep), a previously-uncredited slice of
+  the same gap. The score grid has no rung between 9.5 and 10; SAME is the mechanically correct score.
+- **Overall implementation credibility:** 7.5 | SAME | Consistent with this run's anti-double-counting
+  convention: this loop's fix is credited entirely to `test_strategy`.
+
+## Authority Map
+
+Re-emitted this loop per G24 (mandatory whenever `test_strategy >= 9`).
+
+- **Concern:** Applied-artwork record. **Owner:** `AppliedArtworkStore`. **Verdict:** Single and clear.
+  Direct test: `AppliedArtworkStoreTests.cs`.
+- **Concern:** Fix-run diagnostic log. **Owner:** `FixLog`. **Verdict:** Single and clear. Direct test:
+  `FixLogTests.cs`.
+- **Concern:** Store-name lookup caches and the artwork download/selection gate. **Owner:**
+  `StoreNameLookup` and `ArtworkDownloader`. **Verdict:** Single and clear ownership. **Test gap narrowed
+  this loop**: `ArtworkDownloaderTests.cs` (new) directly tests the replacement gate's colour/layout
+  decision (`PassesColourAndLayoutGate`), independently mutation-verified. Still untested: the three async
+  entry points' network/orchestration behavior, `StoreNameLookup`'s four writers, and `ArtworkSignature.cs`'s
+  `ColourMatch`/`LayoutMatch`/`CreateAsync` (zero test file). All `true-external` network calls or their
+  immediate consumers with no seam built yet.
+
+## Strengths That Matter
+
+- `ArtworkSource`'s private-constructor-plus-factory-method design (`Services/SteamGridDB/
+  ArtworkSource.cs:15-51`) still makes "neither a platform-ID nor a game-ID" unrepresentable — unaffected
+  this loop.
+- This loop's rejection of the Fetcher-delegate seam is itself evidence of a working discipline, not just its
+  conclusion: it correctly distinguished `FixLog.LogFolder`/`AppliedArtworkStore.RecordFolder`'s
+  local-substitutable pattern (two real adapters, safe to reuse) from a true-external network fetch (would
+  need a fabricated fake, not proven behavior-faithful) using the codebase's own Dependency Categorization
+  table rather than pattern-matching on syntactic shape alone.
+- The mutation-verification technique established in loop 10 and refined since scaled to a fourth distinct
+  case this loop — a multi-clause boolean gate extracted from inside an async loop — and caught all three
+  targeted mutations precisely (1, 1, and 3 failures respectively).
+
+## Findings
+
+**F1 (F-001)** — `PrimaryWidget.xaml.cs` still merges UI event handling, image decode, network resolution,
+and bulk-operation orchestration behind zero Interface boundary. Serious deduction. Carried forward, no new
+evidence this loop reopens a further slice.
+
+**F2 (F-007)** — `ArtworkDownloader`'s fetch/orchestration entry points and `StoreNameLookup`'s four writers
+remain untested; this loop rejected the queued Fetcher-delegate seam against the Unified Seam Policy and
+split out the tested decision core instead. Noticeable weakness. Extracted `PassesColourAndLayoutGate`
+(`ArtworkDownloader.cs:205-208`) and added `ArtworkDownloaderTests.cs` (6 tests, mutation-verified). Closes
+the specific nameable mutation loop 12 named; the broader network-facing surface (`DownloadArtworkAsync`,
+orchestration loop boundaries, `StoreNameLookup`'s four writers, `ArtworkSignature.cs`) remains untested.
+Carried forward.
+
+**F3 (F-003)** — Library load issues one sequential SteamGridDB round-trip per game with no bounded
+concurrency. Noticeable weakness. Blocked for the duration of this run by the standing operational
+constraint.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Extracting `PassesColourAndLayoutGate` from `FindOfficialLookalikeAsync`'s inline boolean guard — Interface now smaller than and independently testable from the surrounding orchestration. |
+| New seam justified | false — no protocol/port/abstraction introduced this loop; not a Seam (in-process, no I/O). The Fetcher-delegate Seam loop 12 queued was evaluated and explicitly rejected (Finding #2) rather than built. |
+| Helpful simplification | Minor positive simplification, but credited to `test_strategy` per this run's anti-double-counting convention. |
+| Should NOT be done | Building the Fetcher-delegate seam (rejected, Finding #2). Extending this loop's extraction to `StoreNameLookup`'s writers or `DownloadArtworkAsync` itself (no proven friction/no decision logic to extract). Forcing a `domain_modeling`/`framework_idioms` finding or any further slice of F-001 — no new evidence this loop. |
+| Tests after fix | Six new tests at `PassesColourAndLayoutGate`'s new Interface. Verified mutation-sensitive directly: three operators mutated in turn, exactly the expected test(s) failed each time, then reverted. |
+
+## Improvement Backlog
+
+1. Add `ArtworkSignatureTests.cs` and extract the `officialArtworkFloor` gate as a second tested predicate
+   (F-007, continuing narrowing) — the same zero-seam idiom this loop proved out. Explicitly do NOT build a
+   Fetcher/network seam — rejected this loop against the Unified Seam Policy.
+2. Bound concurrency in `LoadGameEntriesAsync`'s per-game SteamGridDB lookups (F-003) — blocked for the
+   duration of this run by the standing operational constraint.
+
+## Deepening Candidates
+
+- **Candidate Module:** `ArtworkDownloader`'s orchestration (`DownloadBestTileFillingImageAsync` +
+  `FindOfficialLookalikeAsync`'s candidate-selection loops). Friction proven Finding #2: pulling the leaf
+  decision out required no seam and unlocked direct testing immediately; the loops' own control flow (which
+  candidate to try next, when to stop, the fallback capture) is still interleaved with the network fetch.
+  `in-process`. Smallest first step: extract one more leaf decision (`officialArtworkFloor` gate) before
+  attempting the loop-control extraction itself. What not to do: no general iterator/strategy abstraction;
+  do not touch `DownloadArtworkAsync` itself.
+
+## Builder Notes
+
+1. **Pattern:** When a proposed seam's second adapter would have to be a hand-built fake simulating an
+   external system, check first whether the decision logic that actually needs testing is separable from
+   the fetch. → REVIEW_HISTORY.json `loops[13].builder_notes` for full notes.
+2. **Pattern:** A settable static delegate (`Func<T>`) proposed as a test seam for a true-external
+   dependency is architecturally different from a settable static property proposed for a
+   local-substitutable one. → REVIEW_HISTORY.json `loops[13].builder_notes` for full notes.
+3. **Pattern:** Extracting a multi-clause boolean gate into its own named method turns each clause boundary
+   into an independently mutation-testable unit. → REVIEW_HISTORY.json `loops[13].builder_notes` for full
+   notes.
+
+## Final Judge Narrative
+
+Place, not win. Ground truth was clean going in and clean coming out (131/131 tests, MSBuild exit 0). This
+loop's dispatch asked two things to be weighed honestly rather than inherited: whether `test_strategy`'s 9.5
+still holds, and whether loop 12's queued Fetcher-delegate seam survives the Unified Seam Policy. On the
+seam: it does not survive — the second adapter would be fabricated network data, not a real one, unlike the
+`StorageFolder` idiom it was modeled on, and a settable static delegate is unowned global mutable state
+regardless. Rather than build seam ceremony to buy a test-coverage point, this loop found and took a
+genuinely honest narrower alternative: the exact decision logic the Authority Map gap's risk language
+pointed at was already pure computation one call away from testable. On `test_strategy`: 9.5 holds, not
+because the prior loop said so, but because a fresh mutation-test check this loop names a still-uncaught
+mutation elsewhere in the same file — the residual moved, the score didn't. Runtime ownership and
+concurrency are unaffected and exactly as trustworthy as loop 12 left them. Tests reduce regressions more
+precisely than last loop measured on this specific gate. Future work risks nothing new from overengineering.
+Backlog is not empty, so `CONTINUE`.
+
+## Loop 13 Result
+
+Extracted `ArtworkDownloader.PassesColourAndLayoutGate(double, double, double)` from
+`FindOfficialLookalikeAsync`'s inline boolean guard (`SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs`,
+16 insertions/1 deletion, behavior-preserving via De Morgan's law — the short-circuit position of
+`TileImage.FillsTileAsync` is unchanged) and added `SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs` (6
+tests), closing the specific nameable mutation loop 12's own mandatory mutation-test check named (finding F2,
+stable_id F-007, remaining half). No other production file changed.
+
+**What proves the change is honest:** `run-tests.ps1`: 125 passed before, 131 passed after (delta is exactly
+the 6 new tests). MSBuild: exit 0, both runs. Mutation-sensitivity independently verified three times: (1)
+changed `ArtworkDownloader.cs:207`'s `candidateMatch > officialArtworkCeiling` to `>=`, re-ran the full suite,
+got exactly 1 failure (`Fails_when_the_colour_match_is_exactly_at_the_ceiling`), reverted; (2) changed the
+same line's `candidateLayout >= chosenLayout` to `>`, re-ran, got exactly 1 failure
+(`Passes_when_the_layout_match_exactly_ties_the_artwork_it_would_replace`), reverted; (3) changed `&&` to
+`||`, re-ran, got exactly 3 failures, reverted; 131/131 re-confirmed green after each revert, and the final
+`git diff -- SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs` was confirmed to match the intended diff
+before the implementation review and commit.
+
+**Risk boundary evidence (Meta-Rule 4):** none — this fix crosses no isolation/Sendable/conditional-
+compilation/cross-file-visibility/lock-ordering boundary. It is a pure, stateless, single-file extraction plus
+one new test file; no concurrency primitive, visibility scope, or platform conditional changed.
+
+**Targeted finding status:** `carried_forward` — F-007's Claim still holds for the network-facing surface;
+the specific mutation loop 12 named as evidence for that claim is now caught, but the Claim's remaining scope
+is unresolved, so the finding is not marked resolved.
+
+**Unintended scorecard regression:** none. All nine dimensions held SAME with fresh structural re-derivation
+this loop; `test_strategy` remains at 9.5 (residual narrowed, not closed) rather than moving UP or DOWN. No
+dimension regressed.
+
+## Loop 13 Implementation Review
+
+`verdict: approved` — "The extraction is a verified De Morgan-equivalent, short-circuit-preserving refactor
+with no new seam, and the 6 new tests directly and mutation-verifiably cover the exact boundary conditions
+(candidateMatch > officialArtworkCeiling, candidateLayout >= chosenLayout) that were previously untested
+inline logic." All three checks (`reality`, `honesty`, `regression`) `passed`; `conditions: []`;
+`regressions: []`.
