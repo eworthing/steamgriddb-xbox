@@ -1,22 +1,29 @@
 ### Discovery (see Loop 7 Discovery refresh)
 
-Resumed from loop 10's `HALT_LOOP_CAP` per the user's `--cap 15` re-invocation (the documented auto-resume
-path). Main verified no drift before dispatch (HEAD still loop 10's commit `b042f75`, working tree clean
-except main's own `loop_cap: 10 -> 15` edit to `CURRENT_REVIEW.json`) and raised the cap. This loop
+Resumed from loop 11's `CONTINUE` at commit `85b5279`. Working tree was clean at dispatch. This loop
 independently re-ran both ground-truth gates fresh before touching anything:
 
-- `powershell -NoProfile -ExecutionPolicy Bypass -File ./run-tests.ps1` — **115 passed, 0 failed** before
-  this loop's fix, **121 passed, 0 failed** after (6 new tests added; see Loop 11 Result).
+- `powershell -NoProfile -ExecutionPolicy Bypass -File ./run-tests.ps1` — **121 passed, 0 failed** before
+  this loop's fix, **125 passed, 0 failed** after (4 new tests added; see Loop 12 Result).
 - `"C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe"
   SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo` — exit
   0 before and after.
-- `git log b042f75..HEAD` was empty before this loop's own edits; `PrimaryWidget.xaml.cs` measured 1,950
-  lines via `wc -l` this loop, matching every prior loop's figure exactly.
+- `git log 85b5279..HEAD` was empty before this loop's own edits; `PrimaryWidget.xaml.cs` measured 1,950
+  lines via `wc -l` this loop, matching every prior loop's figure exactly; confirmed unchanged since loop 9's
+  commit `05501e0` via `git diff --stat 05501e0 HEAD -- PrimaryWidget.xaml.cs` (empty).
 - Selected lens: Generic (C#/.NET / UWP-hosted WinUI stack).
+
+**Process note on this loop's Step 1 ordering**: this loop's dispatch read `CURRENT_REVIEW.md` in full
+(Discovery plus prior verdict/scorecard together, in one file read) before the independent scorecard was
+drafted, rather than Discovery-only first. To compensate, every score below was re-derived from a fresh
+direct read of current source this loop (file:line citations, `git diff --stat` confirmations, a fresh
+mutation-verification pass on the new test) rather than from memory of the prior review's text, and the
+prior scorecard was consulted only afterward for delta/oscillation bookkeeping, consistent with the
+Anchor-to-source discipline in `method.md` Step 1.
 
 ### Loop Counter
 
-Loop 11 of 15 (cap raised from 10)
+Loop 12 of 15
 
 ### System Flag
 
@@ -28,156 +35,150 @@ Loop 11 of 15 (cap raised from 10)
 
 **Promising, but architecturally immature.**
 
-Both gates green before and after (115->121 tests, MSBuild exit 0). Independently re-derived the scorecard
-from fresh reads of the source this loop (not anchored to loop 10's cached numbers) before consulting the
-prior review for delta basis. The queued Priority 1 — F-007's `ArtworkDownloader`/`TileImage` test-coverage
-gap — survived a fresh Simplify Pressure Test for its `TileImage` half; attempting the `ArtworkDownloader`
-half surfaced a genuine, previously-uncredited fact (its three entry points call the network directly with
-no injectable seam), which is now recorded as both a narrowed Finding and a friction-proven Deepening
-Candidate for next loop. `test_strategy` approaching the 9.0 threshold triggered a mandatory Authority Map
-cross-check this loop, which surfaced a second, distinct, previously-uncredited gap: `FixLog` (Services/
-Artwork/FixLog.cs) has no direct test file at all — a genuinely new, cheap, safe finding, not something this
-loop's own fix touched. With two open gaps now named honestly rather than one, `test_strategy` holds rather
-than crosses 9.0 this loop. Also spent real investigation time this loop on `domain_modeling` and
-`framework_idioms` — the two lowest-scoring dimensions, never targeted by ten prior loops' backlogs — per
-this loop's dispatch instructions; found no fix that survives the Simplify Pressure Test (see Finding
-discussion and Builder Notes), so neither became this loop's Priority 1. Backlog remains non-empty
-(`FixLog` tests, the `ArtworkDownloader` seam, F-003), so `CONTINUE`.
+Both gates green before and after (121->125 tests, MSBuild exit 0). Closed this run's queued Priority 1
+(F-008, `FixLog` has zero direct test coverage) with four new mutation-verified tests and zero production
+code change. Loop 11 was explicit that the *only* thing keeping `test_strategy` at 8.5 rather than crossing
+9.0 was having two open Authority-Map gaps (`ArtworkDownloader` and `FixLog`) instead of the 9-anchor's "at
+most one." With `FixLog` now closed, exactly one gap remains (`ArtworkDownloader`'s three network-bound
+entry points, cross-referenced with `StoreNameLookup`'s four network-bound writers), named, evidenced, and
+queued in the Improvement Backlog — which promotes `test_strategy` to 9.5 with a queued residual, a genuine
+structurally-proven UP, not a manufactured one. Also evaluated loop 11's queued Priority 2 (an injectable
+HTTP-fetch seam for `ArtworkDownloader`) against the Unified Seam Policy per this loop's dispatch
+instructions: it survives, but only in a specific idiom-matched shape (a static delegate injection point
+matching the codebase's existing `RecordFolder`/`LogFolder` pattern, not a new interface/protocol), recorded
+below as a refined Deepening Candidate for next loop rather than built opportunistically inside this loop's
+test-only fix.
 
 ## Scorecard (1-10)
 
-- **Architecture quality:** 7.0 | SAME | `PrimaryWidget.xaml.cs` confirmed byte-identical to loop 9 via
-  `git diff --stat` (this loop's diff: `SteamGridDB.Xbox.Tests/TestImages.cs`, `TileImageTests.cs` only);
-  re-read `LoadGameEntriesAsync` (`:332-609`) directly this loop and confirmed the same merge of image
-  decode (`:520-522`), backup check (`:516`), and per-game network resolution (`:562-609`) persists inside
-  the nested `foreach` at `:436`. `ArtworkDownloader.cs`, `TileImage.cs`, `ArtworkRanker.cs`,
-  `ArtworkSource.cs` all re-read fresh this loop and confirmed unaffected by this loop's test-only diff —
-  their existing shapes (pure static modules; `ArtworkSource`'s private-ctor-plus-factory design) remain the
-  strongest parts of the graph.
-- **State management and runtime ownership:** 7.0 | SAME | `AppliedArtworkStore.cs`/`FixLog.cs` confirmed
-  untouched this loop via `git diff --stat` (2 files changed, both test files, neither is these). `GameEntry.cs`
-  read fresh this loop: an `INotifyPropertyChanged` view-model with explicit backing fields and
-  change-detecting setters — one clear writer per property, unaffected by this loop's diff.
-- **Domain modeling:** 5.5 | SAME | Re-read `SteamGridDbGame.cs` and `SteamGridDbGrid.cs` fresh this loop:
-  both remain `[DataContract]` wire types with public `get; set;` auto-properties and no invariant
-  enforcement at construction. Investigated this loop (per this run's standing judgment note) whether a
-  construction-time-invariant fix now passes the Simplify Pressure Test — it does not: `SteamGridDbGame.
-  OfficialCapsuleUrl`'s own doc comment (`SteamGridDbGame.cs:36-39`) already documents why it sits outside
-  `[DataMember]` — the platformdata per-language keys `DataContractJsonSerializer` cannot express. No
-  caller-observed ambiguity motivates adding constructor validation to these DTOs (SPT question 1 fails —
-  no real ambiguity to fix); the codebase's actual domain types (`ArtworkSource`, `ManifestEntryIdentity`,
-  the private `RankedGrid` inside `ArtworkRanker`) already enforce their own invariants at construction and
-  are not anemic. SPT-rejected this loop; no backlog item queued.
-- **Data flow and dependency design:** 6.0 | SAME | `StoreNameLookup.cs`'s three unlocked static caches
-  (`gogNameCache`/`epicNameCache`/`nameMatchCache`, `:27-32`) read fresh this loop and confirmed unchanged;
+- **Architecture quality:** 7.0 | SAME | `PrimaryWidget.xaml.cs` confirmed byte-identical since loop 9's
+  commit `05501e0` via `git diff --stat 05501e0 HEAD` (empty); re-read `LoadGameEntriesAsync` (`:332-611`)
+  directly this loop and confirmed the same merge of image decode (`:520-522`), backup check (`:516`), and
+  per-game network resolution (`:562-609`) persists inside the nested `foreach` at `:436`. `ArtworkDownloader.
+  cs` re-read fresh this loop (unaffected by this loop's test-only diff).
+- **State management and runtime ownership:** 7.0 | SAME | `AppliedArtworkStore.cs` and `FixLog.cs`
+  production code confirmed byte-identical to HEAD this loop (`git diff --stat` shows only
+  `SteamGridDB.Xbox.Tests/FixLogTests.cs` added; zero production files touched). `FixLog.cs` read fresh this
+  loop: `Start`/`Write`/`SaveAsync` remain the same three-member shape, one clear writer per member.
+- **Domain modeling:** 5.5 | SAME | Not re-litigated this loop per this run's explicit prior finding
+  (loop 11 already investigated and SPT-rejected a construction-time-invariant fix on the wire DTOs, citing
+  `SteamGridDbGame.cs:36-39`'s own doc comment on the `DataContractJsonSerializer` platform constraint).
+  Confirmed via `git diff --stat 85b5279 HEAD -- SteamGridDB.Xbox/Services/SteamGridDB/Models/
+  SteamGridDbGame.cs SteamGridDB.Xbox/Services/Artwork/ArtworkSource.cs` (empty) that no new evidence exists
+  this loop to reopen that question.
+- **Data flow and dependency design:** 6.0 | SAME | `StoreNameLookup.cs` read fresh this loop: the three
+  unlocked static caches (`gogNameCache`/`epicNameCache`/`nameMatchCache`, `:27-32`) confirmed unchanged.
   `EpicLibrary.cs`'s ambient `Environment.GetEnvironmentVariable` fallback and `AppliedArtworkStore.cs`'s
-  ambient `ApplicationData.Current` default confirmed untouched via `git diff --stat` (not independently
-  re-read this loop; unaffected by a 2-file test-only diff).
-- **Framework / platform best practices:** 6.0 | SAME | `DataContractJsonSerializer` (`SteamGridDbClient.
-  cs:388`) / `Windows.Data.Json` (`SteamGridDbClient.cs:10`, used in `ParseOfficialCapsuleUrl:144-199`)
-  split read fresh this loop and re-confirmed present and unchanged. Investigated this loop whether the
-  split is a framework-idiom violation or a justified platform accommodation: `SteamGridDbClient.
-  cs:137-141`'s own doc comment states `DataContractJsonSerializer` cannot express the per-language
-  `platformdata` keys, so the manual `Windows.Data.Json` walk is the only way to reach that data on this
-  stack — a genuine platform constraint, not cargo-culted ceremony. No SPT-passing framework-idiom fix
-  identified this loop.
+  ambient `ApplicationData.Current` default confirmed untouched via `git diff --stat` (zero production files
+  changed this loop).
+- **Framework / platform best practices:** 6.0 | SAME | Not re-litigated this loop per this run's explicit
+  prior finding (loop 11 already investigated and SPT-rejected treating the `DataContractJsonSerializer` /
+  `Windows.Data.Json` split in `SteamGridDbClient.cs` as a framework-idiom violation, citing the class's own
+  doc comment at `:137-141`). Confirmed via `git diff --stat 85b5279 HEAD -- SteamGridDB.Xbox/Services/
+  SteamGridDB/SteamGridDbClient.cs` (empty) that no new evidence exists this loop.
 - **Concurrency and runtime safety:** 6.5 | SAME | F-003's sequential per-game awaits (`PrimaryWidget.
   xaml.cs:562,584,593,602`) re-confirmed at identical line numbers via this loop's own direct read (see
-  Finding #3). `StoreNameLookup`'s unlocked static caches re-confirmed still safe only because every call
-  path remains the single sequential `foreach` — re-grepped codebase-wide for `Task.WhenAll`/`Parallel.*`/
-  `Task.Run` this loop, zero hits, same as every prior loop.
-- **Code simplicity and clarity:** 8.5 | SAME | This loop's diff is additive test code only
-  (`TestImages.cs`: new using statement + four new one-purpose factory helpers; `TileImageTests.cs`: six new
-  test methods) — no simplification, no new ceremony. The new `TestImages.cs` helpers
-  (`OpaquePngAsync`/`PngWithTransparentCornersAsync`/`PortraitWithDetailBandAsync`) follow the file's
-  existing one-purpose-per-factory-method pattern rather than adding a generic builder abstraction.
-- **Test strategy and regression resistance:** 8.5 | SAME | Added 6 new tests to `SteamGridDB.Xbox.Tests/
-  TileImageTests.cs` (121 total, up from 115), closing `TileImage`'s two previously-untested public methods
-  (`FillsTileAsync`, `CropPortraitToTileAsync`) plus the private `BestVerticalCropAsync` reachable only
-  through the latter. Both algorithms independently verified mutation-sensitive, not just asserted: flipped
-  `TileImage.cs:263`'s `transparentCorners < 2` to `>= 2`, re-ran the suite, got exactly the 2 new
-  `FillsTileAsync` tests failing; separately flipped `TileImage.cs:371`'s `running > best` to
-  `running < best` (reversing the crop-window-selection direction), re-ran, got exactly the 2 new
-  crop-direction tests failing; both mutations reverted via `git checkout` and 121/121 re-confirmed green
-  before commit. This closes F-007's `TileImage` half. Approaching the 9-anchor's threshold triggered the
-  mandatory Authority Map cross-check this loop (see Authority Map below), which surfaced `FixLog.cs`
-  (`Services/Artwork/FixLog.cs`) as a mutable-state concern with zero direct test coverage (no
-  `FixLogTests.cs` exists — confirmed via directory listing this loop) — a genuine, previously-uncredited
-  gap, distinct from F-007. With `ArtworkDownloader` (Finding #2) and `FixLog` (Finding #4) both open and
-  neither an accepted residual, the 9-anchor's "at most one named gap" bar is not met even though real
-  progress landed this loop; held at 8.5 rather than crediting the closed `TileImage` gap as a net score
-  increase, because Meta-Rule 6 (honesty beats polish) means a freshly-discovered gap counts against the
-  anchor even when this loop's own diff did not create it.
-- **Overall implementation credibility:** 7.5 | SAME | This loop's fix is credited entirely to
-  `test_strategy` (mutation-verified, reviewer-approved, zero production code touched) rather than
-  double-counted here, consistent with this run's established anti-double-counting convention.
-  `PrimaryWidget.xaml.cs`'s 1,950 lines (`wc -l` confirmed this loop) remain unverified by anything but
-  inspection and a green compile outside the small tested slices; `ArtworkDownloader`'s untested
-  network-bound entry points (Finding #2) and `FixLog`'s untested disk-write path (Finding #4) are the same
-  category of unverified-but-inspected code. Choosing to hold `test_strategy` at 8.5 rather than credit a
-  net UP this loop, once the Authority Map cross-check surfaced `FixLog`, is itself the kind of honesty this
-  dimension rewards — not spending it here avoids double-crediting a single act of rigor across two
-  dimensions.
+  Finding #3). Re-grepped codebase-wide for `Task.WhenAll`/`Parallel.*`/`Task.Run` this loop, zero hits, same
+  as every prior loop.
+- **Code simplicity and clarity:** 8.5 | SAME | This loop's diff is one new test file only
+  (`SteamGridDB.Xbox.Tests/FixLogTests.cs`, 106 lines) — no simplification, no new ceremony, no new
+  abstraction. Follows the existing `TempFolder` + settable-static-folder-property pattern
+  `AppliedArtworkStoreTests.cs` already establishes exactly (same shape: `using var temp = new TempFolder();
+  FixLog.LogFolder = temp.Folder;`).
+- **Test strategy and regression resistance:** 9.5 | UP (from 8.5) | Closed F-008: added `FixLogTests.cs`
+  (4 tests) covering all three of `FixLog`'s members (`Start`, `Write`, `SaveAsync`). Independently verified
+  mutation-sensitive, not just asserted: (1) removed `FixLog.cs:49`'s `lines.Clear();`, re-ran the suite, got
+  exactly 1 failure (`Starting_a_new_run_discards_the_previous_runs_lines`), reverted; (2) removed `FixLog.
+  cs:48`'s `fileName = file;` assignment, re-ran, got exactly 3 failures (every test asserting on the
+  file-name parameter), reverted; (3) no-op'd `FixLog.cs:58`'s `lines.Add(line);`, re-ran, got exactly 2
+  failures (the two tests asserting on `Write`-appended content), reverted; 125/125 re-confirmed green before
+  each subsequent mutation and after the final revert (`git diff --stat` on `FixLog.cs` empty). This closes
+  the second of the two Authority-Map gaps loop 11 named as the sole reason `test_strategy` held at 8.5
+  ("With `ArtworkDownloader` (Finding #2) and `FixLog` (Finding #4) both open and neither an accepted
+  residual, the 9-anchor's 'at most one named gap' bar is not met" — loop 11's own words). With `FixLog`
+  closed, exactly one Authority-Map gap remains (`ArtworkDownloader`/`StoreNameLookup`'s network-bound
+  entry points, Finding #2, `true-external`, queued in the Improvement Backlog as Priority 1) — the 9-anchor's
+  "at most one gap" bar is now met, and per `architecture-rubric-scoring.md`'s 9.5+ Threshold, a *queued*
+  residual (not only an accepted one) is a valid disposition for 9.5 (only `HALT_SUCCESS` requires
+  `accepted`). Also freshly confirmed via `TESTING.md`'s "What is not covered" section (read fresh this loop)
+  that the Authority Map's scope (Services/Artwork, Services/Stores; excluding `PrimaryWidget.xaml.cs`'s
+  UI-bound state and network calls) is the project's own documented, reasoned test-coverage boundary, not an
+  arbitrary loop-invented one — stronger evidence for anchor-completeness than any prior loop had. Mandatory
+  mutation-test mental-model check (`method.md` Step 8): a nameable mutation the current suite would NOT
+  catch is `ArtworkDownloader.cs:179`'s `candidateLayout < chosenLayout` comparison (flipping the operator
+  would silently invert the official-artwork replacement gate's layout-quality guard) — zero test file exists
+  for `ArtworkDownloader.cs`, so this is the named residual, not a 10.
+- **Overall implementation credibility:** 7.5 | SAME | Consistent with this run's established
+  anti-double-counting convention (explicit in loop 11's own scorecard reasoning): this loop's fix is
+  credited entirely to `test_strategy` rather than double-counted here. `PrimaryWidget.xaml.cs`'s 1,950
+  lines remain unverified by anything but inspection outside the small tested slices, and
+  `ArtworkDownloader`'s untested network-bound entry points (Finding #2) are the same category of
+  unverified-but-inspected code that `FixLog` was before this loop. Holding `credibility` steady while
+  `test_strategy` absorbs the credit for a single act of rigor is the same discipline loop 11 applied when
+  the roles were reversed.
 
 ## Authority Map
 
-Triggered this loop by `test_strategy` approaching the 9.0 threshold (G24's mandatory cross-check). Scoped
-to `Services/Artwork/` and `Services/Stores/` concerns this loop's investigation actually touched — not a
-full-app audit; `PrimaryWidget`'s own UI-bound state (`GameEntries`, status text, etc.) is out of scope this
-loop, unaffected by this loop's diff either way.
+Re-emitted this loop per G24 (mandatory whenever `test_strategy >= 9`). Scope confirmed this loop against
+`TESTING.md`'s own "What is not covered" section (read fresh) — `PrimaryWidget.xaml.cs`'s UI-bound state is
+excluded by documented project design (no desktop projection for `Windows.UI.Xaml`), and network calls are
+excluded by documented project design ("A test that did that would be grading their uptime"), which is why
+neither widens this Authority Map's scope.
 
 - **Concern:** Applied-artwork record (which SteamGridDB artwork ID was written to each tile).
-  - **Owner:** `AppliedArtworkStore` (`Services/Artwork/AppliedArtworkStore.cs`), read fresh this loop.
+  - **Owner:** `AppliedArtworkStore` (`Services/Artwork/AppliedArtworkStore.cs`).
   - **Allowed writers:** `SetAsync`, `ClearAsync` — both funnel through the private `UpdateAsync`, gated by
     the shared `SemaphoreSlim gate`.
-  - **Readers:** `GetAsync` (also gated, per F-002's read/write lock invariant).
+  - **Readers:** `GetAsync` (also gated, per F-002's read/write lock invariant, resolved loop 2).
   - **Persistence seam:** `applied-artwork.json` in `RecordFolder` (defaults to `ApplicationData.Current.
     LocalFolder`).
   - **Async mutation entry points:** `SetAsync`, `ClearAsync`.
-  - **Verdict:** Single and clear. Direct test: `AppliedArtworkStoreTests.cs` (confirmed covers `Get`/`Set`
-    fresh this loop).
+  - **Verdict:** Single and clear. Direct test: `AppliedArtworkStoreTests.cs`.
 
 - **Concern:** Fix-run diagnostic log (what happened during the last "fix library" pass).
-  - **Owner:** `FixLog` (`Services/Artwork/FixLog.cs`), read fresh this loop.
+  - **Owner:** `FixLog` (`Services/Artwork/FixLog.cs`).
   - **Allowed writers:** `Start` (resets the in-memory `lines` list), `Write` (appends) — called from
     `PrimaryWidget` and `ArtworkDownloader.FindOfficialLookalikeAsync`.
   - **Readers:** none in-process; `SaveAsync` writes to disk for the user to inspect externally.
   - **Persistence seam:** `last-fix.log` / `last-load.log` in `LogFolder` (defaults to `ApplicationData.
     Current.LocalFolder`).
   - **Async mutation entry points:** `SaveAsync` (the only async member; `Start`/`Write` are synchronous).
-  - **Verdict:** Single and clear. **No direct test file** — `FixLogTests.cs` is absent from
-    `SteamGridDB.Xbox.Tests/` (confirmed via directory listing this loop). See Finding #4.
+  - **Verdict:** Single and clear. **Direct test: `FixLogTests.cs` (new this loop)** — was "no direct test
+    file" through loop 11; closed this loop.
 
-- **Concern:** Store-name lookup caches (GOG/Epic names, SteamGridDB name-match results).
-  - **Owner:** `StoreNameLookup` (`Services/Stores/StoreNameLookup.cs`), read fresh this loop.
-  - **Allowed writers:** `GetOrFetchGogNameAsync`, `GetOrFetchEpicNameAsync`, `FindGameByNameAsync`,
-    `LoadUbisoftGameListAsync` — each owns its own cache slot.
-  - **Readers:** the same four methods (read-through cache).
-  - **Persistence seam:** none — in-memory only, process lifetime.
-  - **Async mutation entry points:** all four writers listed above.
-  - **Verdict:** Single and clear (per F-003, unlocked but safe only because every call path is sequential
-    today). `StoreNameLookupTests.cs` exists but, per its own doc comment, covers only the pure
-    `NormaliseGameName` helper — the four network-bound cache-writer methods are untested for the same
-    reason `ArtworkDownloader`'s entry points are (Finding #2): no injectable seam, and testing them for
-    real would mean grading GOG/Epic/Ubisoft's uptime. Not a new Finding — same category and same
-    disposition as Finding #2, cross-referenced rather than duplicated.
+- **Concern:** Store-name lookup caches (GOG/Epic names, SteamGridDB name-match results) and the artwork
+  download/selection gate.
+  - **Owner:** `StoreNameLookup` (`Services/Stores/StoreNameLookup.cs`) and `ArtworkDownloader` (`Services/
+    Artwork/ArtworkDownloader.cs`).
+  - **Allowed writers:** `StoreNameLookup.GetOrFetchGogNameAsync`/`GetOrFetchEpicNameAsync`/
+    `FindGameByNameAsync`/`LoadUbisoftGameListAsync` (each owns its own cache slot); `ArtworkDownloader`
+    holds no mutable state of its own but is the sole gate deciding which downloaded candidate becomes the
+    tile.
+  - **Readers:** the same four `StoreNameLookup` writers (read-through cache).
+  - **Persistence seam:** none — in-memory only, process lifetime; `ArtworkDownloader` has no persistence
+    seam of its own.
+  - **Async mutation entry points:** the four `StoreNameLookup` writers; `ArtworkDownloader.
+    DownloadArtworkAsync`/`DownloadBestTileFillingImageAsync`/`FindOfficialLookalikeAsync`.
+  - **Verdict:** Single and clear ownership, but **the sole remaining test gap**: `StoreNameLookupTests.cs`
+    covers only the pure `NormaliseGameName` helper; `ArtworkDownloaderTests.cs` does not exist. Both are
+    blocked by the same cause — `true-external` network calls with no injectable seam (Finding #2) — and are
+    treated as one Authority-Map gap, not two, consistent with loop 11's cross-referencing.
 
 ## Strengths That Matter
 
 - `ArtworkSource`'s private-constructor-plus-factory-method design (`Services/SteamGridDB/
-  ArtworkSource.cs:15-51`) still makes "neither a platform-ID nor a game-ID" unrepresentable — re-read fresh
-  this loop, unaffected.
-- `AsyncLazyCache<T>` still takes the caller's own lock as a constructor argument rather than owning a
-  private one — unaffected this loop (file not in diff, confirmed via `git diff --stat`).
-- `TileImage`'s pure, UI-free, dispatcher-free static functions (fill-check, crop, PNG conversion) made this
-  loop's fix possible with zero production risk: every algorithm needed for the tile-fill gate and the
-  crop-window selection was reachable and testable purely from `IBuffer` fixtures, with nothing to mock.
-  This is the same shape loop 10's `RankGrids` fix exploited, now proven twice on genuinely different
-  algorithm classes (a sort tie-break, and a per-row energy sliding window).
-- The mutation-verification technique from loop 10 (flip the exact production line, confirm exactly the new
-  test(s) react, revert) scaled cleanly to a harder case this loop: proving `BestVerticalCropAsync`'s
-  window-selection *direction* (not just its existence) required constructing two mirror-image test inputs
-  rather than one, and the technique caught the injected reversal precisely.
+  ArtworkSource.cs:15-51`) still makes "neither a platform-ID nor a game-ID" unrepresentable — unaffected
+  this loop, confirmed via `git diff --stat`.
+- `FixLog.LogFolder`'s settable-static-property pattern (matching `AppliedArtworkStore.RecordFolder`) let
+  this loop's fix reach full coverage with zero production risk and zero new test infrastructure — the same
+  shape already proven twice in this run (`AppliedArtworkStoreTests.cs`, now `FixLogTests.cs`) is exactly the
+  idiom the Deepening Candidate below proposes reusing for `ArtworkDownloader`'s network seam, rather than
+  introducing a new interface/protocol shape the codebase does not otherwise use.
+- The mutation-verification technique established in loop 10 and refined in loop 11 (flip/no-op the exact
+  production line, confirm exactly the expected test(s) react, revert) scaled to a third distinct case this
+  loop — a stateful three-member static class rather than a pure algorithm — and caught all three targeted
+  mutations precisely (1, 3, and 2 failures respectively, matching the exact set of assertions that exercise
+  each mutated line).
 
 ## Findings
 
@@ -187,15 +188,15 @@ loop, unaffected by this loop's diff either way.
 several structurally distinct concerns with no Module boundary between most of them, so a change to any one
 risks disturbing the others.
 
-**What is wrong** — Read `LoadGameEntriesAsync` directly this loop (`PrimaryWidget.xaml.cs:332-609` read in
-full this loop; `:610-703` confirmed unchanged via `git diff` showing the file untouched since loop 9's
-commit `05501e0`). The nested `foreach` over `gameCache` entries (`:436`) still interleaves image decode
-(`:520-522`), the backup check (`:516`), and per-game SteamGridDB/store name resolution (`:562,584,593,602`)
-inside one sequential per-entry block. This loop's own diff touches only `SteamGridDB.Xbox.Tests/
-TestImages.cs` and `TileImageTests.cs`, so none of this changed.
+**What is wrong** — Re-read `LoadGameEntriesAsync` directly this loop (`PrimaryWidget.xaml.cs:332-611`).
+The nested `foreach` over `gameCache` entries (`:436`) still interleaves image decode (`:520-522`), the
+backup check (`:516`), and per-game SteamGridDB/store name resolution (`:562,584,593,602`) inside one
+sequential per-entry block. This loop's own diff touches only `SteamGridDB.Xbox.Tests/FixLogTests.cs` (new
+file), so none of this changed; confirmed via `git diff --stat 05501e0 HEAD -- PrimaryWidget.xaml.cs`
+(empty) that the file has been byte-identical for three loops running (9, 10, 11, 12).
 
 **Evidence**
-- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-703`
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-611`
 - `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:436`
 - `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:516,520-522,562,584,593,602`
 
@@ -209,18 +210,16 @@ TestImages.cs` and `TileImageTests.cs`, so none of this changed.
 
 **Metric signal** — `PrimaryWidget.xaml.cs`: 1,950 lines (`wc -l` confirmed this loop), unchanged.
 
-**Why this weakens submission** — Ownership of the concerns still merged in `PrimaryWidget` (image decode
-interleaved with the backup check and per-game network resolution, plus the three bulk-operation loops
-elsewhere in the file) remains untraceable from any single Module besides the UI class itself.
+**Why this weakens submission** — Ownership of the concerns still merged in `PrimaryWidget` remains
+untraceable from any single Module besides the UI class itself.
 
 **Severity** — Serious deduction
 
 **ADR conflicts** — none
 
 **Minimal correction path** — No further split is queued this loop: the image-decode/backup-check/
-network-resolution core is still genuinely interleaved per entry (re-confirmed by this loop's own direct
-read), so no next slice is proposed without first re-verifying against current source, consistent with this
-run's discipline since loop 8.
+network-resolution core is still genuinely interleaved per entry, so no next slice is proposed without first
+re-verifying against current source, consistent with this run's discipline since loop 8.
 
 **Blast radius** — Change (only if a future loop verifies a further slice, with a fresh SPT first):
 `PrimaryWidget.xaml.cs`. Avoid: `Services/Artwork/*`, `Services/Stores/*`, `Services/SteamGridDB/*`,
@@ -228,70 +227,77 @@ run's discipline since loop 8.
 
 ---
 
-### Finding #2: ArtworkDownloader's three entry points remain untested because each calls the network directly with no injectable seam; TileImage's fill/crop algorithms are now covered
+### Finding #2: ArtworkDownloader's three entry points and StoreNameLookup's four network-bound writers remain untested because each calls the network directly with no injectable seam
 
 **Why it matters** — `DownloadBestTileFillingImageAsync` decides which candidate image the widget applies as
-artwork when auto-selecting; a wrong crop or a broken tile-fill check would ship visibly bad artwork with no
-test catching it. Closing the algorithmic half of this gap this loop still leaves the selection gate itself
-untested.
+artwork when auto-selecting; a wrong crop, a broken tile-fill check, or an inverted layout-quality guard
+would ship visibly bad artwork with no test catching it. This is now the sole remaining test-coverage gap in
+the Authority Map.
 
-**What is wrong** — **Partially resolved this loop.** `TileImage.cs`'s public `FillsTileAsync` (`:231`) and
-`CropPortraitToTileAsync` (`:284`), plus the private `BestVerticalCropAsync` (`:321`) reachable only through
-the latter, were untested at any interface before this loop. Added six tests this loop to `SteamGridDB.Xbox.
-Tests/TileImageTests.cs`, all mutation-verified (see Loop 11 Result): `FillsTileAsync`'s opaque/
-transparent-corner distinction, `CropPortraitToTileAsync`'s non-portrait guard and output dimensions, and
-`BestVerticalCropAsync`'s window-selection direction (tested from both ends of a constructed portrait
-image). `ArtworkDownloader.cs`'s three entry points (`DownloadArtworkAsync:40`,
-`DownloadBestTileFillingImageAsync:71`, `FindOfficialLookalikeAsync:122`) remain untested: read the file
-fresh this loop and confirmed `DownloadArtworkAsync` calls a private static `sharedHttpClient` (`:35`)
-directly with no seam to inject a fixture through, and `DownloadBestTileFillingImageAsync`/
-`FindOfficialLookalikeAsync` both call `DownloadArtworkAsync` internally — so even a fixture-based test of
-the ranking-to-selection gate (as the prior backlog description assumed) would require a real network
-round-trip. Testing these three honestly requires either a production HTTP-abstraction seam (its own
-Simplify Pressure Test — see the Deepening Candidate below) or real network calls in the test suite
-(rejected: flaky, and the suite is network-free by design).
+**What is wrong** — Read `ArtworkDownloader.cs` fresh this loop and confirmed unchanged since loop 11:
+`DownloadArtworkAsync` (`:40`) calls a private static `sharedHttpClient` (`:35`) directly with no seam to
+inject a fixture through, and `DownloadBestTileFillingImageAsync`/`FindOfficialLookalikeAsync` both call
+`DownloadArtworkAsync` internally. `StoreNameLookup.cs`'s four writer methods (`GetOrFetchGogNameAsync`,
+`GetOrFetchEpicNameAsync`, `FindGameByNameAsync`, `LoadUbisoftGameListAsync`) are in the same position — each
+calls a store's HTTP API directly. `TESTING.md`'s own "What is not covered" section (read fresh this loop)
+names this exact boundary as intentional: "Anything over the network... A test that did that would be
+grading their uptime." Per this loop's dispatch instructions, evaluated whether loop 11's queued
+Deepening Candidate (an injectable HTTP-fetch seam) survives the Unified Seam Policy: a bare `IArtworkFetcher`
+interface with one production conformer would fail the two-adapter rule unless a genuinely behavior-faithful
+fake (not a recording stub) is built in the *same* change — but the codebase's own established idiom for
+exactly this situation is not a new interface at all. `FixLog.LogFolder` and `AppliedArtworkStore.
+RecordFolder` are both settable static properties that default to the real dependency
+(`ApplicationData.Current.LocalFolder`) and are swapped for a test double via simple assignment, with no
+protocol/interface ceremony. The same shape applied to `ArtworkDownloader` — a settable static
+`Func<string, Task<IBuffer>> Fetcher` property defaulting to the real `sharedHttpClient` call — would satisfy
+the two-adapter rule (prod HTTP call + a test fake returning canned `IBuffer` bytes per URL, built from the
+existing `TestImages.cs` fixture helpers) without introducing a shape the codebase does not already use
+elsewhere. This is a narrower, idiom-matched refinement of loop 11's more open-ended "delegate or interface"
+proposal, not yet built this loop (see Deepening Candidate).
 
 **Evidence**
-- `SteamGridDB.Xbox/Services/Artwork/TileImage.cs:231,284,321`
-- `SteamGridDB.Xbox.Tests/TileImageTests.cs:63-153`
-- `SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs:35,40,71,122`
+- `SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs:35,40,71,122,179`
+- `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:86,114,203,228`
+- `TESTING.md:57-59` ("What is not covered" — network)
+- `SteamGridDB.Xbox/Services/Artwork/FixLog.cs:35-39`, `SteamGridDB.Xbox/Services/Artwork/
+  AppliedArtworkStore.cs:47-53` (the settable-static-property idiom this loop proposes reusing)
 
-**Architectural test failed** — Interface-as-test-surface, for the `ArtworkDownloader` half — the tests
-this loop's backlog description assumed could stay at the fixture level cannot, because the Implementation
-reaches past the Interface into a live network call with no substitutable seam.
+**Architectural test failed** — Interface-as-test-surface — tests cannot stay at `ArtworkDownloader`'s
+current Interface because the Implementation reaches past it into a live, non-injectable network call.
 
 **Dependency category** — `true-external`
 
 **Leverage impact** — One call site cluster (`ArtworkDownloader`'s gate), but it is the function every
 automatic artwork pick and manual apply goes through after ranking.
 
-**Locality impact** — This loop's fix is new tests only; no production code change. The `ArtworkDownloader`
-remainder would need a small seam change, scoped to that file alone (see Deepening Candidate).
+**Locality impact** — A seam change here would be scoped to `ArtworkDownloader.cs` alone (one new static
+property plus threading it through three internal calls); `StoreNameLookup`'s four writers are a separate,
+smaller follow-up using the identical idiom, not required for this Finding's minimal correction path.
 
-**Metric signal** — `TileImage`: 2 of 2 previously-untested public methods now covered, 6 new mutation-verified
-tests. `ArtworkDownloader`: 0 of 3 entry points tested, unchanged — now with a concrete, evidenced reason
-why (no seam), not just an absence.
+**Metric signal** — `ArtworkDownloader`: 0 of 3 entry points tested. `StoreNameLookup`: 1 of 5 methods
+tested (`NormaliseGameName` only). Both unchanged this loop.
 
-**Why this weakens submission** — Before this loop: a source-level mutation anywhere in the tile-fill gate
-or the crop-window selection passed the entire suite undetected. Now: `TileImage`'s two algorithms are
-mutation-verified; the pick-from-network selection logic in `ArtworkDownloader` is not, and cannot be with
-constructed fixtures alone as originally scoped.
+**Why this weakens submission** — A source-level mutation anywhere in the tile-fill gate, the crop-window
+selection's consumer, or the official-artwork replacement gate's layout comparison (`ArtworkDownloader.
+cs:179`) would pass the entire suite undetected today.
 
 **Severity** — Noticeable weakness
 
 **ADR conflicts** — none
 
-**Minimal correction path** — Closed this loop for `TileImage`'s public surface (no production code
-change). `ArtworkDownloader`'s three entry points remain open: closing them honestly requires either
-introducing an injectable HTTP abstraction (a production seam change, its own Simplify Pressure Test) or
-accepting the network boundary as a residual. Not attempted this loop — no friction proven yet for a new
-seam *before* this loop's own attempt (Meta-Rule 3), and forcing one without that proof would risk protocol
-soup. Friction is proven now (see Deepening Candidate); the seam itself is next loop's decision, with its
-own fresh SPT.
+**Minimal correction path** — Add a settable static `internal static Func<string, Task<IBuffer>> Fetcher`
+property to `ArtworkDownloader`, defaulting to a lambda wrapping the existing `sharedHttpClient.GetAsync`
+call; route `DownloadArtworkAsync` through it. Add `ArtworkDownloaderTests.cs` that sets `Fetcher` to a fake
+returning constructed `IBuffer` fixtures (reusing `TestImages.cs`) per URL, exercising
+`DownloadBestTileFillingImageAsync`'s tile-fill gate and `FindOfficialLookalikeAsync`'s official-artwork
+veto (including the layout-comparison mutation named above). Not attempted this loop — the shape is now
+resolved (matching the codebase's own idiom rather than introducing a new one), but building it deserves its
+own tiebreak-free loop with its own fresh SPT pass on the actual diff, not bolted on inside this loop's
+`FixLog`-scoped fix.
 
-**Blast radius** — Change (this loop's actual diff): `SteamGridDB.Xbox.Tests/TestImages.cs`,
-`SteamGridDB.Xbox.Tests/TileImageTests.cs`. Avoid: `SteamGridDB.Xbox/Services/Artwork/TileImage.cs`,
-`SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs`, everything else.
+**Blast radius** — Change (this loop's actual diff): `SteamGridDB.Xbox.Tests/FixLogTests.cs` only. Avoid:
+`SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs`, `SteamGridDB.Xbox/Services/Stores/
+StoreNameLookup.cs`, everything else.
 
 ---
 
@@ -305,10 +311,8 @@ still awaits `sgdbClient.GetGameByPlatformIdAsync` (`:562`) and the GOG/Epic/Ubi
 (`:584,593,602`) one game at a time, unchanged from every prior loop. The standing operational constraint
 continues to rule out attempting this: parallelising these round-trips would change observable request
 count/order/timing against third-party APIs without a behavioral oracle, and the test suite still does not
-cover network calls. `StoreNameLookup`'s three static caches (`gogNameCache`/`epicNameCache`/
-`nameMatchCache`, `StoreNameLookup.cs:27-32`) remain unlocked, re-confirmed safe only because every call
-path is still the single sequential `foreach` — re-grepped codebase-wide for `Task.WhenAll`/`Parallel.*`/
-`Task.Run` this loop, zero hits.
+cover network calls. `StoreNameLookup`'s three static caches remain unlocked, re-confirmed safe only because
+every call path remains the single sequential `foreach`.
 
 **Evidence**
 - `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:399,562,584,593,602`
@@ -326,7 +330,7 @@ Seam).
 **Metric signal** — One HTTP round-trip per game per store lookup; unchanged this loop.
 
 **Why this weakens submission** — Structural waste on the widget's primary hot path, unchanged from loop 7
-through loop 11.
+through loop 12.
 
 **Severity** — Noticeable weakness
 
@@ -338,9 +342,7 @@ unchanged. Any eventual remedy must also add locking to `StoreNameLookup`'s thre
 **Blast radius** — Change: `PrimaryWidget.xaml.cs` (`LoadGameEntriesAsync`), `Services/Stores/
 StoreNameLookup.cs`. Avoid: `Services/Artwork/*`, `Services/SteamGridDB/*`.
 
----
-
-### Finding #4: FixLog has zero direct test coverage
+### Finding #4: FixLog had zero direct test coverage — resolved this loop
 
 **Why it matters** — `FixLog` is the widget's only diagnostic trail for artwork-selection runs; the file's
 own doc comment records a real incident where the official-artwork gate silently failed across an entire
@@ -348,15 +350,15 @@ library and was found only by manually diffing artwork IDs on disk. If `FixLog` 
 diagnostic capability would disappear silently, exactly the failure mode it exists to catch for everything
 else.
 
-**What is wrong** — Surfaced this loop while building the Authority Map cross-check that `test_strategy`
-approaching 9.0 requires (see Authority Map). Read `FixLog.cs` fresh this loop: `Start` (`:46`) resets the
-in-memory `lines` list, `Write` (`:56`) appends to it, `SaveAsync` (`:64`) writes it to disk once per run.
-Confirmed via directory listing that `SteamGridDB.Xbox.Tests/` has no `FixLogTests.cs` and no other test
-file references `FixLog` — zero coverage, direct or indirect.
+**What is wrong** — Surfaced loop 11 while building the Authority Map cross-check that `test_strategy`
+approaching 9.0 requires. Before this loop: `Start` (`:46`), `Write` (`:56`), `SaveAsync` (`:64`) had zero
+test coverage, direct or indirect (no `FixLogTests.cs` existed). **Resolved this loop**: added `FixLogTests.
+cs` (4 tests) covering all three members, independently verified mutation-sensitive against three separate
+production lines (`:48`, `:49`, `:58`) — see Loop 12 Result for the full mutation-verification detail.
 
 **Evidence**
-- `SteamGridDB.Xbox/Services/Artwork/FixLog.cs:46,56,64`
-- `SteamGridDB.Xbox.Tests/` (directory listing confirms no `FixLogTests.cs`)
+- `SteamGridDB.Xbox/Services/Artwork/FixLog.cs:46,48,49,56,58,64`
+- `SteamGridDB.Xbox.Tests/FixLogTests.cs` (new this loop)
 
 **Architectural test failed** — n/a — different category (missing-test gap per method.md Step 8's
 mutation-test check).
@@ -366,75 +368,58 @@ mutation-test check).
 **Leverage impact** — One call site cluster (`FixLog`'s three members), but every artwork-fix and
 library-load run writes through it.
 
-**Locality impact** — The fix is new tests only; no production code change needed. `FixLog`'s shape (no
-network, no WinRT decode, just a `List<string>` and a `TempFolder`-testable disk write) makes this the
-cheapest of this run's three open test-coverage items — the same construction pattern
-`AppliedArtworkStoreTests.cs` already uses (`TempFolder`, assign `LogFolder`, assert on disk content) applies
-directly.
+**Locality impact** — The fix was new tests only; no production code change.
 
-**Metric signal** — 0 of 3 `FixLog` members tested. New this loop (not carried forward from any prior
-loop's backlog — first time this concern was audited).
+**Metric signal** — 3 of 3 `FixLog` members now tested (was 0 of 3 through loop 11).
 
-**Why this weakens submission** — A source-level mutation in `Start`/`Write`/`SaveAsync` (e.g., `Write`
-silently no-op'ing, or `SaveAsync` writing an empty file) would pass the entire suite undetected, and would
-also defeat the one tool this codebase has for diagnosing exactly that class of silent failure.
+**Why this weakens submission** — Resolved: a source-level mutation in `Start`/`Write`/`SaveAsync` would
+now be caught by the new tests (independently verified — see Loop 12 Result).
 
-**Severity** — Noticeable weakness
+**Severity** — Noticeable weakness (as discovered; resolved this loop)
 
 **ADR conflicts** — none
 
-**Minimal correction path** — Add `FixLogTests.cs` using the same `TempFolder` + `LogFolder`-assignment
-pattern `AppliedArtworkStoreTests.cs` already establishes: assert `Start` resets prior lines and writes a
-header, `Write` appends, `SaveAsync` writes every line to disk in order. No production code changes
-required.
+**Minimal correction path** — Done: `FixLogTests.cs` added using the `TempFolder` + `LogFolder`-assignment
+pattern `AppliedArtworkStoreTests.cs` already establishes.
 
-**Blast radius** — Change: `SteamGridDB.Xbox.Tests/FixLogTests.cs` (new). Avoid:
-`SteamGridDB.Xbox/Services/Artwork/FixLog.cs`, everything else.
+**Blast radius** — Change (this loop's actual diff): `SteamGridDB.Xbox.Tests/FixLogTests.cs` (new). No
+production files touched.
 
 ## Simplification Check
 
-- **Structurally necessary:** Adding six tests to `TileImageTests.cs` plus four new fixture-builder helpers
-  to `TestImages.cs`. No Module removed or restructured, no Seam introduced — a pure test addition.
-  Unified Seam Policy does not apply.
-- **New seam justified:** false — no protocol/port/abstraction introduced this loop; the seam this loop's
-  investigation motivates (`ArtworkDownloader`'s HTTP fetch) is deferred to next loop as a Deepening
-  Candidate, not built now.
+- **Structurally necessary:** Adding one new test file (`FixLogTests.cs`, 106 lines, 4 tests). No Module
+  removed or restructured, no Seam introduced — a pure test addition. Unified Seam Policy does not apply to
+  this loop's actual diff.
+- **New seam justified:** false — no protocol/port/abstraction introduced this loop. The seam analysed for
+  `ArtworkDownloader` (Finding #2 / Deepening Candidate) is deferred to next loop, not built now; its shape
+  is refined (a settable static delegate property, matching `FixLog.LogFolder`/`AppliedArtworkStore.
+  RecordFolder`) rather than left as an open "interface vs delegate" choice.
 - **Helpful simplification:** None — this loop's fix is a test-coverage addition, not a simplification.
   `simplicity` correctly held SAME.
 - **Should NOT be done:** Building the `ArtworkDownloader` HTTP seam this loop without a fresh Step 2 SPT
-  pass of its own — friction is now proven (Finding #2), but the seam's shape (delegate parameter vs.
-  interface vs. constructor injection) deserves its own tiebreak-free loop rather than being bolted on
-  opportunistically inside this loop's test-only fix. Also not attempted: forcing a `domain_modeling` or
-  `framework_idioms` finding despite this loop's dispatch instructions inviting one — investigated both
-  fresh (see Scorecard) and found the "anemic DTO" / "serializer split" framings are justified platform
-  accommodations, not neglect; no fix passed SPT question 1 (fixes real ambiguity). Also not attempted: any
-  further slice of F-001 — no new evidence surfaced this loop reopening that question.
-- **Tests after fix:** No prior test exercised `TileImage.FillsTileAsync`, `TileImage.
-  CropPortraitToTileAsync`, or (indirectly) `TileImage.BestVerticalCropAsync`. Six new tests added at the
-  existing public Interface (`FillsTileAsync`, `CropPortraitToTileAsync`), following the file's existing
-  `WithDecoderAsync`-based construction pattern. Verified mutation-sensitive directly rather than merely
-  asserted: two separate production lines inverted in turn, exactly the expected new tests failed each
-  time, then reverted.
+  pass of its own on the actual diff — the shape is now resolved by this loop's Unified Seam Policy analysis,
+  but the change itself (new property, three call-site threads, new test file with a hand-built fake) is a
+  distinct, non-trivial diff that deserves its own loop rather than being appended to this loop's
+  `FixLog`-scoped fix. Also not attempted: forcing a `domain_modeling` or `framework_idioms` finding — no new
+  evidence surfaced this loop to reopen loop 11's SPT-rejection of both. Also not attempted: any further
+  slice of F-001 — no new evidence surfaced this loop reopening that question.
+- **Tests after fix:** No prior test exercised `FixLog.Start`, `FixLog.Write`, or `FixLog.SaveAsync`. Four
+  new tests added at the class's existing public Interface, following the file's existing
+  `TempFolder`-plus-settable-static-property construction pattern (`AppliedArtworkStoreTests.cs`). Verified
+  mutation-sensitive directly rather than merely asserted: three separate production lines mutated in turn
+  (one removed statement, one no-op'd statement, one omitted assignment), exactly the expected tests failed
+  each time, then reverted.
 
 ## Improvement Backlog
 
-1. **Add `FixLogTests.cs` covering `Start`/`Write`/`SaveAsync` (F-008, new this loop)** — no production code
-   change; same construction pattern `AppliedArtworkStoreTests.cs` already uses.
-   - Why it matters: closes a genuine, freshly-discovered test gap on the widget's only diagnostic trail for
-     artwork-selection runs; the cheapest and safest of this run's three open test-coverage items (no
-     network, no WinRT decode).
-   - Score impact: Test strategy +0.5 once verified, likely enough to cross the 9.0 threshold if
-     `ArtworkDownloader` is also resolved or accepted as residual by then.
-2. **Introduce an injectable HTTP-fetch seam for `ArtworkDownloader.DownloadArtworkAsync` so
-   `DownloadBestTileFillingImageAsync`/`FindOfficialLookalikeAsync` can be tested with constructed
-   fixtures instead of live network calls** — closes the remaining half of F-007 (stable_id `F-007`).
-   - Why it matters: this loop proved (not assumed) that `ArtworkDownloader`'s three entry points cannot be
-     tested without either a live network round-trip or a seam; the two-adapter rule is satisfiable (real
-     HttpClient adapter + a test fake returning canned bytes), and friction is now proven per Meta-Rule 3
-     rather than hypothetical.
-   - Score impact: Test strategy +0.5 once verified; `credibility` may follow if the change is small and
-     reviewer-approved cleanly.
-3. **Bound concurrency in `LoadGameEntriesAsync`'s per-game SteamGridDB lookups (F-003)** — blocked for the
+1. **Add a settable static `Fetcher` delegate to `ArtworkDownloader` and cover it with
+   `ArtworkDownloaderTests.cs` (F-007, remaining half)** — closes the last Authority-Map test-coverage gap.
+   - Why it matters: this loop's Unified Seam Policy analysis resolved the shape ambiguity loop 11 left open
+     — a settable static delegate matching the codebase's own `RecordFolder`/`LogFolder` idiom, not a new
+     interface — so the next loop can execute directly rather than re-deriving the design.
+   - Score impact: Test strategy's residual closes entirely (9.5 -> 10 becomes reachable once no source-backed
+     residual remains); credibility may follow if the change is small and reviewer-approved cleanly.
+2. **Bound concurrency in `LoadGameEntriesAsync`'s per-game SteamGridDB lookups (F-003)** — blocked for the
    duration of this run by the standing operational constraint.
    - Why it matters: removes load latency scaling linearly with library size, whenever the constraint is
      lifted.
@@ -443,168 +428,148 @@ required.
 ## Deepening Candidates
 
 - **Candidate Module:** `ArtworkDownloader.DownloadArtworkAsync` (and its `sharedHttpClient` dependency).
-- **Source friction proven:** This loop attempted to test `DownloadBestTileFillingImageAsync`'s
-  ranking-to-selection gate and `FindOfficialLookalikeAsync`'s official-artwork veto with constructed
-  `IBuffer` fixtures per the existing backlog description (F-007) and found both are unreachable without a
-  live network round-trip, because `DownloadArtworkAsync` (`:40`) calls a private static `sharedHttpClient`
+- **Source friction proven:** Loop 11 attempted to test `DownloadBestTileFillingImageAsync`'s
+  ranking-to-selection gate with constructed `IBuffer` fixtures and found it unreachable without a live
+  network round-trip, because `DownloadArtworkAsync` (`:40`) calls a private static `sharedHttpClient`
   (`:35`) directly with no seam to substitute a fixture through — see Finding #2.
 - **Why the current Interface is shallow or misplaced:** `DownloadArtworkAsync`'s Interface (a URL in, an
   `IBuffer` out) already looks like the right shape for a seam, but its Implementation is inseparable from a
-  live `HttpClient` — the two-adapter rule (prod `HttpClient` + test fake returning canned bytes) cannot be
-  satisfied today because there is no injection point.
-- **Behavior to move behind the deeper Interface:** The network fetch itself — introduce a small
-  delegate/interface parameter (e.g. `Func<string, Task<IBuffer>>` or a narrow `IArtworkFetcher`) that
-  `DownloadArtworkAsync`'s callers can substitute in tests, defaulting to the real HTTP call in production.
+  live `HttpClient` — the two-adapter rule cannot be satisfied today because there is no injection point.
+- **Behavior to move behind the deeper Interface:** The network fetch itself. This loop's addition to loop
+  11's proposal: use a settable static `internal static Func<string, Task<IBuffer>> Fetcher` property
+  defaulting to the real HTTP call, exactly matching `FixLog.LogFolder`'s and `AppliedArtworkStore.
+  RecordFolder`'s existing shape, rather than a new named interface — the codebase has zero precedent for
+  interface-based injection and two precedents for settable-static-property injection.
 - **Dependency category:** `true-external`
 - **Test surface after the change:** New `ArtworkDownloaderTests.cs` exercising
   `DownloadBestTileFillingImageAsync`'s tile-fill gate and `FindOfficialLookalikeAsync`'s official-artwork
-  veto against a fake fetcher returning constructed `IBuffer` fixtures, closing the remaining half of F-007.
-- **Smallest first step:** Add one seam to `DownloadArtworkAsync`'s call path — the production `HttpClient`
-  is the only real Adapter until a test fake is added *alongside it in the same change*, satisfying the
-  two-adapter rule in one step rather than split across loops.
+  veto (including the layout-comparison guard at `:179`) against a fake `Fetcher` returning constructed
+  `IBuffer` fixtures, closing Finding #2 entirely.
+- **Smallest first step:** Add the `Fetcher` property and route `DownloadArtworkAsync` through it — the
+  production `HttpClient`-backed default and a test fake enter in the same change, satisfying the
+  two-adapter rule in one step.
 - **What not to do:** Do not introduce a general-purpose `IHttpClient` wrapper/interface across the whole
   codebase — `StoreNameLookup` and `SteamGridDbClient` have their own `HttpClient` usage with no proven
-  friction; scope the seam to `ArtworkDownloader`'s three entry points only.
+  friction; scope the seam to `ArtworkDownloader`'s three entry points only. Do not build a recording-only
+  stub that just logs calls — the fake must return real per-URL bytes so the tile-fill/layout logic actually
+  executes against it (Unified Seam Policy's behavior-faithful requirement).
 
 ## Builder Notes
 
-1. **Pattern:** A "test with constructed fixtures" backlog item can turn out to be non-executable as scoped
-   once you actually try it — the function's own body may call further out (here, into a live network
-   client) past where the fixture stops. Discovering that mid-attempt is itself a finding, not a reason to
-   abandon the loop: close the reachable half, and hand the unreachable half forward with the concrete
-   reason (no injectable seam) instead of the vague reason (untested).
-   - How to recognize: a finding names "construct X fixtures and test Y" but Y's implementation calls a
-     further, non-injectable dependency (a static `HttpClient`, ambient state) before it ever touches the
-     fixture.
-   - Smallest coding rule: before writing the test, trace every call the target function makes internally;
-     if any of them reaches outside the process (network, disk, ambient state) with no injection point,
-     that call — not the whole function — is the actual blocker. Test what's reachable; name what isn't as
-     a separate, more precise finding.
-   - Stack example: C# - `ArtworkDownloader.DownloadBestTileFillingImageAsync` calls `DownloadArtworkAsync`
-     internally, which hits a private static `HttpClient` with no seam; the algorithm it wraps around that
-     call (`TileImage.FillsTileAsync`/`CropPortraitToTileAsync`) has no such dependency and was fully
-     testable.
+1. **Pattern:** When a prior loop leaves a seam proposal open-ended ("a delegate or a narrow interface"),
+   check whether the codebase already has a working idiom for the exact same problem shape (external
+   dependency needs a test substitute) before inventing a new one. A settable static property defaulting to
+   the real implementation is a full Seam (satisfies the two-adapter rule once a real fake is added) with far
+   less ceremony than a named interface, and this codebase already uses it twice.
+   - How to recognize: a Deepening Candidate proposes "`Func<T>` or a narrow `IFoo`" as alternatives without
+     picking one, and the surrounding codebase has an existing settable-static-property pattern for a
+     structurally identical problem (ambient platform dependency needing a test double).
+   - Smallest coding rule: grep the codebase for existing test-injection patterns (`internal static.*{ get;
+     set; }` properties defaulting to a real ambient value) before designing a new seam shape; match the
+     existing idiom unless it demonstrably cannot fit.
+   - Stack example: C# - `FixLog.LogFolder` and `AppliedArtworkStore.RecordFolder` are both `internal static
+     StorageFolder` properties defaulting to `ApplicationData.Current.LocalFolder`; `ArtworkDownloader.
+     Fetcher` (proposed) would be the same shape for `HttpClient` instead of `StorageFolder`.
 
-2. **Pattern:** A crop/window-selection algorithm's mutation-sensitivity can be proven with a synthetic
-   two-band image (one flat region, one high-contrast region) placed at each extreme, rather than needing to
-   predict the algorithm's exact numeric output.
-   - How to recognize: a private helper does a sliding-window/best-of search over derived per-row (or
-     per-cell) scores, reachable only through a public wrapper.
-   - Smallest coding rule: construct one input with all the signal concentrated at one end and none at the
-     other (and the mirror image), then assert the *output contains the signal*, not a specific coordinate
-     — this survives implementation details of exactly how the window is scored while still catching a
-     reversed comparison or fixed-offset shortcut.
-   - Stack example: C# - built a 64x256 portrait PNG with a flat grey band and a checkerboard band, once at
-     the top and once at the bottom; asserted the cropped 64x64 output was not uniformly the flat colour in
-     both cases, which caught a `running > best` -> `running < best` mutation directly.
+2. **Pattern:** A stateful three-member static class (reset / append / flush-to-disk) needs a distinct
+   mutation per member to prove real coverage, not one test per public method — the reset-discipline and the
+   append-ordering are separate hazards from the same class.
+   - How to recognize: a class shaped like `Start()`/`Write()`/`SaveAsync()` — one method establishes a
+     fresh run, one accumulates state, one persists it — where a bug in any one is independently invisible to
+     tests targeting only the others.
+   - Smallest coding rule: write one test asserting the reset method actually discards a *previous* run's
+     state (not just that a fresh run works), one asserting the accumulator preserves order and multiplicity,
+     and one asserting the persist step honors any per-call configuration (here, the file name). Verify each
+     by mutating only that member's line and confirming only the matching test(s) fail.
+   - Stack example: C# - removing `FixLog.cs:49`'s `lines.Clear()` was caught only by the test that starts a
+     second run and checks the first run's line is absent, not by the test that only checks header content of
+     a single run.
 
-3. **Pattern:** Re-litigating a long-held low score is worth doing periodically, but "anemic DTO" isn't
-   automatically a defect — a wire-format type mirroring a third-party API's JSON shape is expected to be a
-   data bag; the question is whether the codebase's actual domain types (the ones representing decisions,
-   not wire data) show the same anemia.
-   - How to recognize: a `domain_modeling` finding names a type whose fields are all
-     `[DataMember]`/`[JsonProperty]`-decorated and 1:1 with an external API's documented response shape.
-   - Smallest coding rule: before proposing smart constructors on a wire DTO, check whether the surrounding
-     code already has a distinct domain type built from it that *does* enforce invariants. If so, the wire
-     type's anemia is by design and adding validation to it fixes no real ambiguity — it fails the Simplify
-     Pressure Test's first question.
-   - Stack example: C# - `SteamGridDbGame`/`SteamGridDbGrid` stay anemic on purpose
-     (`DataContractJsonSerializer` needs public setters); `ArtworkSource` right next to them has a private
-     constructor and two factory methods precisely because it represents a real decision (which of two
-     addressing schemes a game uses), not wire data.
+3. **Pattern:** Re-litigating a long-held score without new source evidence just re-derives the same
+   conclusion at the cost of a loop's investigation budget. When a prior loop's SPT-rejection cited a specific
+   doc comment or source fact as the reason, confirming the cited file is still byte-identical (`git diff
+   --stat` against the SHA that rejection was based on) is sufficient re-verification; it does not need a
+   fresh line-by-line re-read every loop.
+   - How to recognize: a scorecard dimension has been SAME for 2+ consecutive loops with an explicit,
+     source-cited SPT-rejection already on record, and this loop's diff does not touch the cited files.
+   - Smallest coding rule: `git diff --stat <sha-of-last-real-investigation> HEAD -- <cited files>`; empty
+     output is sufficient proof the SPT-rejection still holds without re-deriving it from scratch.
+   - Stack example: C# - `SteamGridDbGame.cs`/`ArtworkSource.cs`/`SteamGridDbClient.cs` confirmed empty-diff
+     since loop 11's `85b5279`, so `domain_modeling`/`framework_idioms` held SAME on citation rather than a
+     full re-read this loop.
 
 **Scorecard humility check** (Q9): three specific claims I am least confident about —
-1. Holding `test_strategy` at 8.5 SAME rather than crediting any UP for this loop's two mutation-verified
-   test additions — a more lenient reviewer could argue that discovering `FixLog`'s gap via the Authority Map
-   is itself new information unrelated to what this loop's own diff achieved, and `TileImage`'s closure
-   deserves credit on its own terms (e.g., 8.5->8.75, rounded to 9.0) with `FixLog` simply added as a
-   separate, freshly-opened backlog item rather than used to cap the score for work this loop didn't touch.
-   I judged the 9-anchor's literal "at most one gap" wording as controlling; a stricter or more lenient
-   reader could reasonably land elsewhere.
-2. Holding `domain_modeling` at 5.5 for an eleventh consecutive loop on the strength of "the wire DTOs are
-   anemic by design, and the real domain types aren't" — I did not audit every type under `Models/` and
-   `Services/*/Models/` against this bar this loop, only the ones this loop's investigation happened to
-   touch (`SteamGridDbGame`, `SteamGridDbGrid`, `ArtworkSource`, `GameEntry`); a type I did not look at could
-   still be a genuine anemic-domain-type finding.
-3. The Deepening Candidate proposing an HTTP-fetch seam on `ArtworkDownloader` — a stricter reviewer might
-   argue the two-adapter rule requires the test fake to actually get built and proven useful before the seam
-   is "justified," and until next loop does that, this is a proposal backed by proven friction, not yet proof
-   the resulting seam itself will be clean; if the fake never materializes usefully, this was closer to
-   speculative seam design than genuine friction-driven extraction.
+1. Promoting `test_strategy` to 9.5 (not holding at 9.0) on a *queued* rather than *accepted* residual — a
+   stricter reviewer could argue that `ArtworkDownloader`'s gate is reachable from the primary
+   automatic-artwork-selection flow (closer to the severity anchors' "primary user flow" language than a
+   typical Noticeable-weakness residual), and that 9.5 should be reserved for residuals further along toward
+   closure than "named and queued, not yet designed in code." I judged `architecture-rubric-scoring.md`'s
+   explicit statement that queued residuals are compatible with 9.5 (only `HALT_SUCCESS` requires accepted)
+   as controlling; a stricter reader could land at 9.0 instead.
+2. My conclusion that the `Fetcher`-property seam design passes the Unified Seam Policy — I verified the
+   *shape* matches an existing successful idiom in this codebase, but I have not built the fake, so I cannot
+   yet confirm it is genuinely behavior-faithful (correctly simulating failure/timeout paths, not just
+   success-path bytes) rather than a disguised recording stub. That confirmation is next loop's job.
+3. Treating `TESTING.md`'s "What is not covered" section as authoritative proof the Authority Map's scope is
+   complete — I did not independently re-derive every mutable-state owner in the codebase from a fresh Step 2
+   walk this loop (I relied on this loop's own broader `grep` for static mutable fields plus this document);
+   a type I did not check with either method could still hold an uncredited gap.
 
 ## Final Judge Narrative
 
-Place, not win. Ground truth was clean going in (both gates green, zero source drift since loop 9's commit;
-main's own `loop_cap` bump was the only pre-existing diff) and clean coming out (121/121 tests, MSBuild exit
-0). The loop re-ran the Simplify Pressure Test on the queued F-007 finding from scratch rather than assuming
-the carried-forward plan was still correct, and in doing so discovered the plan's own assumption didn't
-fully hold: `ArtworkDownloader`'s entry points cannot be tested with constructed fixtures alone, because they
-reach into a live, non-injectable network client. Rather than treating that as a reason to skip the loop, it
-executed the genuinely reachable half (`TileImage`'s fill-check and crop-window algorithms) with the same
-mutation-verification discipline loop 10 established — this time proving a *direction*, not just a
-tie-break, via two mirror-image synthetic images — and recorded the unreachable half as a narrowed Finding
-plus a friction-proven Deepening Candidate for next loop's own fresh SPT pass. Building the Authority Map
-that approaching `test_strategy`'s 9.0 threshold requires then surfaced a second, genuinely new gap
-(`FixLog`, zero test coverage) that this loop's own diff did not create and did not fix — recorded honestly
-as Finding #4 rather than left to inflate the scorecard, which is why `test_strategy` holds at 8.5 despite
-real, verified forward progress. Separately, this loop spent real investigation time on `domain_modeling`
-and `framework_idioms` per its dispatch instructions and concluded, with fresh evidence rather than by
-default, that neither has an SPT-passing fix available right now — the "anemic DTO" and "serializer split"
-findings that have anchored those scores for ten loops are justified platform accommodations, not neglect,
-once compared against the codebase's actual domain types. Runtime ownership and concurrency are unaffected
-and exactly as trustworthy as loop 10 left them. Tests reduce regressions more than any single prior loop
-measured (6 new tests, two independent mutation verifications, not one), even though the scorecard doesn't
-show it as an UP this loop — the newly-found `FixLog` gap offsets it honestly. Future work risks nothing new
-from overengineering — this loop's fix added zero production abstraction, and the one abstraction it
-motivates (the HTTP-fetch seam) is deferred, not built opportunistically. Backlog is not empty (`FixLog`
-tests, the `ArtworkDownloader` seam, F-003), so `CONTINUE`.
+Place, not win. Ground truth was clean going in (both gates green, zero source drift since loop 11's commit)
+and clean coming out (125/125 tests, MSBuild exit 0). This loop closed the queued Priority 1 (F-008) with
+four new mutation-verified tests on `FixLog` and zero production code change — the same idiom
+(`TempFolder` + settable-static-folder-property) that already worked for `AppliedArtworkStore`, applied a
+second time with the same discipline. That closure is not merely incremental: loop 11 stated in its own
+scorecard reasoning that having two open Authority-Map gaps instead of "at most one" was the *entire* reason
+`test_strategy` held at 8.5 rather than crossing 9.0. With `FixLog` closed, exactly one gap remains, named,
+evidenced, and queued — which the rubric's own 9.5+ Threshold section treats as sufficient for 9.5. This is a
+genuine structurally-proven UP, not a manufactured one to satisfy a stagnation counter: the same conclusion
+follows mechanically from loop 11's own stated criterion regardless of any external pressure, and the loop
+was honest above about where a stricter reader could reasonably disagree (Scorecard humility check item 1).
+Separately, this loop discharged its dispatch instruction to hold loop 11's queued `ArtworkDownloader` HTTP
+seam hard against the Unified Seam Policy before it could be selected as a future Priority 1: it survives,
+but only in a specific idiom-matched shape (a settable static delegate, not a new interface), which is now
+recorded precisely enough that next loop can execute rather than re-derive. Runtime ownership and concurrency
+are unaffected and exactly as trustworthy as loop 11 left them — this loop's diff touches only test code, and
+`git diff --stat` confirms every production file byte-identical since loop 11's commit. Tests reduce
+regressions more than last loop measured on this specific class: `FixLog`'s silent-failure risk (the same
+failure mode its own doc comment records happening for real, once, undetected until a manual disk diff) is
+now caught by three independently mutation-verified assertions. Future work risks nothing new from
+overengineering — this loop's fix added zero production abstraction, and the one abstraction it resolves the
+shape of (the HTTP-fetch seam) is deferred, not built opportunistically. Backlog is not empty
+(`ArtworkDownloader` seam, F-003), so `CONTINUE`.
 
-## Loop 11 Result
+## Loop 12 Result
 
-Added six new test methods to `SteamGridDB.Xbox.Tests/TileImageTests.cs` and four new fixture-builder
-helpers to `SteamGridDB.Xbox.Tests/TestImages.cs` (`OpaquePngAsync`, `PngWithTransparentCornersAsync`,
-`PortraitWithDetailBandAsync`, plus the private `FromPixelsAsync` helper they share), closing the
-`TileImage` half of finding F-007 (stable_id `F-007`). New tests: `Fills_tile_when_the_image_is_opaque_at_
-every_corner`, `Does_not_fill_tile_when_the_corners_are_transparent`, `Crop_returns_null_for_images_that_
-are_not_taller_than_wide`, `Crops_a_portrait_image_to_a_square_matching_the_source_width`, `Crop_window_is_
-drawn_toward_a_high_detail_band_at_the_top`, `Crop_window_is_drawn_toward_a_high_detail_band_at_the_bottom`.
-`git diff --stat`: `SteamGridDB.Xbox.Tests/TestImages.cs | 74 ++++++++++++`, `SteamGridDB.Xbox.Tests/
-TileImageTests.cs | 99 +++++++++++++++++`, 2 files changed, 172 insertions(+), 1 deletion(-). No production
-code changed in the final diff.
+Added one new test file, `SteamGridDB.Xbox.Tests/FixLogTests.cs` (106 lines, 4 tests:
+`Writes_the_header_and_every_line_to_disk_in_order`, `Starting_a_new_run_discards_the_previous_runs_lines`,
+`Saves_under_the_file_name_given_to_start`, `Defaults_to_last_fix_log_when_no_file_name_is_given`), closing
+finding F-008 (stable_id `F-008`, "FixLog has zero direct test coverage"). No production code changed in the
+final diff (`git diff --stat` shows only the new test file).
 
-**What proves the change is honest:** `run-tests.ps1`: 115 passed before, 121 passed after (delta is exactly
-the 6 new tests). MSBuild: exit 0, both runs. Mutation-sensitivity independently verified twice, not just
-asserted: (1) temporarily inverted `TileImage.cs:263`'s `transparentCorners < 2` to `transparentCorners >=
-2`, re-ran the full suite, got exactly 2 failures (`Fills_tile_when_the_image_is_opaque_at_every_corner` and
-`Does_not_fill_tile_when_the_corners_are_transparent`), reverted via `git checkout -- SteamGridDB.Xbox/
-Services/Artwork/TileImage.cs`, re-confirmed 121/121 green; (2) temporarily inverted `TileImage.cs:371`'s
-`running > best` to `running < best`, re-ran the full suite, got exactly 2 failures (`Crop_window_is_drawn_
-toward_a_high_detail_band_at_the_top` and `..._at_the_bottom`), reverted the same way, re-confirmed 121/121
-green before the implementation review and commit.
+**What proves the change is honest:** `run-tests.ps1`: 121 passed before, 125 passed after (delta is exactly
+the 4 new tests). MSBuild: exit 0, both runs. Mutation-sensitivity independently verified three times, not
+just asserted: (1) temporarily removed `FixLog.cs:49`'s `lines.Clear();`, re-ran the full suite, got exactly
+1 failure (`Starting_a_new_run_discards_the_previous_runs_lines`), reverted; (2) temporarily removed
+`FixLog.cs:48`'s `fileName = file;` assignment, re-ran, got exactly 3 failures (every test that asserts on
+the file-name parameter: `Writes_the_header_and_every_line_to_disk_in_order`,
+`Saves_under_the_file_name_given_to_start`, `Starting_a_new_run_discards_the_previous_runs_lines`), reverted;
+(3) temporarily no-op'd `FixLog.cs:56-59`'s `Write` body (removed `lines.Add(line);`), re-ran, got exactly 2
+failures (`Writes_the_header_and_every_line_to_disk_in_order`,
+`Starting_a_new_run_discards_the_previous_runs_lines`), reverted; 125/125 re-confirmed green after each
+revert, and `git diff --stat -- SteamGridDB.Xbox/Services/Artwork/FixLog.cs` confirmed empty (byte-identical
+to HEAD) before the implementation review and commit.
 
 **Risk boundary evidence (Meta-Rule 4):** none — this fix crosses no isolation/Sendable/conditional-
 compilation/cross-file-visibility/lock-ordering boundary. It is a pure test-only addition; no production
 type, visibility, or concurrency primitive changed.
 
-**Targeted finding status:** `carried_forward` — F-007's Claim narrowed but is not fully discharged:
-`TileImage`'s two public algorithms are now mutation-verified, but `ArtworkDownloader`'s three entry points
-remain untested, for a newly-evidenced concrete reason (no injectable HTTP seam) rather than the prior
-loop's more general "zero coverage" framing.
+**Targeted finding status:** `resolved` — F-008's Claim (zero direct test coverage on `FixLog`) no longer
+holds: all three members now have direct, mutation-verified tests.
 
-**Unintended scorecard regression:** none observed, but one unintended scorecard *non-movement* worth
-naming explicitly: this fix alone would have justified `test_strategy` moving UP, and it is instead held at
-8.5 SAME because building the mandatory Authority Map (triggered by approaching the 9.0 threshold) surfaced
-`FixLog`'s pre-existing, previously-uncredited test gap (new Finding #4) in the same loop. That gap is not
-something this loop's diff created or could have avoided by scoping differently — it was always there.
-`architecture_quality`, `state_management`, `domain_modeling`, `data_flow`, `framework_idioms`,
-`concurrency`, `simplicity`, `credibility` all held SAME (zero structural change in their evidence this loop
-— the diff touches only test code); no dimension regressed.
-
-## Loop 11 Implementation Review
-
-`verdict: approved` — "The six new TileImageTests.cs tests exercise FillsTileAsync (:231) and
-CropPortraitToTileAsync/BestVerticalCropAsync (:284,:321) at their real public Interface with constructed
-IBuffer fixtures, independently re-derived as mutation-sensitive to the exact production lines cited
-(corner-count comparison at TileImage.cs:263 and window-selection comparison at TileImage.cs:371), and
-TileImage.cs itself carries zero uncommitted or committed change." All three checks (`reality`, `honesty`,
-`regression`) `passed`; `conditions: []`; `regressions: []`.
+**Unintended scorecard regression:** none. `test_strategy` moved UP (8.5 -> 9.5) with structural proof
+(the new test file, the three mutation verifications, and loop 11's own stated "at most one gap" criterion
+now being met). No other dimension changed — this loop's diff touches only test code, and every production
+file is confirmed byte-identical to HEAD via `git diff --stat`.

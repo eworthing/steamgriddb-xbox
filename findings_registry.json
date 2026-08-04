@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 1,
@@ -148,6 +148,18 @@
             "evidence_paths_hash": "sha256:b92f7bc788522fe2ef2795ef02d60c98d688aac64f0e2cd8e1a302f2de955806"
           },
           "attempted_remedy_hash": "sha256:f5a010436a3240d004232ff03bd957bcf201532b90ec4640b296fb3668907092"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "85b5279",
+          "note": "Re-verified this loop via fresh direct read of LoadGameEntriesAsync (:332-611 read in full). Core claim (image decode, backup check, and per-game network resolution still merged in the nested foreach at :436) unaffected - this loop's own diff touches only SteamGridDB.Xbox.Tests/FixLogTests.cs (new file). Confirmed via git diff --stat 05501e0 HEAD that PrimaryWidget.xaml.cs has been byte-identical for three loops running (9, 10, 11, 12). No further slice queued this loop without fresh evidence. loop_result.targeted_finding_status: carried_forward (this loop's own target was F-008, not F-001).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:31e7aa87a4db5e827d12065a5a1893b6f981e55a87a9b44e4b0b06620301dc61",
+            "evidence_paths_hash": "sha256:cda0a07cd2672b51689817718c8fd1fce2dcaaa180a53f71c3d6f25debb78aca"
+          },
+          "attempted_remedy_hash": "sha256:6f10bb32563e047f6ffb78410b706bc19c444bb86b92160c2ec08096e21b2574"
         }
       ]
     },
@@ -204,7 +216,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 1,
@@ -333,6 +345,18 @@
           "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched (this loop's diff is confined to SteamGridDB.Xbox.Tests/TestImages.cs and TileImageTests.cs), await sites unchanged at :562,584,593,602 (confirmed via this loop's own direct read). Still ruled out by the same standing operational constraint; re-grepped codebase-wide for Task.WhenAll/Parallel.*/Task.Run this loop, zero hits. Priority 2 in loop 11's backlog (behind the new ArtworkDownloader-seam item).",
           "fingerprint": {
             "claim_consequence_hash": "sha256:1e35d362994d50b8d773a75027ce0ad865f4a47877477cba0b2076e66e7fecab",
+            "evidence_paths_hash": "sha256:04f287e8db6511f9c80f9d076da7c97e5f62117a9521b390a2ffd76656442065"
+          },
+          "attempted_remedy_hash": "sha256:b1b780524ff409da4e0bb2b9472891d0668c72159eb9503a18c84136e88650e8"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "85b5279",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs unchanged (this loop's diff is confined to SteamGridDB.Xbox.Tests/FixLogTests.cs, a new file), await sites unchanged at :562,584,593,602. Still ruled out by the same standing operational constraint; re-grepped codebase-wide for Task.WhenAll/Parallel.*/Task.Run this loop, zero hits. Priority 2 in loop 12's backlog (behind the ArtworkDownloader-seam item, now refined with an idiom-matched design).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:4f2c345babb5f0676f31b8c04d14546f1b8249964513ad81776f6c48fac47989",
             "evidence_paths_hash": "sha256:04f287e8db6511f9c80f9d076da7c97e5f62117a9521b390a2ffd76656442065"
           },
           "attempted_remedy_hash": "sha256:b1b780524ff409da4e0bb2b9472891d0668c72159eb9503a18c84136e88650e8"
@@ -534,7 +558,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "71224de",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 9,
@@ -571,6 +595,18 @@
             "evidence_paths_hash": "sha256:43e4010d84df00eddd137d692971fcade71d45d64747704429e04ddd2b2c8eab"
           },
           "attempted_remedy_hash": "sha256:e009dc0ef18f86cec3f7ca750cd1dab2a047293ef2af6780ff6637c557c79fde"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "85b5279",
+          "note": "Re-verified this loop: ArtworkDownloader.cs confirmed unchanged since loop 11. Per this loop's dispatch instructions, held loop 11's queued Deepening Candidate (an injectable HTTP-fetch seam) hard against the Unified Seam Policy before it could be selected: it survives, but only in a specific idiom-matched shape (a settable static delegate property matching FixLog.LogFolder/AppliedArtworkStore.RecordFolder, not a new interface/protocol) - refined the Claim/evidence/remedy to name this shape precisely and cross-reference StoreNameLookup's four network-bound writers as the same category of gap. Now the sole remaining Authority-Map test-coverage gap after F-008's resolution this loop. Promoted to Priority 1 in loop 12's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:65c5a680189f1bc49168e07712c2e6f314bbef48b33fd41cbd079457dc1486e8",
+            "evidence_paths_hash": "sha256:eb6c05b07ae53d9f37d7e20072d5517c66df304656594a5342997c6839fbe2b9"
+          },
+          "attempted_remedy_hash": "sha256:38e11884d982068d9f8ce883298f1c0a7d8ff2f34193bf5e74a8ec51aeb18d76"
         }
       ]
     },
@@ -587,7 +623,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 11,
       "first_seen_sha": "b042f75",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 11,
@@ -600,6 +636,18 @@
             "evidence_paths_hash": "sha256:4b90aece0fbe5218d582e0ab6fe4839960563c1a6b94279390b2aea1502a9b66"
           },
           "attempted_remedy_hash": "sha256:269393f729eaee27d9ea455b9c978bd6f0692152a80eb3b14aae9a4e09fafb71"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F4",
+          "status": "resolved",
+          "sha": "85b5279",
+          "note": "Resolved this loop: added SteamGridDB.Xbox.Tests/FixLogTests.cs (4 tests) covering Start/Write/SaveAsync at their real public Interface. Independently verified mutation-sensitive three times: removed FixLog.cs:49's lines.Clear() (1 failure), removed FixLog.cs:48's fileName = file assignment (3 failures), no-op'd FixLog.cs:58's lines.Add(line) (2 failures); all reverted, 125/125 re-confirmed green, git diff --stat on FixLog.cs empty. Reviewer verdict: approved (reality/honesty/regression all passed). sha recorded below is the commit examined at Step 1 (loop 11's HEAD), not the resolving commit, following loop 5/9/10's precedent - this run's practice avoids a second bookkeeping commit to self-reference the resolving sha.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:f1b61faf74ff8fc371984064b829ceded2ccbc976637236e900f72ed09b5974a",
+            "evidence_paths_hash": "sha256:0fe426846b9a11b587067377bf2a85952bb75c105b0453360fd7039547e7420a"
+          },
+          "attempted_remedy_hash": "sha256:461eb14d564490e375ec6f68bfe2b350de75373778c63fe88dae1f71dfb24989"
         }
       ]
     }

@@ -4788,3 +4788,184 @@ IBuffer fixtures, independently re-derived as mutation-sensitive to the exact pr
 (corner-count comparison at TileImage.cs:263 and window-selection comparison at TileImage.cs:371), and
 TileImage.cs itself carries zero uncommitted or committed change." All three checks (`reality`, `honesty`,
 `regression`) `passed`; `conditions: []`; `regressions: []`.
+
+--- Loop 12 (UTC 2026-08-04T17:18:21Z) ---
+
+### Discovery
+See Loop 1 Discovery (refreshed Loop 7). Ground truth this loop: 121 tests passing before / 125 after;
+MSBuild exit 0 both runs; zero source drift since loop 11's commit `85b5279`. Selected lens: Generic
+(C#/.NET / UWP-hosted WinUI stack).
+
+### Loop Counter
+Loop 12 of 15
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+
+**Promising, but architecturally immature.**
+
+Both gates green before and after (121->125 tests, MSBuild exit 0). Closed this run's queued Priority 1
+(F-008, `FixLog` has zero direct test coverage) with four new mutation-verified tests and zero production
+code change. Loop 11 was explicit that the *only* thing keeping `test_strategy` at 8.5 rather than crossing
+9.0 was having two open Authority-Map gaps (`ArtworkDownloader` and `FixLog`) instead of the 9-anchor's "at
+most one." With `FixLog` now closed, exactly one gap remains (`ArtworkDownloader`'s three network-bound
+entry points, cross-referenced with `StoreNameLookup`'s four network-bound writers), named, evidenced, and
+queued in the Improvement Backlog — which promotes `test_strategy` to 9.5 with a queued residual, a genuine
+structurally-proven UP, not a manufactured one. Also evaluated loop 11's queued Priority 2 (an injectable
+HTTP-fetch seam for `ArtworkDownloader`) against the Unified Seam Policy per this loop's dispatch
+instructions: it survives, but only in a specific idiom-matched shape (a static delegate injection point
+matching the codebase's existing `RecordFolder`/`LogFolder` pattern, not a new interface/protocol), recorded
+as a refined Deepening Candidate for next loop rather than built opportunistically inside this loop's
+test-only fix.
+
+## Scorecard (1-10)
+
+- **Architecture quality:** 7.0 | SAME | `PrimaryWidget.xaml.cs` confirmed byte-identical since loop 9's
+  commit `05501e0` via `git diff --stat 05501e0 HEAD` (empty); re-read `LoadGameEntriesAsync` (`:332-611`)
+  directly this loop and confirmed the same merge of image decode (`:520-522`), backup check (`:516`), and
+  per-game network resolution (`:562-609`) persists inside the nested `foreach` at `:436`.
+- **State management and runtime ownership:** 7.0 | SAME | `AppliedArtworkStore.cs` and `FixLog.cs`
+  production code confirmed byte-identical to HEAD this loop (`git diff --stat` shows only
+  `SteamGridDB.Xbox.Tests/FixLogTests.cs` added; zero production files touched).
+- **Domain modeling:** 5.5 | SAME | Not re-litigated this loop per this run's explicit prior finding (loop
+  11 SPT-rejected a construction-time-invariant fix on the wire DTOs). Confirmed via `git diff --stat` (empty
+  on `SteamGridDbGame.cs`/`ArtworkSource.cs`) that no new evidence exists this loop to reopen that question.
+- **Data flow and dependency design:** 6.0 | SAME | `StoreNameLookup.cs` read fresh this loop: the three
+  unlocked static caches (`:27-32`) confirmed unchanged.
+- **Framework / platform best practices:** 6.0 | SAME | Not re-litigated this loop per this run's explicit
+  prior finding (loop 11 SPT-rejected the `DataContractJsonSerializer`/`Windows.Data.Json` split as a
+  framework-idiom violation). Confirmed via `git diff --stat` (empty on `SteamGridDbClient.cs`) that no new
+  evidence exists this loop.
+- **Concurrency and runtime safety:** 6.5 | SAME | F-003's sequential per-game awaits
+  (`PrimaryWidget.xaml.cs:562,584,593,602`) re-confirmed at identical line numbers via this loop's own direct
+  read.
+- **Code simplicity and clarity:** 8.5 | SAME | This loop's diff is one new test file only
+  (`SteamGridDB.Xbox.Tests/FixLogTests.cs`, 106 lines) — no simplification, no new ceremony.
+- **Test strategy and regression resistance:** 9.5 | UP (from 8.5) | Closed F-008: added `FixLogTests.cs`
+  (4 tests) covering all three of `FixLog`'s members. Mutation-verified three times (removed
+  `lines.Clear()` at `:49` → 1 failure; removed `fileName = file` at `:48` → 3 failures; no-op'd
+  `lines.Add(line)` at `:58` → 2 failures; all reverted, 125/125 green). Closes the second of two
+  Authority-Map gaps loop 11 named as the sole reason `test_strategy` held at 8.5. With `FixLog` closed,
+  exactly one gap remains (`ArtworkDownloader`/`StoreNameLookup`, `true-external`, queued in the backlog) —
+  the 9-anchor's "at most one gap" bar is now met, and a queued residual is a valid disposition for 9.5.
+  Mandatory mutation-test mental-model check: `ArtworkDownloader.cs:179`'s `candidateLayout < chosenLayout`
+  comparison is the named residual.
+- **Overall implementation credibility:** 7.5 | SAME | Anti-double-counting convention: this loop's fix is
+  credited entirely to `test_strategy` rather than double-counted here.
+
+## Authority Map
+
+Re-emitted this loop per G24. Scope confirmed against `TESTING.md`'s own "What is not covered" section.
+
+- **Concern:** Applied-artwork record. **Owner:** `AppliedArtworkStore`. **Verdict:** Single and clear.
+  Direct test: `AppliedArtworkStoreTests.cs`.
+- **Concern:** Fix-run diagnostic log. **Owner:** `FixLog`. **Verdict:** Single and clear. **Direct test:
+  `FixLogTests.cs` (new this loop)** — was "no direct test file" through loop 11; closed this loop.
+- **Concern:** Store-name lookup caches and the artwork download/selection gate. **Owner:** `StoreNameLookup`
+  and `ArtworkDownloader`. **Verdict:** Single and clear ownership, but the sole remaining test gap
+  (`true-external` network calls with no injectable seam).
+
+## Strengths That Matter
+
+- `ArtworkSource`'s private-constructor-plus-factory-method design (`Services/SteamGridDB/
+  ArtworkSource.cs:15-51`) still makes "neither a platform-ID nor a game-ID" unrepresentable — unaffected
+  this loop.
+- `FixLog.LogFolder`'s settable-static-property pattern (matching `AppliedArtworkStore.RecordFolder`) let
+  this loop's fix reach full coverage with zero production risk — the same shape now proven twice, and
+  exactly the idiom the Deepening Candidate proposes reusing for `ArtworkDownloader`'s network seam.
+- The mutation-verification technique from loop 10/11 scaled to a third distinct case this loop — a stateful
+  three-member static class rather than a pure algorithm — and caught all three targeted mutations precisely.
+
+## Findings
+
+**F1 (F-001)** — `PrimaryWidget.xaml.cs` still merges UI event handling, image decode, network resolution,
+and bulk-operation orchestration behind zero Interface boundary. Serious deduction. Carried forward, no new
+evidence this loop reopens a further slice.
+
+**F2 (F-007)** — `ArtworkDownloader`'s three entry points and `StoreNameLookup`'s four network-bound writers
+remain untested because each calls the network directly with no injectable seam. Noticeable weakness.
+Refined this loop: held loop 11's queued HTTP-fetch seam Deepening Candidate against the Unified Seam
+Policy and resolved its shape — a settable static `Fetcher` delegate matching the codebase's existing
+`RecordFolder`/`LogFolder` idiom, not a new interface. Now the sole remaining Authority-Map test-coverage
+gap. Promoted to Priority 1.
+
+**F3 (F-003)** — Library load issues one sequential SteamGridDB round-trip per game with no bounded
+concurrency. Noticeable weakness. Blocked for the duration of this run by the standing operational
+constraint.
+
+**F4 (F-008)** — `FixLog` had zero direct test coverage. Noticeable weakness as discovered; **resolved this
+loop**. Added `FixLogTests.cs` (4 tests), independently mutation-verified against three separate production
+lines. Full evidence chain and mutation-verification detail in Loop 12 Result below.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Adding one new test file (`FixLogTests.cs`, 106 lines, 4 tests). No Module removed or restructured, no Seam introduced. |
+| New seam justified | false — no protocol/port/abstraction introduced this loop; the `ArtworkDownloader` seam is deferred, shape resolved but not built. |
+| Helpful simplification | None — test-coverage addition, not a simplification. |
+| Should NOT be done | Building the `ArtworkDownloader` HTTP seam this loop without its own fresh SPT pass; forcing a `domain_modeling`/`framework_idioms` finding with no new evidence; any further slice of F-001 with no new evidence. |
+| Tests after fix | Four new tests at `FixLog`'s existing public Interface, following the `TempFolder`-plus-settable-static-property pattern. Verified mutation-sensitive directly (three production lines mutated in turn). |
+
+## Improvement Backlog
+
+1. Add a settable static `Fetcher` delegate to `ArtworkDownloader` and cover it with `ArtworkDownloaderTests.
+   cs` (F-007, remaining half) — closes the last Authority-Map test-coverage gap; shape now resolved.
+2. Bound concurrency in `LoadGameEntriesAsync`'s per-game SteamGridDB lookups (F-003) — blocked for the
+   duration of this run by the standing operational constraint.
+
+## Deepening Candidates
+
+- **Candidate Module:** `ArtworkDownloader.DownloadArtworkAsync`. Friction proven loop 11. This loop's
+  refinement: a settable static `internal static Func<string, Task<IBuffer>> Fetcher` property defaulting to
+  the real HTTP call, matching `FixLog.LogFolder`'s/`AppliedArtworkStore.RecordFolder`'s existing shape
+  rather than a new named interface. `true-external`. What not to do: no general-purpose `IHttpClient`
+  wrapper across the codebase; no recording-only stub (the fake must return real per-URL bytes).
+
+## Builder Notes
+
+1. **Pattern:** When a prior loop leaves a seam proposal open-ended, check whether the codebase already has
+   a working idiom for the exact same problem shape before inventing a new one. → REVIEW_HISTORY.json
+   `loops[11].builder_notes` for full notes.
+2. **Pattern:** A stateful three-member static class (reset / append / flush-to-disk) needs a distinct
+   mutation per member to prove real coverage, not one test per public method. → REVIEW_HISTORY.json
+   `loops[11].builder_notes` for full notes.
+3. **Pattern:** Re-litigating a long-held score without new source evidence just re-derives the same
+   conclusion at the cost of a loop's investigation budget. → REVIEW_HISTORY.json `loops[11].builder_notes`
+   for full notes.
+
+## Final Judge Narrative
+
+Place, not win. Ground truth was clean going in and clean coming out (125/125 tests, MSBuild exit 0). This
+loop closed the queued Priority 1 (F-008) with four new mutation-verified tests on `FixLog` and zero
+production code change. Loop 11 stated in its own scorecard reasoning that having two open Authority-Map
+gaps instead of "at most one" was the entire reason `test_strategy` held at 8.5. With `FixLog` closed,
+exactly one gap remains, named, evidenced, and queued — sufficient for 9.5 per the rubric's own 9.5+
+Threshold section. Genuine structurally-proven UP, not a manufactured one: the same conclusion follows
+mechanically from loop 11's own stated criterion. Separately, this loop resolved the shape of loop 11's
+queued `ArtworkDownloader` HTTP seam against the Unified Seam Policy — a settable static delegate, not a new
+interface — precisely enough that next loop can execute rather than re-derive. Runtime ownership and
+concurrency unaffected. Backlog is not empty (`ArtworkDownloader` seam, F-003), so `CONTINUE`.
+
+## Loop 12 Result
+
+Added one new test file, `SteamGridDB.Xbox.Tests/FixLogTests.cs` (106 lines, 4 tests), closing finding
+F-008 (stable_id `F-008`). No production code changed in the final diff. `run-tests.ps1`: 121 passed before,
+125 passed after. MSBuild: exit 0, both runs. Mutation-sensitivity independently verified three times: (1)
+removed `FixLog.cs:49`'s `lines.Clear();`, got exactly 1 failure, reverted; (2) removed `FixLog.cs:48`'s
+`fileName = file;`, got exactly 3 failures, reverted; (3) no-op'd `FixLog.cs:58`'s `lines.Add(line);`, got
+exactly 2 failures, reverted; 125/125 re-confirmed green, `git diff --stat` on `FixLog.cs` empty before
+commit. **Risk boundary evidence:** none — pure test-only addition. **Targeted finding status:** `resolved`.
+**Unintended scorecard regression:** none; `test_strategy` moved UP (8.5 -> 9.5) with structural proof; no
+other dimension changed.
+
+## Loop 12 Implementation Review
+
+`verdict: approved` — "FixLogTests.cs genuinely exercises Start/Write/SaveAsync with content-based
+assertions, the three mutation-verification claims check out exactly against current FixLog.cs source, and
+the diff touches zero production code." All three checks (`reality`, `honesty`, `regression`) `passed`;
+`conditions: []`; `regressions: []`.
