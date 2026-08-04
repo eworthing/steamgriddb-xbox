@@ -415,7 +415,7 @@
           "loop": 8,
           "loop_local_id": "F1",
           "status": "resolved",
-          "sha": "<pending>",
+          "sha": "f1ecfd9",
           "note": "New this loop, and resolved the same loop: found while re-deriving F-001's evidence per the Anchor-check requirement, then independently verified via a new xunit test (JsonReadTests.cs) that the raw Windows.Data.Json GetNamedString overloads throw InvalidOperationException on a present-JSON-null member and that ContainsKey does not guard against it. All five call sites (id, addedDate, imagePath, title, installLocation/executableName) now route through JsonRead. Reviewer verdict: approved (reality/honesty/regression all passed). sha patched to the real commit sha in a same-loop follow-up commit once HEAD is known (self-referential sha cannot be embedded in the commit that creates it - same constraint loop 2's F-002 resolution hit).",
           "fingerprint": {
             "claim_consequence_hash": "sha256:854a37b8032727fd419521ace18354cbb5eaa858f38296cb22918dbeacd0c2fa",
