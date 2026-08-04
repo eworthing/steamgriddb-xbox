@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "loop": 5,
+  "loop": 6,
   "loop_cap": 10,
   "state": "CONTINUE",
   "halt_subtype": null,
@@ -26,123 +26,51 @@
   "findings_registry_path": "./findings_registry.json",
   "discovery": null,
   "verdict": "Promising, but architecturally immature",
-  "verdict_explanation": "This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) - F1's core claim is unchanged from loop 4. Instead it closed the Epic slice of the split-cache-ownership residual in Services/Stores/StoreNameLookup.cs, mirroring loop 4's already-approved GOG fix exactly and fully closing the cluster. F1, F-003, and F-004 all remain open.",
+  "verdict_explanation": "This loop did not touch PrimaryWidget.xaml.cs at all - F1's core claim is unchanged from loop 5, byte-for-byte. Instead it closed F-004 (open and unattempted since loop 1): AppliedArtworkStore and EpicLibrary no longer hand-implement their own copy of the check-lock-recheck-populate lazy-load skeleton; both now call a shared AsyncLazyCache<T>. F1's core claim and F-003 (concurrency, ruled out this run) remain open.",
   "scorecard": {
-    "architecture_quality": {
-      "score": 5.5,
-      "delta": "SAME",
-      "proof": "PrimaryWidget.xaml.cs is 2,278 LOC (down 13 lines from 2,291, all from the Epic cache-check block shrinking to a short call-and-assign) - not a reduction in merged-concern count. F1's core claim (UI event handling, backup/restore orchestration still merged with no Interface boundary) is completely unaffected by this loop's fix, which targeted a narrower, already-extracted module (StoreNameLookup), not the god-class itself.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "state_management": {
-      "score": 6.5,
-      "delta": "SAME",
-      "proof": "The Authority Map's Store-name-resolution-caches concern was already \"Single and clear\" before this loop (epicNameCache had exactly one writer, PrimaryWidget.LoadGameEntriesAsync, both before and after) - this loop closed a Locality/Interface-coherence gap for that concern, not a write-authority correctness defect, so this dimension does not move. isLibraryOperationRunning and AppliedArtworkStore.applied remain unchanged.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "domain_modeling": {
-      "score": 5.5,
-      "delta": "SAME",
-      "proof": "Unaffected by this loop's change; SteamGridDbClient.ParseOfficialCapsuleUrl (SteamGridDbClient.cs:144-199) still hand-parsed outside the DTO's own deserialization, verified unchanged this loop.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "data_flow": {
-      "score": 6.0,
-      "delta": "SAME",
-      "proof": "This loop's fix is entirely in-process reorganisation within an already-relocated module (StoreNameLookup). PrimaryWidget's direct call count into Services/Stores for the Epic path dropped from three call sites to one, but that is the same shape of evidence loop 4 deliberately credited to code_simplicity, not data_flow, for the identical GOG fix, to avoid double-counting one diff across two dimensions. Staying consistent with that established convention rather than re-litigating the judgment call (see Builder Notes scorecard-humility item 2).",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "framework_idioms": {
-      "score": 6.0,
-      "delta": "SAME",
-      "proof": "Unaffected by this loop's change. The two JSON idioms (DataContractJsonSerializer vs. ad hoc Windows.Data.Json) still coexist, verbatim.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "concurrency": {
-      "score": 5.5,
-      "delta": "SAME",
-      "proof": "Unaffected by this loop's change. F-003's fully sequential per-game round-trips (PrimaryWidget.xaml.cs:324-720) remain open. epicNameCache is still a plain, non-thread-safe Dictionary after this loop - narrowing its visibility to private changed nothing about its thread-safety, same as gogNameCache last loop.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "simplicity": {
-      "score": 7.0,
-      "delta": "UP",
-      "proof": "StoreNameLookup.GetOrFetchEpicNameAsync (StoreNameLookup.cs:203-222, new this loop) now owns the full check-cache/fetch/populate decision for Epic names, mirroring GetOrFetchGogNameAsync's shape exactly and preserving the two-source fallback order. The call site in PrimaryWidget.xaml.cs shrank from a 20-line inline block (:606-627 before this loop) to a 7-line call-and-assign (:606-612 now). epicNameCache moved from internal back to private (StoreNameLookup.cs:28). This closes the last remaining instance of the shallow-module gap Finding #1's evidence has tracked since loop 3: all four StoreNameLookup caches now share the same Interface-owns-the-decision shape. Same magnitude of structural proof as loop 4's GOG move, applied to the matching residual instance - not a bigger jump: F1's dominant concerns (UI handling, backup/restore) remain untouched.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "test_strategy": {
-      "score": 3.0,
-      "delta": "SAME",
-      "proof": "No test project exists; standing user instruction prohibits adding one this run. Verified unchanged this loop. Named, non-backlog-item blocker, as recorded loops 1-4.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "credibility": {
-      "score": 5.5,
-      "delta": "SAME",
-      "proof": "GetOrFetchEpicNameAsync introduces no new swallow site - it has no try/catch of its own, relying on EpicLibrary.GetDisplayNameAsync and StoreNameLookup.GetEpicGameNameAsync's existing internal catches, exactly matching GetOrFetchGogNameAsync's shape. GetGogGameNameAsync's own failure handling (StoreNameLookup.cs:70-74, swallows via Debug.WriteLine only) is untouched. Neither improves nor regresses this dimension.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    }
+    "architecture_quality":      {"score": 5.5, "delta": "SAME", "proof": "PrimaryWidget.xaml.cs is 2,278 LOC, byte-for-byte unchanged this loop (git diff touches only Services/Artwork/AppliedArtworkStore.cs, Services/Stores/EpicLibrary.cs, new Services/AsyncLazyCache.cs, and the .csproj); F1's core merged-concerns claim is untouched.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "state_management":          {"score": 6.5, "delta": "SAME", "proof": "AppliedArtworkStore's gate field is unchanged and still passed by reference into AsyncLazyCache<T>'s constructor; GetAsync/UpdateAsync still acquire it directly for their own critical sections. Ownership did not move, only the lazy-load's Locality.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "domain_modeling":           {"score": 5.5, "delta": "SAME", "proof": "SteamGridDbClient.ParseOfficialCapsuleUrl (SteamGridDbClient.cs:144-199) still hand-parsed outside the DTO's own deserialization, verified unchanged this loop.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "data_flow":                 {"score": 6.0, "delta": "SAME", "proof": "This loop's fix is in-process reorganisation of two already-leaf modules; consistent with loop 4/5's convention of crediting this shape of diff to code_simplicity, not data_flow.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "framework_idioms":          {"score": 6.0, "delta": "SAME", "proof": "Two JSON idioms (DataContractJsonSerializer vs. ad hoc Windows.Data.Json) still coexist, verbatim, unaffected by this loop's change.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "concurrency":               {"score": 5.5, "delta": "SAME", "proof": "F-003's fully sequential per-game round-trips (PrimaryWidget.xaml.cs:324-720) remain open; AsyncLazyCache<T> preserves the exact same locking sequence its two predecessors used, verified branch-by-branch - no improvement or regression.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "simplicity":                {"score": 7.5, "delta": "UP", "proof": "Services/AsyncLazyCache.cs (new, 61 lines) now owns the check-null/gate/re-check-null/populate/release skeleton once; AppliedArtworkStore.cs shrank 182->165 lines, EpicLibrary.cs shrank 144->121 lines; F-004 (open since loop 1) is fully closed with zero hand-duplicated lock code left in the repo.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "test_strategy":             {"score": 3.0, "delta": "SAME", "proof": "No test project exists; standing user instruction prohibits adding one this run. Verified unchanged this loop.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "credibility":               {"score": 5.5, "delta": "SAME", "proof": "AsyncLazyCache<T>.GetOrLoadAsync introduces no new swallow site - both wrapped loaders (LoadMapFromDiskAsync, ReadManifestsAsync) already catch and log their own failures internally, exactly as before.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false}
   },
   "authority_map": [
     {
       "concern": "Library-operation exclusivity",
       "owner": "PrimaryWidget instance",
       "allowed_writers": ["TryBeginLibraryOperation", "EndLibraryOperation"],
-      "readers": ["IsLibraryOperationBlocking", "header-button click handlers", "EditGameImage_Click", "SearchGameImage_Click", "RestoreBackup_Click"],
+      "readers": ["IsLibraryOperationBlocking", "all four header-button click handlers", "EditGameImage_Click", "SearchGameImage_Click", "RestoreBackup_Click"],
       "persistence_seam": null,
-      "async_mutation_entry_points": ["TryBeginLibraryOperation", "EndLibraryOperation"],
+      "async_mutation_entry_points": ["TryBeginLibraryOperation/EndLibraryOperation, called from every *_Click handler via a try/finally"],
       "verdict": "Single and clear"
     },
     {
-      "concern": "Applied-artwork record (AppliedArtworkStore.applied)",
+      "concern": "Applied-artwork record (AppliedArtworkStore.applied / now appliedCache)",
       "owner": "AppliedArtworkStore (static, Services/Artwork/)",
-      "allowed_writers": ["UpdateAsync (via SetAsync/ClearAsync)"],
-      "readers": ["GetAsync"],
+      "allowed_writers": ["UpdateAsync (via SetAsync/ClearAsync), gated by gate"],
+      "readers": ["GetAsync, also gated by gate (F-002, resolved loop 2)"],
       "persistence_seam": "applied-artwork.json in ApplicationData.Current.LocalFolder",
       "async_mutation_entry_points": ["SetAsync (from ReplaceImageCoreAsync)", "ClearAsync (from RestoreBackupCoreAsync)"],
       "verdict": "Single and clear"
     },
     {
-      "concern": "Store-name resolution caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache)",
+      "concern": "Store-name resolution caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache, all on StoreNameLookup)",
       "owner": "Services/Stores/StoreNameLookup",
-      "allowed_writers": ["StoreNameLookup.GetOrFetchGogNameAsync (gogNameCache, private, closed loop 4)", "StoreNameLookup.GetOrFetchEpicNameAsync (epicNameCache, private - changed this loop; was PrimaryWidget.LoadGameEntriesAsync writing the field directly)", "StoreNameLookup.FindGameByNameAsync/.LoadUbisoftGameListAsync (nameMatchCache/ubisoftGameLookupCache, private, unchanged)"],
-      "readers": ["same methods (TryGetValue before writing)"],
+      "allowed_writers": ["GetOrFetchGogNameAsync (gogNameCache)", "GetOrFetchEpicNameAsync (epicNameCache)", "FindGameByNameAsync (nameMatchCache)", "LoadUbisoftGameListAsync (ubisoftGameLookupCache)"],
+      "readers": ["the same methods that write each cache (TryGetValue before writing)"],
       "persistence_seam": null,
-      "async_mutation_entry_points": ["GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync (both now fully internal to StoreNameLookup)", "StoreNameLookup's own methods (nameMatch/Ubisoft)"],
+      "async_mutation_entry_points": ["GetOrFetchGogNameAsync", "GetOrFetchEpicNameAsync", "FindGameByNameAsync", "LoadUbisoftGameListAsync"],
       "verdict": "Single and clear"
     }
   ],
   "strengths": [
     "ArtworkSource's private-constructor-plus-factory-method design (Services/SteamGridDB/ArtworkSource.cs:15-51) makes \"neither a platform-ID nor a game-ID\" unrepresentable - a genuine smart-constructor, not decoration. Re-verified unchanged this loop.",
-    "The official-artwork gate (FindOfficialLookalikeAsync, PrimaryWidget.xaml.cs:1415-1486) is a narrow, evidence-tuned veto whose code comments cite the specific regression case and slack margin that motivated it. Re-verified unchanged this loop (line numbers shifted by -13 from this loop's edit earlier in the store-name-resolution block; content unaffected).",
-    "StoreNameLookup.GetOrFetchEpicNameAsync (new this loop) completes the fold: all four of the module's caches now share the identical check-cache/fetch/populate ownership shape, and zero external code reaches into a StoreNameLookup field directly any more."
+    "The official-artwork gate (FindOfficialLookalikeAsync, PrimaryWidget.xaml.cs:1415-1486) is a narrow, evidence-tuned veto whose code comments cite the specific regression case and slack margin that motivated it. Re-verified unchanged this loop (byte-for-byte).",
+    "AsyncLazyCache<T> (new this loop) takes the caller's own lock as a constructor argument instead of owning a private one - the one design choice that keeps AppliedArtworkStore's F-002 fix (GetAsync/UpdateAsync sharing one lock with the lazy-load) intact through the refactor."
   ],
   "findings": [
     {
@@ -151,25 +79,25 @@
       "id": "F1",
       "title": "PrimaryWidget.xaml.cs still merges UI event handling and backup/restore orchestration behind zero Interface boundary",
       "why_it_matters": "The churn-flagged god-class (21 edits, still the largest file in the repo) continues to bundle two structurally distinct concerns with no Module boundary between them, so a change to either risks touching the other.",
-      "what_is_wrong": "UI event handling (the *_Click handlers, grid/search panel management, artwork download/replace flow) and backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, the RestoreBackupResult enum) remain private members on one 2,278-line Page-derived class with no Interface separating them. This loop closed the Epic slice of the split-cache-ownership residual loop 4 left behind: StoreNameLookup.GetOrFetchEpicNameAsync now owns the full check-cache/fetch/populate decision for Epic names, mirroring GetOrFetchGogNameAsync, and epicNameCache is private again. All four StoreNameLookup caches (GOG, Epic, name-match, Ubisoft) are now fully owned by the module itself - the split-cache-ownership residual is fully closed. This fix does not touch the file's two dominant merged concerns (UI event handling, backup/restore orchestration) at all - F1's core claim is unchanged from loop 4.",
+      "what_is_wrong": "UI event handling (the *_Click handlers, grid/search panel management, artwork download/replace flow) and backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, RestoreAllChangesAsync, RevertAllToDefaultAsync, FixLibraryAsync, the RestoreBackupResult enum) remain private members on one 2,278-line Page-derived class with no Interface separating them - PrimaryWidget.xaml.cs is byte-for-byte unchanged this loop (this loop's fix, F-004, touched only Services/Artwork/AppliedArtworkStore.cs and Services/Stores/EpicLibrary.cs). Re-read RestoreBackupCoreAsync directly this loop: it interleaves pure file operations (locate the backup StorageFile, delete a stale .new customisation, rename the backup to become the main image, clear AppliedArtworkStore) with UI-bound work (Dispatcher.RunAsync calls writing StatusText.Text, a foreach over EntriesSharingImage(game) mutating GameEntry.Image/ImageFileName/HasBackup, and a BitmapImage built by CreateThumbnailAsync) at every step, confirming loop 4 and loop 5's read. But the two remedies loop 5 named are not equally blocked: a UI-update callback/delegate Interface invents a new Seam for a single caller with no tests to justify it, which the Unified Seam Policy would likely reject outright - that alternative is genuinely a product decision. Extracting only the pure file operations into a Services/Artwork helper returning a plain success/failure signal, while PrimaryWidget keeps the Dispatcher calls, StatusText, GameEntries mutation and BitmapImage construction, invents no new Seam and mirrors the pattern already used for StoreNameLookup, ArtworkRanker and EpicLibrary - that alternative is not blocked on a decision, only unattempted.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2137-2220 (RestoreBackupCoreAsync - backup/restore orchestration, still inline)",
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:203-222 (new this loop - GetOrFetchEpicNameAsync owns Epic's cache decision; epicNameCache narrowed to private at :28)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:722-858 (RefreshButton_Click through RevertDefaultsButton_Click - UI event handlers invoking orchestration methods directly on the same class, no Interface between them)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2137-2220 (RestoreBackupCoreAsync - re-read this loop, byte-for-byte unchanged)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:722-858 (RefreshButton_Click through RevertDefaultsButton_Click - UI event handlers invoking orchestration methods directly, unchanged)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:2186-2187 (CreateThumbnailAsync call inside RestoreBackupCoreAsync - the one UI-affine step inside the otherwise-pure file operations, must stay caller-side or be handled carefully in any partial split)"
       ],
       "test_failed": "n/a",
       "dependency_category": null,
       "leverage_impact": "Every future backup/restore fix or UI change still touches the same file; a maintainer touching either risks disturbing the other via shared Dispatcher/StatusText plumbing.",
       "locality_impact": "Unaffected: a maintainer fixing a UI bug still reads through ~2,278 lines including unrelated backup/restore logic.",
-      "metric_signal": "PrimaryWidget.xaml.cs: 2,278 LOC (down 13 lines this loop, all from the Epic cache block shrinking). StoreNameLookup.cs: 317 LOC (up 29 lines this loop).",
-      "why_weakens_submission": "Ownership of the two remaining distinct concerns (UI event handling, backup/restore orchestration) is still untraceable from any single Module; the file is not meaningfully smaller this loop and is still well above the one-or-two-shallow-wrapper bar the architecture-quality 7-anchor requires.",
+      "metric_signal": "PrimaryWidget.xaml.cs: 2,278 LOC, unchanged this loop (0 lines touched).",
+      "why_weakens_submission": "Ownership of the two remaining distinct concerns (UI event handling, backup/restore orchestration) is still untraceable from any single Module; the file is not smaller this loop (0 lines changed) and is still well above the one-or-two-shallow-wrapper bar the architecture-quality 7-anchor requires.",
       "severity": "Serious deduction",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "The split-cache-ownership residual is now fully closed (GOG loop 4, Epic this loop) - no further cache-folding steps remain in StoreNameLookup. The only remaining F1 slice is backup/restore orchestration (RestoreBackupCoreAsync, RestoreBackupAsync, RestoreAllChangesAsync, RevertAllToDefaultAsync, FixLibraryAsync and the RestoreBackupResult enum): extracting it needs either a UI-update callback parameter (an interface or delegate PrimaryWidget implements to receive status-text and per-row image updates) or an accepted partial split (move the file-system logic out, leave the Dispatcher/StatusText/GameEntries plumbing in PrimaryWidget) - a design decision, not a mechanical move. Do not attempt a same-shape mechanical relocation without resolving this first.",
+      "minimal_correction_path": "F1's remaining scope is backup/restore orchestration. Two candidate paths remain, not equally ready: (a) a UI-update callback/delegate Interface - still a genuine product/ownership decision (single caller, no tests, likely Unified-Seam-Policy-rejected without a second real Adapter); do not attempt without user input. (b) a partial split of RestoreBackupCoreAsync's pure file operations (locate backup / delete stale .new / rename / clear AppliedArtworkStore) into a new Services/Artwork helper returning a plain result, leaving CreateThumbnailAsync, every Dispatcher.RunAsync call, StatusText, and GameEntries mutation in PrimaryWidget - no new Seam, same shape as the already-approved StoreNameLookup/ArtworkRanker/EpicLibrary extractions. (b) is next loop's honest first attempt; re-run the Simplify Pressure Test on it fresh before committing, since it was not fully vetted this loop.",
       "blast_radius": {
-        "change": ["PrimaryWidget.xaml.cs (backup/restore orchestration slice) OR a new file, once the UI-update design decision is resolved"],
-        "avoid": ["Services/SteamGridDB/*", "Services/Artwork/ArtworkRanker.cs", "Services/Stores/StoreNameLookup.cs (cache-folding work is complete for this module)"]
+        "change": ["PrimaryWidget.xaml.cs (RestoreBackupCoreAsync's file-operation lines only)", "a new Services/Artwork helper file"],
+        "avoid": ["Services/SteamGridDB/*", "Services/Artwork/ArtworkRanker.cs", "Services/Stores/*", "Services/AsyncLazyCache.cs"]
       }
     },
     {
@@ -178,20 +106,20 @@
       "id": "F2",
       "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
       "why_it_matters": "Load time scales linearly with library size and network latency on the widget's primary open path - the one flow every user hits every time.",
-      "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks, routed through StoreNameLookup and EpicLibrary) one game at a time; nothing overlaps the independent per-game network calls. Unaffected by this loop's fix, which changed how the Epic branch resolves a name (now via StoreNameLookup.GetOrFetchEpicNameAsync), not whether it does so sequentially.",
+      "what_is_wrong": "The gameCache foreach loop in LoadGameEntriesAsync awaits sgdbClient.GetGameByPlatformIdAsync (and the GOG/Epic/Ubisoft name fallbacks, routed through StoreNameLookup and EpicLibrary) one game at a time; nothing overlaps the independent per-game network calls. Unaffected by this loop's fix (F-004), which touched only AppliedArtworkStore.cs and EpicLibrary.cs's lazy-load skeletons, not LoadGameEntriesAsync's sequencing - re-verified this loop that PrimaryWidget.xaml.cs is byte-for-byte unchanged. This run's own operating constraints additionally rule out attempting this finding at all for the duration of this run: parallelising these per-game round-trips would change the observable request count, order, and timing against third-party APIs (GOG, a community database, Ubisoft's GitHub-hosted list), which this run has been instructed not to do blind, absent a behavioural oracle to grade the result against.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:324-720 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :577 and the store-name fallbacks at :599,608,617,637, with nothing overlapped - re-verified at current line numbers this loop after F1's Epic-slice edit shifted them)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:324-720 (per-folder, per-entry foreach; awaits GetGameByPlatformIdAsync at :577 and the store-name fallbacks at :599,608,617,637, with nothing overlapped - re-verified at the same line numbers this loop since PrimaryWidget.xaml.cs was not touched)"
       ],
       "test_failed": "n/a",
       "dependency_category": "true-external",
       "leverage_impact": "There is only one call site (the load loop); a future second caller of the same pattern would inherit the same linear cost with no leverage from batching, since none exists.",
       "locality_impact": "The fix is local to LoadGameEntriesAsync's loop body and StoreNameLookup's cache field declarations; it does not need to spread to callers.",
       "metric_signal": "One HTTP round-trip per game per store lookup; a 100-game library issues 100+ sequential requests with no overlap (D2, lens-efficiency.md).",
-      "why_weakens_submission": "Structural waste on the widget's primary hot path. The fix is well-understood (bounded concurrency) but crosses a real risk boundary: the store-name caches (gogNameCache, epicNameCache, nameMatchCache, ubisoftGameLookupCache, all on StoreNameLookup) are still not thread-safe and currently rely on this exact sequencing to stay race-free.",
+      "why_weakens_submission": "Structural waste on the widget's primary hot path. The fix is well-understood (bounded concurrency) but is out of scope for this run by explicit instruction, not by mechanical difficulty.",
       "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Bound concurrency (e.g. SemaphoreSlim(4-8) + Task.WhenAll) around the per-entry body, and switch StoreNameLookup's four cache fields to ConcurrentDictionary before parallelizing - do not parallelize without that change, or the caches race.",
+      "minimal_correction_path": "Blocked for the duration of this run by an explicit operational constraint (must not change per-game network-call count, order, or behavior against third-party APIs without a behavioral oracle) - not by a mechanical difficulty. If that constraint is lifted in a future run: bound concurrency (e.g. SemaphoreSlim(4-8) + Task.WhenAll) around the per-entry body, and switch StoreNameLookup's four cache fields to ConcurrentDictionary before parallelizing. AsyncLazyCache<T> (this loop's F-004 fix) is already safe under concurrent first callers - the check-lock-recheck sequence it wraps was written for exactly that case - so it needs no further change before that day comes.",
       "blast_radius": {
         "change": ["PrimaryWidget.xaml.cs (LoadGameEntriesAsync)", "Services/Stores/StoreNameLookup.cs (the four cache fields)"],
         "avoid": ["Services/Artwork/*", "Services/SteamGridDB/*"]
@@ -202,111 +130,99 @@
       "stable_id": "F-004",
       "id": "F3",
       "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
-      "why_it_matters": "The same ~25-line lazy-load-with-gate skeleton was written twice by hand instead of once; a future third cache would make it three.",
-      "what_is_wrong": "AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) both implement: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper. Unaffected by this loop's fix, which targeted the Epic cache fold in a different file (StoreNameLookup.cs) and a different pattern (plain TryGetValue/populate, no lock - matching the rest of that class). Re-verified this loop: StoreNameLookup.GetOrFetchEpicNameAsync introduces no third copy of this locked skeleton.",
+      "why_it_matters": "The same lazy-load-with-gate skeleton was written twice by hand instead of once; a future third cache would have made it three.",
+      "what_is_wrong": "At Step 1 inspection time (source identical to loop 5's committed state), AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147, pre-fix) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89, pre-fix) both implemented: check-null, await SemaphoreSlim gate, re-check-null, populate, release - identical structure, no shared helper, open and unattempted since loop 1. This loop fixes it - see Loop 6 Result.",
       "evidence": [
-        "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:95-147",
-        "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs:67-89"
+        "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs:95-147 (pre-fix)",
+        "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs:67-89 (pre-fix)"
       ],
       "test_failed": "n/a",
       "dependency_category": null,
-      "leverage_impact": "A shared lazy-cache primitive would pay for itself across at least these two call sites.",
-      "locality_impact": "Today a bug in the locking pattern must be fixed in two places; a shared helper collapses that to one.",
+      "leverage_impact": "A shared lazy-cache primitive pays for itself across at least these two call sites.",
+      "locality_impact": "Previously a bug in the locking pattern had to be fixed in two places; a shared helper collapses that to one.",
       "metric_signal": "none",
-      "why_weakens_submission": "Duplicate concurrency boilerplate is exactly the kind of copy-paste-with-slight-variation the leaf-module duplication sweep looks for; it is real but contained.",
+      "why_weakens_submission": "Duplicate concurrency boilerplate is exactly the kind of copy-paste-with-slight-variation the leaf-module duplication sweep looks for; a bug fixed in one copy could easily be missed in the other.",
       "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Extract a small internal AsyncLazy-style helper (check-lock-recheck-populate) that both call sites construct against. Do not add an interface or DI - this is one concrete type serving two internal call sites, not a Seam.",
+      "minimal_correction_path": "Extract a small internal AsyncLazy-style helper (check-lock-recheck-populate) that both call sites construct against, taking the caller's own SemaphoreSlim rather than owning one. Do not add an interface or DI. This loop's fix - see Loop 6 Result.",
       "blast_radius": {
-        "change": ["Services/Artwork/AppliedArtworkStore.cs", "Services/Stores/EpicLibrary.cs", "one new small internal helper"],
+        "change": ["Services/Artwork/AppliedArtworkStore.cs", "Services/Stores/EpicLibrary.cs", "Services/AsyncLazyCache.cs (new)"],
         "avoid": ["PrimaryWidget.xaml.cs", "Services/Stores/StoreNameLookup.cs"]
       }
     }
   ],
   "simplification_check": {
-    "structurally_necessary": "Folding Epic's check-cache/fetch/populate logic into StoreNameLookup.GetOrFetchEpicNameAsync - closes the last instance of the shallow-module residual Finding #1's evidence has tracked since loop 3 (Interface approx Implementation for epicNameCache, now Interface >> Implementation, matching GOG's shape from loop 4); the smallest honest fix is a targeted fold plus a private narrowing, not a new abstraction.",
+    "structurally_necessary": "Replacing AppliedArtworkStore.LoadAsync and EpicLibrary.LoadAsync's hand-duplicated check-null/gate/re-check-null/populate/release skeleton with one shared AsyncLazyCache<T> - closes F-004 (open every loop since loop 1, never previously attempted), a genuine leaf-module duplication distinct from the StoreNameLookup residual loops 4-5 already closed; the smallest honest fix is a generic helper taking the caller's own SemaphoreSlim (not a new one), matching loop 5's own vetted 'smallest first step' plan verbatim.",
     "new_seam_justified": false,
     "new_seam_adapters": [],
-    "helpful_simplification": "PrimaryWidget.xaml.cs's Epic branch shrank from a 20-line inline cache-check/fetch/populate block to a 7-line call-and-assign; the check-cache/fetch/populate decision for Epic names now lives entirely inside StoreNameLookup, matching the shape GetOrFetchGogNameAsync already used, and preserving the exact two-source fallback order (EpicLibrary.GetDisplayNameAsync first, StoreNameLookup.GetEpicGameNameAsync second).",
-    "should_not_be_done": "Attempting backup/restore orchestration extraction in the same loop - its own evidence text says it needs either a UI-update callback parameter or an accepted partial split, a design decision this codebase's lack of a test oracle makes too risky to attempt as a same-loop mechanical move (same judgment loop 4 reached; re-confirmed this loop by reading RestoreBackupCoreAsync directly - it calls Dispatcher.RunAsync, reads/writes StatusText.Text, and iterates EntriesSharingImage/GameEntries, all UI-bound state a non-UI class cannot reach without a passed-in abstraction).",
-    "tests_after_fix": "No test project exists (standing instruction); MSBuild compile is the only regression oracle, verified green both before and after this loop's change. This is a behavior-preserving fold, not a Meta-Rule-4 risk-boundary crossing: epicNameCache's visibility narrowed from internal to private, but its only external reader/writer (PrimaryWidget.LoadGameEntriesAsync) was rewritten in this same commit to go through GetOrFetchEpicNameAsync instead - grep-verified post-edit that no file outside StoreNameLookup.cs references epicNameCache any more, and the green build independently proves no orphaned caller was left behind."
+    "helpful_simplification": "AppliedArtworkStore.cs shrank 182->165 lines (net -17); EpicLibrary.cs shrank 144->121 lines (net -23); the two hand-copied lock skeletons collapsed into one 61-line generic helper (Services/AsyncLazyCache.cs) that both classes now share, closing F-004 completely - no third hand-copied instance was ever introduced, and now none can be without also reusing the shared type.",
+    "should_not_be_done": "Attempting F1's callback-interface alternative in the same loop - it would invent a new Seam for a single caller with zero tests to benefit from it, which the Unified Seam Policy would likely reject outright (no second real Adapter, no policy/failure/platform-isolation justification). Also should not attempt F-003 (bounded concurrency) this run - the operational constraint against changing observable per-game network-call behavior blind rules it out regardless of AsyncLazyCache<T>'s incidental thread-safety compatibility.",
+    "tests_after_fix": "No test project exists (standing instruction); MSBuild compile is the only regression oracle, verified green both before and after this loop's change (exit 0 both times). AsyncLazyCache<T>.GetOrLoadAsync is the single generic implementation of the pattern both AppliedArtworkStore and EpicLibrary now call instead of hand-writing their own copy - a future third cache-consumer inherits a correct implementation instead of a third hand-copied one."
   },
   "backlog": [
     {
       "priority": 1,
-      "title": "Attempt backup/restore orchestration extraction (F1's only remaining slice)",
+      "title": "Attempt the partial split of RestoreBackupCoreAsync's pure file operations (F1's non-blocked slice)",
       "kind": "structural",
       "rank": "needed for winning",
-      "why_it_matters": "F1 remains the largest Serious deduction on the board, and its only remaining smaller substitute step (cache-folding) is now exhausted - both StoreNameLookup slices (GOG loop 4, Epic this loop) are closed.",
-      "score_impact": "Architecture quality +0.5, Code simplicity +0.5 once verified. Requires resolving a UI-update design decision first (callback parameter or accepted partial split)."
+      "why_it_matters": "F1 remains the largest Serious deduction on the board; its callback-interface alternative is still genuinely blocked on a product decision, but this file-operation slice is not. No cache-folding residual remains as a smaller substitute step - F-004 (this loop) was the last one.",
+      "score_impact": "Code simplicity +0.5 if verified and the file shrinks measurably; Architecture quality unlikely to move (a small slice, not a full resolution of F1's merged-concerns claim)."
     },
     {
       "priority": 2,
       "title": "Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups (F-003)",
       "kind": "structural",
       "rank": "helpful",
-      "why_it_matters": "Removes load latency that scales linearly with library size on the widget's primary flow. Requires switching the four store-name caches (on StoreNameLookup) to ConcurrentDictionary first.",
-      "score_impact": "Concurrency +0.5, Framework idioms +0.5 once verified."
-    },
-    {
-      "priority": 3,
-      "title": "Extract a shared AsyncLazy-style cache helper for AppliedArtworkStore and EpicLibrary (F-004)",
-      "kind": "simplification",
-      "rank": "helpful",
-      "why_it_matters": "Collapses two hand-copied lazy-load-with-gate skeletons into one owner before a third makes it three.",
-      "score_impact": "Code simplicity +0.5 once verified."
+      "why_it_matters": "Removes load latency that scales linearly with library size on the widget's primary flow, whenever this run's operational constraint against changing observable third-party request behavior is lifted. Blocked for the duration of this run.",
+      "score_impact": "Concurrency +0.5, Framework idioms +0.5 once verified (future run)."
     }
   ],
   "unresolved_reason": null,
-  "deepening_candidates": [
-    {
-      "candidate_module": "Services/Artwork/AppliedArtworkStore + Services/Stores/EpicLibrary (shared AsyncLazy-style helper)",
-      "source_friction_proven": "Finding F3's (F-004) evidence - both AppliedArtworkStore.LoadAsync (AppliedArtworkStore.cs:95-147) and EpicLibrary.LoadAsync (EpicLibrary.cs:67-89) hand-implement the identical check-null/gate/re-check-null/populate/release skeleton with no shared owner.",
-      "why_shallow_or_misplaced": "Each class's LoadAsync method exposes the full lazy-load mechanism as its own Implementation rather than delegating to a shared Interface - the same check-lock-recheck-populate logic is the Implementation in two places instead of the Implementation in one place behind two thin call sites.",
-      "behavior_to_move_behind_interface": "The check-null/gate.WaitAsync()/re-check-null/populate/gate.Release() skeleton, parameterised by a loader delegate (Func<Task<TValue>>) and the value type (Dictionary<string,int> for AppliedArtworkStore, Dictionary<string,string> for EpicLibrary).",
-      "dependency_category": "in-process",
-      "test_surface_after_change": "none (no test project; build-verified only, same as today)",
-      "smallest_first_step": "Write the shared helper as an internal generic type taking a SemaphoreSlim and a loader delegate; convert EpicLibrary.LoadAsync first (simpler - no JSON-writeback path), then AppliedArtworkStore.LoadAsync (UpdateAsync also writes through the same gate and must keep doing so - do not fold the write path into the read-only helper).",
-      "what_not_to_do": "Do not add an interface or DI for this - one concrete internal type serving two internal call sites is not a Seam per the Unified Seam Policy (no two-adapter justification, no policy/failure/platform isolation)."
-    }
-  ],
+  "deepening_candidates": [],
   "builder_notes": [
     {
-      "pattern": "When a prior loop names two alternatives (\"fold the smaller residual instance, or attempt the risky thing\") and the smaller instance is now closed, do not assume the risky option automatically becomes this loop's task - re-run the Simplify Pressure Test on it fresh, because the underlying blocker (a design decision the loop cannot make mechanically) does not resolve itself just because time has passed.",
-      "how_to_recognize": "The backlog item's own text names a design decision still needed (a callback parameter, an accepted partial split) before the riskier option can be attempted safely, and no new source evidence has appeared that would resolve it.",
-      "smallest_coding_rule": "In a codebase with no test suite, when a \"smaller instance\" of a residual exists, close it before the harder core claim - but once every smaller instance is closed, say so plainly rather than picking a bigger, riskier move under the pressure to keep showing progress.",
-      "stack_example": "C# - this loop closed Epic's cache fold (the last remaining smaller instance of F1's split-cache-ownership residual) rather than attempting backup/restore extraction, because the latter's own text still names an unresolved UI-update design decision with no new evidence this loop that would make it safer to attempt mechanically."
+      "pattern": "A Noticeable-severity finding can sit unattempted in the backlog for many loops (F-004: first seen loop 1, still Priority 3 every loop through loop 5) without being cosmetic - it was simply lower priority than a Serious god-class finding and its own smaller substitute steps. Once the Serious item's smaller substitute steps are genuinely exhausted and its remaining slice is genuinely blocked (decision-bound or constraint-bound, re-verified fresh, not just carried-forward text), advancing to the next Noticeable item is the honest move, not a sign the run has run dry.",
+      "how_to_recognize": "A Noticeable-severity finding with a long, unbroken \"open\" occurrence history and a fully-specified minimal_correction_path that nothing in several loops ever exercised.",
+      "smallest_coding_rule": "When Priority 1 and 2 are both genuinely blocked this loop, advance to Priority 3 rather than manufacturing a new finding or halting early - but say so plainly, and keep tracking the blocked items so they surface again the moment their blocker lifts.",
+      "stack_example": "C# - AsyncLazyCache<T> took the exact \"smallest first step\" loop 5's Deepening Candidate already specified: an external SemaphoreSlim passed in, not owned, so AppliedArtworkStore's GetAsync/UpdateAsync could keep using the same lock instance the helper's lazy-load used."
     },
     {
-      "pattern": "A residual tracked across multiple loops (GOG in loop 4, Epic in loop 5) as parallel instances of the same shallow-module shape is fully closed once every named instance is folded - the Deepening Candidate for that specific module should then say so explicitly rather than being silently dropped or re-proposed without new evidence.",
-      "how_to_recognize": "The Authority Map or Findings evidence names N parallel instances of one shape; each loop's fix closes one; once all N are closed, the \"verdict\" line changes from partial (\"N of M closed\") to complete (\"no Interface-coherence gap remains\").",
-      "smallest_coding_rule": "When the last instance of a tracked shape closes, update the Authority Map entry's verdict text to say so plainly, and explicitly retire the Deepening Candidate rather than leaving stale \"still to go\" language in the review.",
-      "stack_example": null
+      "pattern": "A finding's two named remedies are not always equally blocked - re-reading the actual coupling (not just the prior loop's summary of it) can split \"needs a design decision\" into one path that genuinely does and one that doesn't.",
+      "how_to_recognize": "The minimal_correction_path lists two alternatives in an either/or with a single blanket justification (\"a design decision, not a mechanical move\") - re-read the concrete code each alternative touches; one may invent a new public Seam (genuinely a decision) while the other only relocates private, already-precedented logic (not).",
+      "smallest_coding_rule": "Before carrying forward a \"blocked on a decision\" finding unchanged, re-derive which specific parts of the fix require a decision and which don't - only the former stays blocked.",
+      "stack_example": "C# - RestoreBackupCoreAsync's file rename/delete/clear-record calls need no new interface to move; its BitmapImage/Dispatcher/StatusText/GameEntries calls do need to stay put or be threaded through a callback, which is the part that is genuinely a decision."
     },
     {
-      "pattern": "Churn concentrates where concerns are merged (unchanged from loops 1-4 - still live; this loop did not touch the churn-flagged file's concern count at all).",
-      "how_to_recognize": "One file dominates the six-month edit count and is several times larger than everything else, even after partial extraction.",
-      "smallest_coding_rule": "When a file's edit count and size both dominate the repo, extract the concern that changed rather than adding to the pile - but a loop that instead closes the last safe residual elsewhere is not wasted, provided it is disclosed honestly as not moving the god-class dimension.",
+      "pattern": "Churn concentrates where concerns are merged (unchanged from loops 1-5 - still live; this loop did not touch the churn-flagged file's concern count at all).",
+      "how_to_recognize": "One file dominates the six-month edit count and is several times larger than everything else, even after partial extraction elsewhere.",
+      "smallest_coding_rule": "When a file's edit count and size both dominate the repo, extract the concern that changed rather than adding to the pile - but a loop that instead closes a real, long-open residual elsewhere is not wasted, provided it is disclosed plainly as not moving the god-class dimension, so several loops of small wins don't quietly read as god-class progress.",
       "stack_example": null
     }
   ],
-  "narrative": "Place, not win. This loop did not touch PrimaryWidget.xaml.cs's two remaining merged concerns (UI event handling, backup/restore orchestration) at all - F1 (Serious) is exactly as large as it was at the end of loop 4. Instead, the loop closed the Epic slice of the split-cache-ownership residual loop 4 left in Services/Stores/StoreNameLookup.cs, mirroring loop 4's GOG fix exactly and completing the cluster: all four of that module's caches now share one consistent ownership shape. The harder ask (backup/restore extraction) was re-examined against current source (RestoreBackupCoreAsync's direct Dispatcher/StatusText/GameEntries coupling) and still fails the same test loop 4 applied - its own evidence text names an unresolved design decision, not a mechanical move. code_simplicity moved up on real, narrow, build-verified structural proof, matching the magnitude of loop 4's own move for the parallel half of the same residual; no other dimension moved. Runtime ownership remains trustworthy for what has been resolved; concurrency is not yet trustworthy (F-003 open). Tests remain absent by standing instruction. Future work has run out of smaller substitute steps for F1: next loop must either resolve the UI-update design decision and attempt backup/restore extraction, or honestly pivot Priority 1 to a Noticeable-severity item if that design decision still cannot be made without user input.",
+  "narrative": "Place, not win. This loop did not touch PrimaryWidget.xaml.cs at all - F1 (Serious) is exactly as large as it was at the end of loop 5, byte-for-byte. Instead, the loop closed F-004, a real, long-standing (open since loop 1, never previously attempted) duplication finding in AppliedArtworkStore and EpicLibrary: both classes' hand-copied lazy-load-with-lock skeletons now share one generic AsyncLazyCache<T>, built specifically to preserve the exact lock instance and sequencing loop 2's F-002 fix depends on. F1 was re-examined fresh against current source (RestoreBackupCoreAsync read directly this loop) and split into two remedies with different blockers: the callback-interface alternative remains a genuine product decision this loop correctly declines to make unilaterally; a partial file-operations split does not require that decision and is next loop's honest first attempt, not yet attempted or fully vetted. F-003 (concurrency) stays explicitly out of scope for this entire run by operational instruction, not by mechanical difficulty - carried forward as a reminder rather than a live target. code_simplicity moved up on real, narrow, build-verified structural proof; no other dimension moved, and none regressed. Runtime ownership remains trustworthy for what has been resolved; concurrency is not yet trustworthy (F-003 open, unaddressable this run). Tests remain absent by standing instruction. Future work has one honest path left for F1 (the partial file-operations split) before that finding, too, would need to wait on a product decision or a lifted constraint - next loop should attempt it and report plainly whether it survives the Simplify Pressure Test.",
   "loop_result": {
-    "what_changed": "Closed the Epic slice of F1's split-cache-ownership residual: added StoreNameLookup.GetOrFetchEpicNameAsync (Services/Stores/StoreNameLookup.cs:203-222), which owns the full check-cache/fetch/populate decision for Epic names and preserves the exact two-source fallback order (EpicLibrary.GetDisplayNameAsync tried first, then StoreNameLookup.GetEpicGameNameAsync), and narrowed epicNameCache from internal back to private (StoreNameLookup.cs:28) now that StoreNameLookup is its only reader/writer. Rewrote the Epic branch in PrimaryWidget.xaml.cs's LoadGameEntriesAsync (:606-612) from a 20-line inline cache-check/fetch/populate block to a 7-line call-and-assign.",
-    "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery - no test project exists) passed clean both before and after the change (exit 0 both times). git diff --numstat: PrimaryWidget.xaml.cs (3 insertions, 16 deletions), StoreNameLookup.cs (33 insertions, 4 deletions). The new GetOrFetchEpicNameAsync preserves the original inline logic's semantics exactly, traced branch-by-branch: a cache hit with a non-empty cached value returns it immediately with zero network calls; a cache miss or empty cached value tries EpicLibrary.GetDisplayNameAsync first, then GetEpicGameNameAsync as a ?? fallback, exactly the original's two-source order; the cache is written and gameName is set only when that resolves to a non-empty name; when both sources return null/empty, the value is not cached and gameName stays unset, exactly matching the original's silent fall-through to the default \"Unknown\". Grep-verified post-edit that epicNameCache is referenced only inside StoreNameLookup.cs, confirming the private narrowing left no orphaned external caller - independently confirmed by the green build. This changes where the cache-check/fetch/populate decision lives, not the number of network calls per game, the fallback order, retry semantics, or any selection/ranking behavior - confirmed by the independent implementation-reviewer pass (verdict: approved; reality/honesty/regression all passed).",
-    "risk_boundary_evidence": null,
-    "targeted_finding_status": "carried_forward",
+    "what_changed": "Wrote a shared internal AsyncLazyCache<T> helper (Services/AsyncLazyCache.cs, new) implementing the check-null/gate/re-check-null/populate/release skeleton once, and pointed both AppliedArtworkStore (Services/Artwork/AppliedArtworkStore.cs) and EpicLibrary (Services/Stores/EpicLibrary.cs) at it in place of their own hand-written copies, closing F-004. AppliedArtworkStore.LoadAsync's populate-only logic became LoadMapFromDiskAsync; EpicLibrary's ReadManifestsAsync (already a separate populate method) plugs straight in. AppliedArtworkStore's gate field was reordered above the new appliedCache field so the same SemaphoreSlim instance GetAsync/UpdateAsync already used continues to serialize the lazy load - GetOrLoadAsync takes the caller's gate as a constructor argument rather than owning one, per loop 5's own vetted plan. Added the new file to SteamGridDB.Xbox.csproj (required for this UWP project with no globbing).",
+    "evidence_change_is_honest": "MSBuild (the sole regression oracle per Discovery - no test project exists) passed clean both before and after the change (exit 0 both times). AsyncLazyCache<T>.GetOrLoadAsync preserves both original methods' semantics exactly, traced branch-by-branch: a non-null cached value returns immediately with zero work; otherwise the caller takes gate, re-checks for null, and on a genuine miss calls the loader exactly once and caches the result before releasing the lock - matching both originals' double-checked pattern exactly. For AppliedArtworkStore: GetAsync and UpdateAsync still separately acquire/release gate for their own critical sections after the lazy-load returns, in the same two-step sequence as before. For EpicLibrary: gate is now used solely by nameCache, exactly as it was solely used by the old LoadAsync before. Grep-verified post-edit that applied/names fields and both old LoadAsync methods no longer exist anywhere in the repository, and that appliedCache/nameCache are the only readers of their respective gate fields at the lazy-load site - independently confirmed by the green build (an orphaned reference to a deleted private field or method would not compile). This changes only where the lazy-load's lock/check/populate housekeeping lives, not the number of network calls or file reads per game, the fallback order, retry semantics, or any selection/ranking behavior - confirmed by the independent implementation-reviewer pass (verdict: approved; reality/honesty/regression all passed).",
+    "risk_boundary_evidence": {
+      "boundary_kind": "lock_ordering",
+      "verification": "reasoning_only",
+      "detail": "AsyncLazyCache<T>.GetOrLoadAsync takes the caller's own SemaphoreSlim as a constructor argument rather than owning a private one - AppliedArtworkStore's gate field (unchanged instance) is passed in, and GetAsync/UpdateAsync continue to acquire/release that exact same gate directly for their own read and write critical sections exactly as before; only the lazy-load's acquire/check/populate/release sequence moved into the shared type, byte-identical to the original AppliedArtworkStore.LoadAsync/EpicLibrary.LoadAsync bodies. Grep-verified only one SemaphoreSlim field exists per class post-edit and it flows unchanged into the helper's constructor. No thread-sanitizer or concurrency stress-test tooling exists for this C#/UWP stack in this environment (no test project, per standing instruction); a green MSBuild compile confirms only that the relocation type-checks, not that the lock sequence is unchanged - verified instead by direct inspection of both call sites and the new type.",
+      "mechanically_testable": false
+    },
+    "targeted_finding_status": "resolved",
     "unintended_regression": null,
     "changed_paths": [
-      "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"
+      "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
+      "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+      "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+      "SteamGridDB.Xbox/Services/AsyncLazyCache.cs"
     ],
     "interface_test_coverage_path": null
   },
   "implementation_review": {
     "verdict": "approved",
-    "reason": "The diff is a faithful, behavior-preserving relocation of Epic's check-cache/fetch/populate logic into StoreNameLookup.GetOrFetchEpicNameAsync, mirroring the already-approved GOG fold exactly, closing the specific epicNameCache residual evidence F1 cited without overclaiming F1's core UI/backup-restore merge is resolved, and introduces no new same-or-higher-severity finding.",
+    "reason": "Both hand-rolled check-null/gate.WaitAsync/recheck/populate/release skeletons (AppliedArtworkStore.LoadAsync, EpicLibrary.LoadAsync) are gone from current source, replaced by calls to a new shared AsyncLazyCache<T> that takes the caller's existing SemaphoreSlim as a constructor argument rather than owning a private lock, and GetAsync/UpdateAsync still separately acquire that same gate for their own critical sections after the lazy-load call returns, so F-002's read/write lock invariant is preserved with no new same-or-higher-severity finding introduced.",
     "checks": {
       "reality": "passed",
       "honesty": "passed",
@@ -318,7 +234,7 @@
     "retry_count": 1,
     "retry_cause": null,
     "retry_attempts": [
-      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 138470}
+      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 188317}
     ]
   }
 }

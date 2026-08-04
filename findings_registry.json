@@ -7,12 +7,15 @@
       "title": "PrimaryWidget.xaml.cs merges three unrelated concerns behind zero Interface boundary",
       "category_hint": "god-class",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [332, 749],
+      "primary_evidence_lines": [
+        332,
+        749
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 5,
+      "last_seen_loop": 6,
       "occurrences": [
         {
           "loop": 1,
@@ -73,6 +76,18 @@
             "evidence_paths_hash": "sha256:03fc92683e70eb4a4e0e18d7f27e07f7fbcb92e1f74e76a3390cd8245eeb3071"
           },
           "attempted_remedy_hash": "sha256:514bb320c9faecdc4c7a0daf4530b18006b16f77b92b059bf3c218c23003f4f3"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "cd1a991",
+          "note": "Re-derived from current source this loop (re-read RestoreBackupCoreAsync directly). Untouched by loop 6's fix (F-004, a different finding). Split F1's minimal_correction_path into two remedies with different blockers - the partial file-op split is not decision-blocked, unlike the callback alternative. Remains Priority 1 in loop 6's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a041e4ba95d0bb345ed3b1a762c2d22db9cc1895466d4fb237f7ce4289fcde3a",
+            "evidence_paths_hash": "sha256:84da64c80e994a9585d20ac5d0346e705c41a3d6054aaea33901a3cb80a573ae"
+          },
+          "attempted_remedy_hash": "sha256:c6f3efedcff6db85f1754846786061f410120ec63fd6720ed7fc4e339c7db77f"
         }
       ]
     },
@@ -81,7 +96,10 @@
       "title": "AppliedArtworkStore.GetAsync reads the shared cache without the lock that guards its writer",
       "category_hint": "concurrency-race",
       "primary_file": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
-      "primary_evidence_lines": [38, 48],
+      "primary_evidence_lines": [
+        38,
+        48
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 1,
@@ -118,12 +136,15 @@
       "title": "Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency",
       "category_hint": "sequential-io",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [401, 705],
+      "primary_evidence_lines": [
+        401,
+        705
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 5,
+      "last_seen_loop": 6,
       "occurrences": [
         {
           "loop": 1,
@@ -183,6 +204,18 @@
             "evidence_paths_hash": "sha256:e95230b2016d21467fea78e9f116e3742c8a39eaed43dc73cf5114434da5ca3c"
           },
           "attempted_remedy_hash": "sha256:5e8a55ad7b3686275506b113ab9be24a3abd8bbe71d17f60cfa35af7c9baae8b"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "cd1a991",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched by this loop's fix (F-004, in Services/Artwork and Services/Stores/EpicLibrary.cs). Explicitly ruled out for the duration of this run by an operational constraint recorded in this loop's dispatch instructions (must not change observable per-game network-call behavior against third-party APIs without a behavioral oracle). Remains Priority 2 in loop 6's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:67d7b328caaffdff31f24e4c1decfcdf6cca5e7e081742e3d0e88728cd038510",
+            "evidence_paths_hash": "sha256:355f1b2f878b0dc6b28fdf7a4d1a0a47a6f59eadb32bf6d61ae0ebe1500740e5"
+          },
+          "attempted_remedy_hash": "sha256:ad1c8704cc884fc626cc11f387934947eb7f4a07b2d037ff91a094140421250d"
         }
       ]
     },
@@ -191,12 +224,15 @@
       "title": "Hand-rolled double-checked-locking cache pattern duplicated between AppliedArtworkStore and EpicLibrary",
       "category_hint": "duplicate-lazy-cache",
       "primary_file": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
-      "primary_evidence_lines": [95, 147],
+      "primary_evidence_lines": [
+        95,
+        147
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 5,
+      "last_seen_loop": 6,
       "occurrences": [
         {
           "loop": 1,
@@ -256,6 +292,18 @@
             "evidence_paths_hash": "sha256:251d39045876e4c10482aea8dfb87085b6d1efc297a117722e4425de976e69a7"
           },
           "attempted_remedy_hash": "sha256:e8874903abd55069e2dbd5245008c6b924d4df4c725d5798ef8f04d2abef326d"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F3",
+          "status": "resolved",
+          "sha": "cd1a991",
+          "note": "Resolved this loop: AppliedArtworkStore and EpicLibrary both now call a shared Services/AsyncLazyCache.cs (AsyncLazyCache<T>) instead of hand-writing their own check-lock-recheck-populate skeleton; AppliedArtworkStore's gate SemaphoreSlim is passed into the helper's constructor (not owned by it), preserving F-002's read/write lock invariant. Reviewer verdict: approved (reality/honesty/regression all passed). sha recorded below is the commit examined at Step 1 (loop 5's HEAD), not the resolving commit - this run's operating notes prohibit a second bookkeeping commit to self-reference the resolving sha (diverges from loop 2's F-002 precedent, which used a follow-up commit).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:7c4803759ca7ee033525f0a9d2970d6c87ca819a16793ffabfb84864b6d11a29",
+            "evidence_paths_hash": "sha256:b6e088c690f3609bb25c5aeda74a3c4d193c85daf7276779e968deec3360ae0c"
+          },
+          "attempted_remedy_hash": "sha256:b54b1fa29a9026edd60c3c9eb54685f5d5aeb1b20ba342c62951ddb12942945f"
         }
       ]
     }

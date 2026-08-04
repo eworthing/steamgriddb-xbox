@@ -31,8 +31,6 @@ namespace SteamGridDB.Xbox.Services.Stores
             Environment.GetEnvironmentVariable("ProgramData") ?? @"C:\ProgramData",
             @"Epic\EpicGamesLauncher\Data\Manifests");
 
-        private static Dictionary<string, string> names;
-
         /// <summary>
         /// What the manifest read found, for the library-load log. A name that fails to resolve is
         /// indistinguishable from Epic not being installed unless this says which.
@@ -42,6 +40,9 @@ namespace SteamGridDB.Xbox.Services.Stores
         // The load runs from inside the per-game loop, so two entries can reach it at once
         private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
 
+        private static readonly AsyncLazyCache<Dictionary<string, string>> nameCache =
+            new AsyncLazyCache<Dictionary<string, string>>(gate, ReadManifestsAsync);
+
         /// <summary>
         /// The installed game's display name, or null when Epic has no manifest for it.
         /// </summary>
@@ -49,7 +50,7 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <param name="catalogItemId">Epic catalog item ID - the third segment.</param>
         public static async Task<string> GetDisplayNameAsync(string appName, string catalogItemId)
         {
-            Dictionary<string, string> map = await LoadAsync();
+            Dictionary<string, string> map = await nameCache.GetOrLoadAsync();
 
             if (!string.IsNullOrEmpty(appName) && map.TryGetValue(appName, out string byAppName))
             {
@@ -62,30 +63,6 @@ namespace SteamGridDB.Xbox.Services.Stores
             }
 
             return null;
-        }
-
-        private static async Task<Dictionary<string, string>> LoadAsync()
-        {
-            if (names != null)
-            {
-                return names;
-            }
-
-            await gate.WaitAsync();
-
-            try
-            {
-                if (names != null)
-                {
-                    return names;
-                }
-
-                return names = await ReadManifestsAsync();
-            }
-            finally
-            {
-                gate.Release();
-            }
         }
 
         private static async Task<Dictionary<string, string>> ReadManifestsAsync()

@@ -23,12 +23,16 @@ namespace SteamGridDB.Xbox.Services.Artwork
     {
         private const string fileName = "applied-artwork.json";
 
+        // Writes are rare - one per artwork applied - but a bulk operation and a per-row button can
+        // both reach here, and a half-written file would be read back as damaged. GetAsync and
+        // UpdateAsync both take this same gate directly (below) to serialize against each other and
+        // against the lazy load - not a second lock of their own.
+        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
+
         // Loaded once and written through. The widget is the only writer, and a Game Bar widget has a
         // single instance, so there is no reconciling to do against another process.
-        private static Dictionary<string, int> applied;
-        // Writes are rare - one per artwork applied - but a bulk operation and a per-row button can
-        // both reach here, and a half-written file would be read back as damaged.
-        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
+        private static readonly AsyncLazyCache<Dictionary<string, int>> appliedCache =
+            new AsyncLazyCache<Dictionary<string, int>>(gate, LoadMapFromDiskAsync);
 
         /// <summary>
         /// The artwork applied to an image, or null when the widget did not write it or the record
@@ -42,7 +46,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return null;
             }
 
-            Dictionary<string, int> map = await LoadAsync();
+            Dictionary<string, int> map = await appliedCache.GetOrLoadAsync();
 
             // UpdateAsync holds `gate` while it mutates this same Dictionary instance in place; a read
             // that skipped the gate could race that mutation. Same lock, read or write.
@@ -92,63 +96,42 @@ namespace SteamGridDB.Xbox.Services.Artwork
             return imageFilePath.ToLowerInvariant();
         }
 
-        private static async Task<Dictionary<string, int>> LoadAsync()
+        private static async Task<Dictionary<string, int>> LoadMapFromDiskAsync()
         {
-            if (applied != null)
-            {
-                return applied;
-            }
-
-            await gate.WaitAsync();
+            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             try
             {
-                if (applied != null)
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
+                string json = await FileIO.ReadTextAsync(file);
+
+                if (JsonObject.TryParse(json, out JsonObject root))
                 {
-                    return applied;
-                }
-
-                var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-                try
-                {
-                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
-                    string json = await FileIO.ReadTextAsync(file);
-
-                    if (JsonObject.TryParse(json, out JsonObject root))
+                    foreach (var pair in root)
                     {
-                        foreach (var pair in root)
+                        if (pair.Value.ValueType == JsonValueType.Number)
                         {
-                            if (pair.Value.ValueType == JsonValueType.Number)
-                            {
-                                map[pair.Key] = (int)pair.Value.GetNumber();
-                            }
+                            map[pair.Key] = (int)pair.Value.GetNumber();
                         }
                     }
                 }
-                catch (System.IO.FileNotFoundException)
-                {
-                    // Nothing applied yet
-                }
-                catch (Exception ex)
-                {
-                    // A damaged record is not worth failing a library load over - start again
-                    System.Diagnostics.Debug.WriteLine($"Could not read applied artwork: {ex.Message}");
-                }
-
-                applied = map;
-
-                return applied;
             }
-            finally
+            catch (System.IO.FileNotFoundException)
             {
-                gate.Release();
+                // Nothing applied yet
             }
+            catch (Exception ex)
+            {
+                // A damaged record is not worth failing a library load over - start again
+                System.Diagnostics.Debug.WriteLine($"Could not read applied artwork: {ex.Message}");
+            }
+
+            return map;
         }
 
         private static async Task UpdateAsync(Action<Dictionary<string, int>> change)
         {
-            Dictionary<string, int> map = await LoadAsync();
+            Dictionary<string, int> map = await appliedCache.GetOrLoadAsync();
 
             await gate.WaitAsync();
 
