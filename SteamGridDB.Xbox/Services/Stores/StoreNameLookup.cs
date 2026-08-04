@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
 using Windows.Web.Http;
 
+using SteamGridDB.Xbox.Services;
 using SteamGridDB.Xbox.Services.SteamGridDB;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
 
@@ -30,7 +32,14 @@ namespace SteamGridDB.Xbox.Services.Stores
         // Games found by name rather than by store ID. Misses are cached too: a miss walked the
         // whole result list to conclude nothing matched.
         private static readonly Dictionary<string, int> nameMatchCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        private static Dictionary<string, string> ubisoftGameLookupCache = null;
+
+        // Unlike the three caches above, this one is a single value loaded once rather than a
+        // per-key lookup - the exact shape EpicLibrary's and AppliedArtworkStore's own caches have,
+        // so this uses their same AsyncLazyCache<T> instead of a fourth hand-rolled copy of the same
+        // check-then-populate logic (previously unlocked here, unlike its two siblings).
+        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
+        private static readonly AsyncLazyCache<Dictionary<string, string>> ubisoftGameListCache =
+            new AsyncLazyCache<Dictionary<string, string>>(gate, LoadUbisoftGameListFromWebAsync);
 
         // A second long-lived client, separate from PrimaryWidget's artwork-download one: this one
         // only ever talks to the three store name-lookup endpoints below, and a Services/Stores type
@@ -222,16 +231,14 @@ namespace SteamGridDB.Xbox.Services.Stores
         }
 
         /// <summary>
-        /// Downloads and parses the Ubisoft game list from GitHub.
+        /// Downloads and parses the Ubisoft game list from GitHub. Loaded through
+        /// <see cref="ubisoftGameListCache"/>, which runs this at most once and does not cache a
+        /// failed or empty parse - built locally and only published once it has entries, so caching
+        /// an empty result would make every later lookup this session skip retrying.
         /// </summary>
-        /// <returns>True if successful, false otherwise</returns>
-        internal static async Task<bool> LoadUbisoftGameListAsync()
+        /// <returns>ID-to-name map, or null when the fetch failed or found no entries.</returns>
+        private static async Task<Dictionary<string, string>> LoadUbisoftGameListFromWebAsync()
         {
-            if (ubisoftGameLookupCache != null)
-            {
-                return true;
-            }
-
             try
             {
                 string url = "https://raw.githubusercontent.com/Haoose/UPLAY_GAME_ID/refs/heads/master/README.md";
@@ -239,14 +246,12 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return false;
+                    return null;
                 }
 
                 string content = await response.Content.ReadAsStringAsync();
                 string[] lines = content.Split('\n');
 
-                // Built locally and only published once it has entries: caching an empty result would
-                // make the early return above skip every later attempt for the rest of the session
                 Dictionary<string, string> parsedGames = new Dictionary<string, string>();
 
                 foreach (string line in lines)
@@ -273,20 +278,13 @@ namespace SteamGridDB.Xbox.Services.Stores
                     }
                 }
 
-                if (parsedGames.Count == 0)
-                {
-                    return false;
-                }
-
-                ubisoftGameLookupCache = parsedGames;
-
-                return true;
+                return parsedGames.Count == 0 ? null : parsedGames;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error loading Ubisoft game list: {ex.Message}");
 
-                return false;
+                return null;
             }
         }
 
@@ -299,9 +297,9 @@ namespace SteamGridDB.Xbox.Services.Stores
         {
             try
             {
-                await LoadUbisoftGameListAsync();
+                Dictionary<string, string> games = await ubisoftGameListCache.GetOrLoadAsync();
 
-                if (ubisoftGameLookupCache != null && ubisoftGameLookupCache.TryGetValue(ubisoftId, out string gameName))
+                if (games != null && games.TryGetValue(ubisoftId, out string gameName))
                 {
                     return gameName;
                 }

@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 9,
+  "next_serial": 10,
   "entries": [
     {
       "stable_id": "F-001",
@@ -681,6 +681,35 @@
             "evidence_paths_hash": "sha256:0fe426846b9a11b587067377bf2a85952bb75c105b0453360fd7039547e7420a"
           },
           "attempted_remedy_hash": "sha256:461eb14d564490e375ec6f68bfe2b350de75373778c63fe88dae1f71dfb24989"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-009",
+      "title": "StoreNameLookup.LoadUbisoftGameListAsync hand-rolled an unlocked duplicate of the codebase's own AsyncLazyCache<T>",
+      "category_hint": "duplicate-lazy-cache",
+      "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+      "primary_evidence_lines": [
+        33,
+        291
+      ],
+      "test_failed": "Deletion test",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 14,
+      "first_seen_sha": "6e83b10",
+      "last_seen_loop": 14,
+      "occurrences": [
+        {
+          "loop": 14,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "6e83b10",
+          "note": "New this loop, and resolved the same loop: found while investigating data_flow's standing residual (StoreNameLookup's unlocked static caches, named unchanged since loop 3) per this loop's dispatch instruction to genuinely investigate the structural dimensions rather than default to the queued test-coverage item. ubisoftGameLookupCache/LoadUbisoftGameListAsync (old :33, :228-291) hand-rolled a fourth, previously-uncounted unlocked cache duplicating the codebase's own AsyncLazyCache<T> (Services/AsyncLazyCache.cs, introduced loop 6 for EpicLibrary/AppliedArtworkStore's identical shape) - replaced with a private static readonly AsyncLazyCache<Dictionary<string,string>> backed by a new gate SemaphoreSlim, matching EpicLibrary's/AppliedArtworkStore's own idiom. 131/131 tests green before and after (no test file touched - network-bound, no seam, matching StoreNameLookup's standing test boundary); MSBuild exit 0 both runs. Reviewer verdict: approved (reality/honesty/regression all passed). sha recorded is the commit examined at Step 1 (loop 13's HEAD), not the resolving commit, following loop 6/10's precedent - this run's operating notes prohibit a second bookkeeping commit to self-reference the resolving sha.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:17f868b413050f212d687f037a4b9e08f9e16f799a0c7d5a2f20b0ab6cd94bad",
+            "evidence_paths_hash": "sha256:27d741762b91fa380020ef9cd976808d4a86b5882ec1a25c6059b85d9a02968e"
+          },
+          "attempted_remedy_hash": "sha256:7fe193892d8a83f1692fb36928d2fac6f1a9d584ba6dc60a7c2de79736d6aa7b"
         }
       ]
     }
