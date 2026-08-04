@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 10,
+  "next_serial": 11,
   "entries": [
     {
       "stable_id": "F-001",
@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 13,
+      "last_seen_loop": 15,
       "occurrences": [
         {
           "loop": 1,
@@ -171,6 +171,18 @@
             "evidence_paths_hash": "sha256:cda0a07cd2672b51689817718c8fd1fce2dcaaa180a53f71c3d6f25debb78aca"
           },
           "attempted_remedy_hash": "sha256:6f10bb32563e047f6ffb78410b706bc19c444bb86b92160c2ec08096e21b2574"
+        },
+        {
+          "loop": 15,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "69bc15b",
+          "note": "Re-verified this loop via fresh direct read of LoadGameEntriesAsync (:332-611 read in full this loop). Core claim (image decode, backup check, and per-game network resolution still merged in the nested foreach) unaffected - this loop's own diff touches only ArtworkDownloader.cs and three test files. Confirmed via git diff --stat 05501e0 HEAD -- PrimaryWidget.xaml.cs (empty) that the file has been byte-identical for six loops running (9 through 15). No further slice queued this loop without fresh evidence. loop_result.targeted_finding_status: carried_forward (this loop's own target was F-007, not F-001).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:41f182f827683c60a7d5b07010a4d7c9213dcd5756d2c5afd26fc4ed6b7db5de",
+            "evidence_paths_hash": "sha256:fa41f264c3d5fbebcad65c839eb9f9205045e7621011bac767d8f09356ea94de"
+          },
+          "attempted_remedy_hash": "sha256:69946d616de771e2f2b27fcd728596a0288b3625c97fde4e5a9f8943ac9758dd"
         }
       ]
     },
@@ -580,7 +592,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "71224de",
-      "last_seen_loop": 13,
+      "last_seen_loop": 15,
       "occurrences": [
         {
           "loop": 9,
@@ -640,6 +652,18 @@
             "evidence_paths_hash": "sha256:793960aba2150da274f9b36a1966b0b66ab8e9bebaae23b83ae13146a1a64d21"
           },
           "attempted_remedy_hash": "sha256:39b52d323916320f5de14122c0c4fc8b7a8c9b0f1da404456457ddfb2be966e3"
+        },
+        {
+          "loop": 15,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "69bc15b",
+          "note": "Narrowed this loop, not resolved: added ArtworkSignatureTests.cs (5 tests) closing ArtworkSignature.cs's zero-test-file gap entirely, and extracted+tested ArtworkDownloader.ChosenAlreadyMatchesOfficialArt (2 boundary tests), closing the officialArtworkFloor mutation gap loop 14's backlog named. ArtworkDownloader's three async entry points and StoreNameLookup's four writers remain untested (network-bound, no seam). This loop's own mutation testing additionally found ColourHistogram's magnitude-normalization line (ArtworkSignature.cs:70) uncaught by any test - reported honestly as a new residual, not concealed. Reviewer verdict: approved (reality/honesty/regression all passed).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:1842fcdb93284d3ada69c3f3985338072950935dd48f61c9aed0a59a34f36357",
+            "evidence_paths_hash": "sha256:385a63acdefb28b1039385ea8b4399e5c5663b3ecd269fdf15f456ac90fbf37a"
+          },
+          "attempted_remedy_hash": "sha256:ce9b2bd54ed6f2baa33ee162f970fe56f57e7e612e9edf48f26468c763e85b32"
         }
       ]
     },
@@ -710,6 +734,35 @@
             "evidence_paths_hash": "sha256:27d741762b91fa380020ef9cd976808d4a86b5882ec1a25c6059b85d9a02968e"
           },
           "attempted_remedy_hash": "sha256:7fe193892d8a83f1692fb36928d2fac6f1a9d584ba6dc60a7c2de79736d6aa7b"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-010",
+      "title": "StoreNameLookup's three remaining per-key caches stay unlocked; the queued single-shared-semaphore fix would either duplicate a hand-rolled lock idiom a third time or serialize four logically-independent stores against each other",
+      "category_hint": "unlocked-per-key-cache",
+      "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+      "primary_evidence_lines": [
+        29,
+        34
+      ],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 15,
+      "first_seen_sha": "69bc15b",
+      "last_seen_loop": 15,
+      "occurrences": [
+        {
+          "loop": 15,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "69bc15b",
+          "note": "New this loop: investigated loop 14's queued backlog item 2 (extend F-009's AsyncLazyCache<T> fix to the three remaining per-key caches) with a genuinely fresh Simplify Pressure Test, per this loop's dispatch instructions rather than build it on loop 14's precedent alone. Found the literal plan does not cleanly pass: sharing loop 14's single gate SemaphoreSlim across all four stores would serialize logically-independent GOG/Epic/name-match/Ubisoft lookups; giving each cache its own semaphore would hand-copy AppliedArtworkStore's lock idiom three more times, reintroducing the exact hand-rolled-duplicate smell F-009 fixed. A correctly-scoped alternative (a small shared gate-guarded-dictionary type reused by both StoreNameLookup and AppliedArtworkStore) is named as a Deepening Candidate, not built this loop.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:3f50b8bdad4a2752a2916457da95b56c230bf3d502cc7885bf1e3c97a7521bd0",
+            "evidence_paths_hash": "sha256:88270c9a44bdad80d1450e199a5b3509e280b2bdf790e4e8076916651277c30f"
+          },
+          "attempted_remedy_hash": "sha256:d03e193b06f5a564961d4cd729d83b8a1d4309573091c09a77539fb82f306af2"
         }
       ]
     }

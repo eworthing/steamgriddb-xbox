@@ -143,7 +143,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             double chosenMatch = official.ColourMatch(chosen);
 
-            if (chosenMatch >= officialArtworkFloor)
+            if (ChosenAlreadyMatchesOfficialArt(chosenMatch))
             {
                 FixLog.Write($"  gate: chosen already matches official art ({chosenMatch:F2})");
 
@@ -205,6 +205,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
         internal static bool PassesColourAndLayoutGate(double candidateMatch, double candidateLayout, double chosenLayout)
         {
             return candidateMatch > officialArtworkCeiling && candidateLayout >= chosenLayout;
+        }
+
+        /// <summary>
+        /// The replacement gate's entry check (see <see cref="FindOfficialLookalikeAsync"/>): whether the
+        /// already-chosen artwork resembles the official capsule closely enough that no replacement search
+        /// is worth running at all. See <see cref="officialArtworkFloor"/>'s own doc comment for how this
+        /// bound was calibrated, including the incident (Mad Max at 0.51) that set it where it is.
+        /// </summary>
+        /// <param name="chosenMatch">Chosen candidate's <see cref="ArtworkSignature.ColourMatch"/> against the official capsule.</param>
+        internal static bool ChosenAlreadyMatchesOfficialArt(double chosenMatch)
+        {
+            return chosenMatch >= officialArtworkFloor;
         }
     }
 }

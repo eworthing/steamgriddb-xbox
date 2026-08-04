@@ -92,6 +92,14 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         /// <summary>
+        /// A single-colour opaque PNG, for signature tests that need two images with no palette overlap.
+        /// </summary>
+        internal static Task<IBuffer> SolidColorPngAsync(byte r, byte g, byte b, int width = 32, int height = 32)
+        {
+            return FromPixelsAsync(width, height, (x, y) => (B: b, G: g, R: r, A: (byte)255));
+        }
+
+        /// <summary>
         /// A PNG whose four corners are fully transparent and whose centre is opaque - the shape a
         /// rounded icon or a physical-media mockup produces, which FillsTileAsync exists to reject.
         /// </summary>
