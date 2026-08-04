@@ -3937,3 +3937,322 @@ colon-split boundary conditions), introduces no Seam so the Unified Seam Policy 
 is directly tested at its new Interface with mutation-sensitive assertions, and both verification gates
 (114/114 tests, MSBuild exit 0) pass clean." All three checks (`reality`, `honesty`, `regression`) `passed`;
 `conditions: []`; `regressions: []`.
+
+--- Loop 10 (UTC 2026-08-04T15:25:36Z) ---
+
+### Discovery
+see Loop 1 Discovery
+
+### Loop Counter
+Loop 10 of 10 (cap)
+
+### System Flag
+[STATE: HALT_LOOP_CAP]
+
+---
+
+## Contest Verdict
+
+**Promising, but architecturally immature.**
+
+This is the cap loop (10/10). Independent re-derivation from current source (both gates green before and
+after this loop's change: 114->115 tests, MSBuild exit 0) found no drift since loop 9 and confirmed the
+queued Priority 1 - F-005's RankGrids style-priority mixed-style test gap - genuinely survives a fresh
+Simplify Pressure Test. Ran the Step 2 tiebreak against the only other unblocked backlog item (F-007) on
+blast radius (F-005: one file; F-007: two files) and F-005 won honestly. Landed the fix and independently
+proved it mutation-sensitive by inverting the exact production line the finding named, re-running the suite,
+confirming exactly the new test - and nothing else - reacted, then reverting the inversion before commit. No
+production code changed this loop. Backlog is not empty (F-007, F-003 remain), so this cap halt is the
+exhausted variant, not convergence - real work remains queued.
+
+## Scorecard (1-10)
+
+- Architecture quality: 7.0 | SAME | PrimaryWidget.xaml.cs byte-identical to loop 9; re-read
+  LoadGameEntriesAsync (:332-703) directly this loop, merge unaffected.
+- State management and runtime ownership: 7.0 | SAME | AppliedArtworkStore.cs/FixLog.cs untouched
+  this loop; fix touches zero mutable runtime state.
+- Domain modeling: 5.5 | SAME | SteamGridDbGame.cs/SteamGridDbGrid.cs re-read directly, still plain
+  public-setter data bags. ParseOfficialCapsuleUrl unchanged.
+- Data flow and dependency design: 6.0 | SAME | StoreNameLookup.cs:27-32, EpicLibrary.cs:31,
+  AppliedArtworkStore.cs:49 all re-read directly, unaffected.
+- Framework / platform best practices: 6.0 | SAME | DataContractJsonSerializer/Windows.Data.Json
+  split re-confirmed unchanged; this loop's diff is xunit test code only.
+- Concurrency and runtime safety: 6.5 | SAME | F-003's sequential per-game awaits re-confirmed at
+  identical line numbers; zero Task.WhenAll/Parallel.*/Task.Run codebase-wide, same as loop 9.
+- Code simplicity and clarity: 8.5 | SAME | Diff is purely additive test code (+17/-0, one file) - no
+  simplification, no double-counting.
+- Test strategy and regression resistance: 8.5 | UP | ArtworkRankerTests.cs:190-204 (new) closes
+  F-005's named mutation gap - verified mutation-sensitive by inverting ArtworkRanker.cs:195's ThenBy
+  and confirming exactly 1 failure, then reverting. F-007 + PrimaryWidget's shell seams keep it below 9.
+- Overall implementation credibility: 7.5 | SAME | This loop's win credited entirely to test_strategy
+  per this run's anti-double-counting convention; PrimaryWidget.xaml.cs's remaining lines still unverified
+  beyond inspection + compile.
+
+## Authority Map
+(unchanged; not re-emitted - no authority finding was Priority 1 this loop)
+
+## Strengths That Matter
+
+- JsonRead (Services/JsonRead.cs) - unaffected this loop (file not in diff).
+- ArtworkSource's private-constructor-plus-factory-method design - unaffected this loop (file not in diff).
+- AsyncLazyCache<T> - unaffected this loop (file not in diff).
+- This loop's fix demonstrates a repeatable pattern for closing remaining test-strategy gaps cheaply: prove
+  mutation-sensitivity directly (flip the production line, confirm exactly the new test fails, revert)
+  rather than merely asserting coverage - applies directly to F-007's queued tests.
+
+## Findings
+
+### Finding #1: PrimaryWidget.xaml.cs still merges UI event handling, image decode, network resolution, and bulk-operation orchestration behind zero Interface boundary
+
+Why it matters - The churn-flagged file (still the largest in the repo across every prior loop's
+Discovery) continues to bundle several structurally distinct concerns with no Module boundary between most
+of them, so a change to any one risks disturbing the others.
+
+What is wrong - Re-verified this loop via a fresh direct read; unaffected by this loop's fix (which
+targeted ArtworkRankerTests.cs only). LoadGameEntriesAsync (PrimaryWidget.xaml.cs:332-703) still
+interleaves image decode, backup checks, and network name-resolution per entry inside one sequential
+foreach (nested foreach at :436), with per-game awaits at :562,584,593,602 - unchanged from loop 9.
+What remains merged: (1) UI event handling proper; (2) the image-decode/backup-check/network-resolution
+core; (3) the three bulk-operation loops, still ruled out by the GameEntry/UWP platform constraint
+documented at loop 6.
+
+Evidence
+- SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-703
+- SteamGridDB.Xbox/PrimaryWidget.xaml.cs:436
+- SteamGridDB.Xbox/PrimaryWidget.xaml.cs:562,584,593,602
+
+Architectural test failed - n/a - different category (ownership/coupling sprawl for what remains).
+
+Dependency category - n/a
+
+Leverage impact - Unaffected this loop.
+
+Locality impact - Unaffected this loop.
+
+Metric signal - PrimaryWidget.xaml.cs: 1,950 lines, unchanged this loop.
+
+Why this weakens submission - Ownership of the concerns still merged in PrimaryWidget remains
+untraceable from any single Module besides the UI class itself - unaffected by this loop's test-only fix.
+
+Severity - Serious deduction
+
+ADR conflicts - none
+
+Minimal correction path - No further split is queued this loop: the image-decode/backup-check/network-
+resolution core is still genuinely interleaved per entry (re-confirmed by this loop's own direct read), so
+no next slice is proposed without first re-verifying against current source.
+
+Blast radius - Change (future loop, with a fresh SPT first): PrimaryWidget.xaml.cs. Avoid:
+Services/Artwork/*, Services/Stores/*, Services/SteamGridDB/*, Services/Library/*.
+
+---
+
+### Finding #2: ArtworkRanker.RankGrids' style-priority ordering has no test mixing text-bearing and icon-like styles, so a sort-direction inversion would pass silently
+
+Why it matters - RankGrids is the ranking algorithm behind every automatic artwork pick on the
+widget's primary flow; an inverted style-priority tie-break would silently prefer icon-like art over
+box-art-style uploads library-wide, with no test catching it.
+
+What is wrong - Resolved this loop. Added Text_bearing_styles_sort_ahead_of_icon_like_styles_in_
+RankGrids to ArtworkRankerTests.cs: two RankGrids candidates differing only in Style (no_logo vs
+alternate), asserting the text-bearing one sorts first. Verified mutation-sensitive by directly flipping
+ArtworkRanker.cs:195's ThenBy to ThenByDescending and re-running the suite: exactly one test failed
+(the new one), then reverted (git checkout) and re-confirmed 115/115 green before commit.
+
+Evidence
+- SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs:195
+- SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs:190-204
+
+Architectural test failed - n/a - different category (missing-test gap, now closed).
+
+Dependency category - n/a
+
+Leverage impact - One call site (RankGrids), but it is the ranking function every automatic-fix and
+manual-picker artwork list goes through.
+
+Locality impact - The fix is one new test case; no production code changes.
+
+Metric signal - 1 new test (114 -> 115); mutation-sensitivity independently verified.
+
+Why this weakens submission - Previously: a source-level mutation on a central, primary-flow ranking
+rule passed the entire suite undetected. Now closed.
+
+Severity - Noticeable weakness
+
+ADR conflicts - none
+
+Minimal correction path - Add one RankGrids test case constructing two candidates with different
+styles and asserting the text-bearing one sorts first. (Executed this loop.)
+
+Blast radius - Change: SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs. Avoid:
+SteamGridDB.Xbox/Services/Artwork/ArtworkRanker.cs, everything else.
+
+---
+
+### Finding #3: Library load issues one sequential SteamGridDB round-trip per game with no bounded concurrency
+
+Why it matters - Load time scales linearly with library size and network latency on the widget's
+primary open path.
+
+What is wrong - Re-verified this loop via direct read; unaffected. Await sites remain at
+:562,584,593,602 (unchanged from loop 9). Standing operational constraint continues to rule out attempting
+this finding. StoreNameLookup's three static caches remain unlocked; still safe only because calls are
+strictly sequential today, re-confirmed via codebase-wide grep.
+
+Evidence
+- SteamGridDB.Xbox/PrimaryWidget.xaml.cs:332-703
+- SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:27-32,86-101,203-222
+
+Architectural test failed - n/a - different category (structural waste per lens-efficiency.md).
+
+Dependency category - true-external
+
+Leverage impact - Unaffected this loop.
+
+Locality impact - Unaffected this loop.
+
+Metric signal - One HTTP round-trip per game per store lookup; unchanged this loop.
+
+Why this weakens submission - Structural waste on the widget's primary hot path, unchanged from loop
+7/8/9.
+
+Severity - Noticeable weakness
+
+ADR conflicts - none
+
+Minimal correction path - Blocked for the duration of this run by the standing operational constraint.
+
+Blast radius - Change: PrimaryWidget.xaml.cs, Services/Stores/StoreNameLookup.cs. Avoid:
+Services/Artwork/*, Services/SteamGridDB/*.
+
+---
+
+### Finding #4: ArtworkDownloader's tile-fill gate and TileImage's vertical-crop algorithm have zero test coverage at any interface, direct or indirect
+
+Why it matters - DownloadBestTileFillingImageAsync decides which candidate image the widget applies as
+artwork when auto-selecting; a wrong crop or a broken tile-fill check would ship visibly bad artwork with no
+test catching it.
+
+What is wrong - Re-verified this loop via direct read; unaffected. ArtworkDownloader.cs's three
+internal entry points still have no corresponding ArtworkDownloaderTests.cs file. TileImage.cs's public
+FillsTileAsync/CropPortraitToTileAsync remain untested - TileImageTests.cs's four Fact methods still
+exercise only EnsurePngAsync. BestVerticalCropAsync, reachable only through CropPortraitToTileAsync,
+remains at zero coverage.
+
+Evidence
+- SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs:40,71,122
+- SteamGridDB.Xbox/Services/Artwork/TileImage.cs:231,284,321
+- SteamGridDB.Xbox.Tests/TileImageTests.cs:17-60
+
+Architectural test failed - n/a - different category (missing-test gap per method.md Step 8).
+
+Dependency category - n/a
+
+Leverage impact - One call site cluster, on the primary automatic-artwork-pick path.
+
+Locality impact - The fix is new tests only; no production code change needed.
+
+Metric signal - 3 of 3 ArtworkDownloader entry points untested; 2 of 3 public TileImage methods
+untested. Unchanged this loop.
+
+Why this weakens submission - A source-level mutation in the tile-fill gate or crop-window selection
+would pass the entire suite undetected.
+
+Severity - Noticeable weakness
+
+ADR conflicts - none
+
+Minimal correction path - Add ArtworkDownloaderTests.cs exercising
+DownloadBestTileFillingImageAsync's ranking-to-selection gate with constructed IBuffer fixtures; add
+FillsTileAsync/CropPortraitToTileAsync cases to TileImageTests.cs. No production code changes
+required.
+
+Blast radius - Change: SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs (new),
+SteamGridDB.Xbox.Tests/TileImageTests.cs (new cases). Avoid:
+SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs, SteamGridDB.Xbox/Services/Artwork/TileImage.cs.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| structurally_necessary | Adding one RankGrids test case; no Module removed/restructured, no Seam introduced. |
+| new_seam_justified | false |
+| helpful_simplification | None - this loop's fix is a test-coverage addition, not a simplification. |
+| should_not_be_done | Attempting F-007 or F-003 this loop (lost the tiebreak / blocked); any further F-001 slice (no new evidence). |
+| tests_after_fix | One new test added at the existing RankGrids Interface; mutation-sensitivity independently verified. |
+
+## Improvement Backlog
+
+1. Add ArtworkDownloader/TileImage test coverage for the tile-fill gate and vertical-crop selection
+   (F-007) - new ArtworkDownloaderTests.cs, new TileImageTests.cs cases; no production code change.
+   - Why it matters: closes the last remaining named test_strategy gap besides PrimaryWidget's
+     architecturally-untestable shell seams.
+   - Score impact: Test strategy +0.5-1.0 once verified.
+2. Bound concurrency in LoadGameEntriesAsync's per-game SteamGridDB lookups (F-003) - blocked for the
+   duration of this run by the standing operational constraint.
+   - Why it matters: removes load latency scaling linearly with library size, whenever lifted.
+   - Score impact: Concurrency +0.5, Framework idioms +0.5 once verified (future run).
+
+## Deepening Candidates
+
+None this loop.
+
+## Builder Notes
+
+1. A test-coverage finding's fix can be independently proven correct (not just asserted correct) by
+   inverting the exact production line the finding names, re-running the suite, and confirming precisely the
+   new test fails - then reverting before commit. -> REVIEW_HISTORY.json loops[10].builder_notes for full
+   notes.
+2. When two backlog items are both test-only fixes at the same severity, blast radius (file count in
+   minimal_correction_path) is a clean, mechanical tiebreak. -> REVIEW_HISTORY.json loops[10].
+   builder_notes for full notes.
+
+## Final Judge Narrative
+
+Place, not win, at the loop cap. This is loop 10 of 10 - the configured maximum. Ground truth was clean
+going in (both gates green, zero drift since loop 9's commit) and clean coming out (115/115 tests, MSBuild
+exit 0). The loop re-ran the Simplify Pressure Test on the queued F-005 finding from scratch, confirmed it
+survives, ran the Step 2 tiebreak against the only other unblocked backlog item (F-007) on blast radius, and
+executed the smaller one. The fix's correctness was independently proven, not just asserted: inverting the
+exact production line the finding named and re-running the suite confirmed precisely the new test - and
+nothing else - reacts to that mutation. Runtime ownership is unaffected and exactly as trustworthy as loop 9
+left it. Concurrency remains sequential and safe today, unaffected. Tests reduce regressions incrementally
+more than last loop measured, with a proof standard (flip-and-verify) stronger than a bare assertion. Future
+work risks nothing new from overengineering - this loop's fix added zero abstraction. Backlog is not empty
+(F-007, F-003 remain), so this cap halt is the exhausted variant, not convergence.
+
+## Loop 10 Result
+
+Added one new test method, Text_bearing_styles_sort_ahead_of_icon_like_styles_in_RankGrids, to
+SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs, closing finding F-005 (stable_id F-005). The test
+constructs two RankGrids candidates differing only in Style (no_logo vs alternate, all other fields
+default/equal) and asserts the text-bearing one (alternate) sorts first. git diff --stat:
+SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs | 17 +++++++++++++++++, 1 file changed, 17 insertions(+). No
+production code changed.
+
+What proves the change is honest: run-tests.ps1: 114 passed before, 115 passed after (delta is exactly
+the 1 new test). MSBuild: exit 0, both runs. Mutation-sensitivity independently verified, not just asserted:
+temporarily inverted ArtworkRanker.cs:195's ThenBy(GridStylePriority) to ThenByDescending, re-ran the
+full suite, got exactly 1 failure (the new test, confirmed via stack trace pointing at
+ArtworkRankerTests.cs:204), then reverted via git checkout -- SteamGridDB.Xbox/Services/Artwork/
+ArtworkRanker.cs and re-confirmed 115/115 green before the implementation review and commit.
+
+Risk boundary evidence (Meta-Rule 4): none - this fix crosses no isolation/Sendable/conditional-
+compilation/cross-file-visibility/lock-ordering boundary. It is a pure test-only addition; no production
+type, visibility, or concurrency primitive changed.
+
+Targeted finding status: resolved - F-005's core claim (no RankGrids-level test varies Style
+between two candidates, so the tie-break direction could invert silently) is fully closed: a
+mutation-verified test now exists at exactly that surface.
+
+Unintended scorecard regression: none observed. test_strategy moved UP on distinct, source-verified,
+mutation-tested proof; all other dimensions held SAME (zero structural change in their evidence this loop);
+no dimension regressed.
+
+## Loop 10 Implementation Review
+
+verdict: approved - "The new RankGrids test isolates Style as the sole varying field (all other
+RankedGrid signals equal via Grid() defaults) and asserts an order that only holds under .ThenBy ascending,
+so it would fail if the clause were inverted to .ThenByDescending, genuinely closing F-005's mutation gap
+with no production code touched." All three checks (reality, honesty, regression) passed;
+conditions: []; regressions: [].

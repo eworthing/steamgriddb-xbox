@@ -188,6 +188,23 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
+        public void Text_bearing_styles_sort_ahead_of_icon_like_styles_in_RankGrids()
+        {
+            // GridStylePriority is unit-tested directly above, but until now no RankGrids case varied
+            // Style between two candidates - so a .ThenBy/.ThenByDescending direction swap on that
+            // clause would have passed the whole suite silently.
+            List<SteamGridDbGrid> ranked = ArtworkRanker.RankGrids(
+                new[]
+                {
+                    Grid(id: 1, style: "no_logo"),
+                    Grid(id: 2, style: "alternate"),
+                },
+                "Halo");
+
+            Assert.Equal(new[] { 2, 1 }, IdsOf(ranked));
+        }
+
+        [Fact]
         public void Official_store_artwork_is_preferred_within_the_same_style()
         {
             List<SteamGridDbGrid> ranked = ArtworkRanker.RankGrids(

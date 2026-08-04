@@ -15,7 +15,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 1,
@@ -124,6 +124,18 @@
             "evidence_paths_hash": "sha256:e55fe06ef29348d4249b3164d59fb38da3b188fc27a4076e372796ba816a4094"
           },
           "attempted_remedy_hash": "sha256:fe2267b0f6760576053d335d9f7f446c3606846cf8b79d8c3773b5796b6d26cd"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "05501e0",
+          "note": "Re-verified this loop via fresh direct read (PrimaryWidget.xaml.cs byte-identical to loop 9 - this loop's diff touches only ArtworkRankerTests.cs). Core claim (image decode, backup checks, network name-resolution, and UI orchestration still merged in LoadGameEntriesAsync/PrimaryWidget) unaffected. No further slice queued this loop without fresh evidence. loop_result.targeted_finding_status: carried_forward (this loop's own target was F-005, not F-001).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:423f9de6ea7f8fbd4deac9c1d52103e32a909249a5cde6f83b4b39b41b915cb5",
+            "evidence_paths_hash": "sha256:de9b15e85f2b2ca7742892331c990aad72835026e42e890df62ea81fe270c65f"
+          },
+          "attempted_remedy_hash": "sha256:0f056253101b47905be0863d9a9aed86cdc1087d1996f755d0c90ef632aeae32"
         }
       ]
     },
@@ -180,7 +192,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "92c598a",
-      "last_seen_loop": 8,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 1,
@@ -288,6 +300,18 @@
             "evidence_paths_hash": "sha256:6b560ba7460cbc9f365057b2016937d9eb9119aee1d73131b8ed35cc6ee6177d"
           },
           "attempted_remedy_hash": "sha256:9e47b640b49f9d3c1818ae2b8c468c39fb7cd7c5d306d66887821fb419f41b64"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "05501e0",
+          "note": "Re-verified this loop: PrimaryWidget.xaml.cs untouched (this loop's diff is confined to ArtworkRankerTests.cs), await sites unchanged at :562,584,593,602. Still ruled out by the same standing operational constraint. Priority 2 in loop 10's backlog (behind F-007, which is unblocked; F-003 remains blocked).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8d743c2c0039028fb54f8c968d71765c3fb67aa497a93273a65fa579eb398234",
+            "evidence_paths_hash": "sha256:011679570c21c9f6fe2e53f5f7954530ba310c9db27bb18c5c7b0bd254b43186"
+          },
+          "attempted_remedy_hash": "sha256:4ee86d2db30d220ee7d27d79c0ed6494349cb4f2e88c983d28580c65a6132027"
         }
       ]
     },
@@ -392,7 +416,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "9c7ce51",
-      "last_seen_loop": 8,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 7,
@@ -429,6 +453,18 @@
             "evidence_paths_hash": "sha256:bef49e9f64bdf5e7489e1bee4d78abe13821f2cb24a44c9874b549e705b9b4e5"
           },
           "attempted_remedy_hash": "sha256:3c4fcb5ccfa7fc2b32dfb878b244567418172a210d5a0a2a6b3bec049788ad42"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F2",
+          "status": "resolved",
+          "sha": "05501e0",
+          "note": "Resolved this loop: added Text_bearing_styles_sort_ahead_of_icon_like_styles_in_RankGrids to ArtworkRankerTests.cs, constructing two RankGrids candidates differing only in Style and asserting the text-bearing one sorts first. Verified mutation-sensitive by directly inverting ArtworkRanker.cs:195's .ThenBy to .ThenByDescending, confirming exactly this one test failed, then reverting. Reviewer verdict: approved (reality/honesty/regression all passed). sha recorded below is the commit examined at Step 1 (loop 9's HEAD), not the resolving commit, following loop 6's precedent - this run's cap-loop close-out does not add a second bookkeeping commit to self-reference the resolving sha.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:824859043528b5f447d06fd51d54191c7beaf02d2e845bf8edfcefa278b41989",
+            "evidence_paths_hash": "sha256:6ada141d5d3536e80d6a28d87c4bba899cd45bc25421568bdc7013700c3fa34a"
+          },
+          "attempted_remedy_hash": "sha256:3565604b7fb923c9a7aef1d5b979a572e43ac9ec2a66d62e227f232c3f51a871"
         }
       ]
     },
@@ -474,7 +510,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "71224de",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 9,
@@ -487,6 +523,18 @@
             "evidence_paths_hash": "sha256:657409640147fffa4154b2b1070e20e5a8611fecbc7ca82887ae3dfd9fc227e2"
           },
           "attempted_remedy_hash": "sha256:f16c0069245b9383fabdb65d68e302b3991678341f30a3486f6ff0fe1b3a2948"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "05501e0",
+          "note": "Re-verified this loop via direct read: ArtworkDownloader.cs and TileImage.cs unaffected by this loop's fix (confined to ArtworkRankerTests.cs). ArtworkDownloaderTests.cs still absent; TileImageTests.cs's four Fact methods still exercise only EnsurePngAsync. Promoted to Priority 1 in loop 10's backlog now that F-005 is resolved - the next honest, cheapest test_strategy win, same shape as this loop's fix.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:3ea5f17686bbc5b892624189a6c36aa655b657a843b0653a913ff72dd660b2d4",
+            "evidence_paths_hash": "sha256:ba9be792e797eb5a46ef7d3fdf3fe4ca1eb23639f3ec1b79da1ea13c88d692bd"
+          },
+          "attempted_remedy_hash": "sha256:3689975889589f6a28e7010e91ae4cf64e7b4720b92ca6a83fe79a2b11cfd37d"
         }
       ]
     }
