@@ -3656,3 +3656,194 @@ Verdict: **approved**. Reason: Both switches now read from one shared `platforms
 
 ## Retired Findings (this loop)
 None.
+
+--- Loop 8 (UTC 2026-08-05T22:42:58Z) ---
+
+### Discovery
+see Loop 1 Discovery
+
+### Loop Counter
+Loop 8 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+Good app, but not top-tier yet
+
+This loop's own independent re-derivation (a full-file cold sweep of PrimaryWidget.xaml.cs via one helper, a full leaf-module Services/Models sweep via a second, plus direct reads of every write/read site of `lastFocusedButton`, StoreNameLookup.cs in full, GamePlatform.cs, GameEntry.cs, App.xaml.cs, MainPage.xaml.cs and Converters/) confirmed F-019 as the correct Priority 1 and resolved it: `lastFocusedButton` is now split into two panel-scoped fields with the one legitimate cross-panel handoff made an explicit, named assignment. `state_management` and `credibility` both move to 10 this loop on the strength of that fix plus a comprehensive fresh sweep finding no further residual on either dimension. `architecture_quality` and `data_flow` remain flat (7.5) and F-011 remains genuinely blocked by the standing user constraint, which is what keeps this short of a top-tier verdict.
+
+## Scorecard (1-10)
+
+- Architecture quality: 7.5 | SAME | Fresh direct read this loop via an independently-briefed helper's full (pre-fix) read of PrimaryWidget.xaml.cs found no new module-graph or Seam-level finding. Stalled-Dimension Sweep (8 consecutive loops SAME): explicit clean.
+- State management and runtime ownership: 10 | UP | F-019 resolved this loop - `gridPanelFocusRestoreTarget`/`searchPanelFocusRestoreTarget` independently grep-verified this loop, all 6 write sites classified with zero unaccounted writes. No further state-ownership residual could be named after a comprehensive fresh census.
+- Domain modeling: 9.5 | SAME | Direct re-read this loop of GameEntry.cs:95-155 re-confirms the parallel-fields case unchanged. Residual accepted.
+- Data flow and dependency design: 7.5 | SAME | Ambient-state census re-confirmed this loop: 7 process-lifetime (static) instances, unchanged in count. Stalled-Dimension Sweep: explicit clean.
+- Framework / platform best practices: 9.5 | SAME | App.xaml.cs:120's TODO re-confirmed present this loop via direct grep. Residual accepted.
+- Concurrency and runtime safety: 9.5 | SAME | F-018's fix independently re-verified this loop. This loop's own F-019 fix touches no await boundary. Residual accepted (PopulateGridSelectionPanelAsync's discarded Task, SPT-rejected on Q5).
+- Code simplicity and clarity: 9.5 | SAME | Fresh leaf-module duplication sweep this loop re-confirmed F-020 as the sole remaining candidate. This loop's own F-019 fix is itself simplicity-positive (deleted HideSearchPanelAsync's restoreFocus parameter). Residual queued (F-020).
+- Test strategy and regression resistance: 8.0 | SAME | GridImage_Click's stale-session guard remains untested; this loop's own fix touches PrimaryWidget.xaml.cs only (no desktop test projection) - 167/167 tests pass unchanged.
+- Overall implementation credibility: 10 | UP | F-019's own gap is fully closed this loop; the new field-declaration comment's exhaustive claim independently grep-verified true (6 write sites, zero unaccounted for). Comprehensive fresh sweep found zero further honesty-leak candidates.
+
+## Authority Map
+(Re-emitted this loop: an authority/state-ownership finding, F-019, was Priority 1.)
+
+- Concern: Library-wide operation vs. single-game write mutual exclusion
+  - Owner: `PrimaryWidget.libraryOperationGuard` (`LibraryOperationGuard` instance)
+  - Allowed writers: `TryBeginLibraryOperation`/`EndLibraryOperation` (all 7 call sites, re-confirmed unchanged this loop)
+  - Readers: `IsLibraryOperationBlocking` (`EditGameImage_Click`, `SearchGameImage_Click`)
+  - Persistence seam: none
+  - Async mutation entry points: every `TryBeginLibraryOperation` call site
+  - Verdict: Single and clear
+
+- Concern: Grid-picker and search-panel close-and-teardown mutual exclusion (F-018, resolved loop 6)
+  - Owner: `PrimaryWidget.gridPanelCloseGuard` / `searchPanelCloseGuard` (`LibraryOperationGuard` instances)
+  - Allowed writers: `HideGridPanelAsync` / `HideSearchPanelAsync` (own `TryBegin`/`End`)
+  - Readers: none
+  - Persistence seam: none
+  - Async mutation entry points: `CloseGridPanel_Click`, `DownloadAndReplaceImageAsync`'s auto-close, `CloseSearchPanel_Click`, `SearchResult_Click`
+  - Verdict: Single and clear
+
+- Concern: Grid-panel focus-restoration target (F-019, resolved loop 8)
+  - Owner: `PrimaryWidget.gridPanelFocusRestoreTarget` (Button field, own to the grid panel)
+  - Allowed writers: `EditGameImage_Click:1291` (own open handler), `SearchResult_Click:1840` (explicit handoff from `searchPanelFocusRestoreTarget`), `HideGridPanelAsync:1701-1702` (own close handler, restores then clears)
+  - Readers: `HideGridPanelAsync:1701-1702`
+  - Persistence seam: none
+  - Async mutation entry points: `EditGameImage_Click`, `SearchResult_Click`, `HideGridPanelAsync`
+  - Verdict: Single and clear
+
+- Concern: Search-panel focus-restoration target (F-019, resolved loop 8)
+  - Owner: `PrimaryWidget.searchPanelFocusRestoreTarget` (Button field, own to the search panel)
+  - Allowed writers: `SearchGameImage_Click:1732` (own open handler), `SearchResult_Click:1841` (explicit handoff, clears), `HideSearchPanelAsync:1940-1943` (own close handler)
+  - Readers: `HideSearchPanelAsync:1940-1943`
+  - Persistence seam: none
+  - Async mutation entry points: `SearchGameImage_Click`, `SearchResult_Click`, `HideSearchPanelAsync`
+  - Verdict: Single and clear
+
+## Strengths That Matter
+- ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline - re-confirmed this loop's own independent leaf-module duplication sweep (Reuse/Altitude/Efficiency clean across all four files) with no structural issues and no domain-policy leakage.
+- This loop's own F-019 fix eliminates the actual multi-writer ambiguity, not just documents it: `gridPanelFocusRestoreTarget` and `searchPanelFocusRestoreTarget` are now written only by their own panel's own open handler, their own panel's own close handler, or one explicit, named handoff assignment (PrimaryWidget.xaml.cs:1840-1841) - independently grep-verified this loop (all 6 total write sites classified, zero unaccounted-for writes) and confirmed by a cold implementation reviewer.
+- `HideSearchPanelAsync`'s `restoreFocus` boolean parameter - a control-flow flag whose only purpose was suppressing the normal cleanup for one caller - became fully unnecessary once the handoff was made explicit, and was deleted along with it: net simplification, not just net safety.
+
+## Findings
+
+### Finding #1: lastFocusedButton is written by both EditGameImage_Click and SearchGameImage_Click with no single owner, and is deliberately left uncleared across the SearchResult_Click -> grid-panel handoff
+
+**Why it matters** — PrimaryWidget's own Edit and Search entry points can both reach the underlying game-row list while the other panel's ~250ms slide-up animation is still in flight; if the not-yet-covering panel's row buttons are reached during that window, the two panels' close handlers race for the same field, and whichever panel closes second finds `lastFocusedButton` already cleared by the other and silently skips its own focus restoration.
+
+**What is wrong** — `lastFocusedButton` (PrimaryWidget.xaml.cs:59, pre-fix) was a single Button field written by `EditGameImage_Click` (line 1282) and `SearchGameImage_Click` (line 1723), and read/cleared by both `HideGridPanelAsync` (lines 1692-1693) and `HideSearchPanelAsync` (lines 1924-1927). `SearchResult_Click` (line 1829) explicitly closed the search panel with `HideSearchPanelAsync(false)` specifically so `lastFocusedButton` was NOT cleared, carrying the original search-opening button's value forward - a genuine, deliberate cross-panel handoff, undocumented at the field's own declaration.
+
+**Evidence** — PrimaryWidget.xaml.cs:59, 1282, 1692-1693, 1723, 1828-1830, 1924-1927 (all pre-fix)
+
+**Architectural test failed** — n/a — state-ownership finding, not an abstraction-removal candidate
+
+**Dependency category** — n/a
+
+**Leverage impact** — Callers (the four Show/Hide-adjacent handlers) could not tell from the field's own declaration which of three roles it was playing at a given moment.
+
+**Locality impact** — Contained to PrimaryWidget.xaml.cs; no other file read or wrote this field.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A real, if narrow, single-owner ambiguity on a mutable field driving primary-flow focus restoration, undocumented at its declaration - the naive fix (split into two panel-scoped fields) would have silently broken the intentional handoff, so it needed a documented redesign. Rated Noticeable rather than Serious since the worst reachable consequence was a missed focus restoration (UX only).
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Fixed this loop: split `lastFocusedButton` into two panel-scoped fields, `gridPanelFocusRestoreTarget` and `searchPanelFocusRestoreTarget`. The one legitimate cross-panel case - `SearchResult_Click`'s handoff - is now an explicit, named, two-line assignment instead of an implicit "skip the clear" boolean parameter, which let `HideSearchPanelAsync`'s own `restoreFocus` parameter be deleted entirely.
+
+**Blast radius** — Change: SteamGridDB.Xbox/PrimaryWidget.xaml.cs. Avoid: no XAML changes needed.
+
+### Finding #2: StoreNameLookup's GOG and Epic name-fetch methods independently reimplement the same double-checked-locking skeleton
+
+**Why it matters** — Any future fix or refinement to the check-then-populate discipline has to be applied by hand in both places; nothing enforces they stay identical.
+
+**What is wrong** — `GetOrFetchGogNameAsync` (StoreNameLookup.cs:102-131) and `GetOrFetchEpicNameAsync` (StoreNameLookup.cs:244-277) each independently implement the identical shape: check cache unlocked, await the cache's own gate, re-check under the gate, fetch, cache only a non-empty result, release. `FindGameByNameAsync` (144-190) is a related but distinct third shape - genuinely different enough to stay out of scope.
+
+**Evidence** — StoreNameLookup.cs:102-131, 244-277
+
+**Architectural test failed** — Shallow module
+
+**Dependency category** — n/a
+
+**Leverage impact** — Each new per-key string cache with the same "skip empty-string misses" semantics pays the double-checked-locking boilerplate tax again by hand.
+
+**Locality impact** — Contained to StoreNameLookup.cs.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Synchronized maintenance across two behavior-bearing sites implementing the identical check-then-populate skeleton.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Extract a small private `GetOrFetchNameAsync` helper used by the two GOG/Epic methods only; leave `FindGameByNameAsync`'s distinct logic untouched.
+
+**Blast radius** — Change: StoreNameLookup.cs. Avoid: `FindGameByNameAsync` (out of scope), EpicLibrary.cs, StoreNameLookupTests.cs.
+
+### Finding #3: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (PrimaryWidget.xaml.cs:411-781, shifted from loop 7's cited 402-705 by this loop's own +8-line field-declaration insertion well above this range) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence.
+
+**Evidence** — PrimaryWidget.xaml.cs:411-781
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None currently actionable - see blocker.
+
+**Locality impact** — Would be contained to PrimaryWidget.xaml.cs if unblocked.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A real, linearly-scaling latency cost, but BLOCKED by the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes).
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — BLOCKED this loop; named for continuity rather than escalated to a user-decision halt.
+
+**Blast radius** — Change: none (blocked). Avoid: PrimaryWidget.xaml.cs (no change while blocked).
+
+## Simplification Check
+| Field | Value |
+|---|---|
+| Structurally necessary | Splitting `lastFocusedButton` into `gridPanelFocusRestoreTarget`/`searchPanelFocusRestoreTarget` - removes a real multi-writer ambiguity |
+| New seam justified | false |
+| Helpful simplification | `HideSearchPanelAsync`'s `restoreFocus` boolean parameter deleted entirely |
+| Should NOT be done | Merging `FindGameByNameAsync` into GOG/Epic helper (F-020); enum-tagged single field instead of two plain fields |
+| Tests after fix | No tests existed before or after (no desktop test projection); full build + full suite (167/167) re-run; implementation review approved |
+
+## Improvement Backlog
+1. F-020 — Extract a shared `GetOrFetchNameAsync` helper for StoreNameLookup's GOG and Epic double-checked-locking duplication. Kind: simplification. Rank: helpful. Score impact: simplicity +0.5.
+2. F-011 — Parallelize LoadGameEntriesAsync's per-entry network resolution. Kind: structural. Rank: needed for winning. BLOCKED by standing user constraint. Score impact: concurrency +0.5.
+
+## Deepening Candidates
+None. No friction proven this loop beyond what Findings #1-#3 already cover.
+
+## Builder Notes
+- An implicit "skip the normal cleanup" boolean parameter is often really an unwritten ownership handoff between two owners - making the handoff an explicit, named assignment removes the ambiguity and often lets the parameter itself disappear. → REVIEW_HISTORY.json `loops[17].builder_notes` for full notes.
+- Splitting one shared field into per-owner fields doesn't just document an existing write-ownership ambiguity, it structurally removes the race the ambiguity created. → REVIEW_HISTORY.json `loops[17].builder_notes` for full notes.
+- A field's own doc comment can be written as a literal, checkable enumeration of every legitimate write site by role, not just a narrative description. → REVIEW_HISTORY.json `loops[17].builder_notes` for full notes.
+
+**Scorecard humility check.** Three claims this loop's critic is least confident about: (1) `state_management` and `credibility` both jumping to a full 10 in the same loop — the evidence (a comprehensive fresh sweep finding zero further residual) is real, but a stricter critic might have staged one or both through 9.5 first. (2) `domain_modeling` and `framework_idioms`'s accepted residuals were carried forward from loop 7's disposition without a fresh Adversarial Pass re-run this loop. (3) Rating F-019 "Noticeable weakness" (carried from loop 7) rather than re-examining whether it should have been "Serious deduction" - the reachability chain was accepted on loop 7's own reasoning rather than independently re-verified against the live WinUI app this loop.
+
+## Final Judge Narrative
+Place, and a clean one - this loop resolved F-019, the long-analyzed `lastFocusedButton` ambiguity, by splitting it into two panel-scoped fields with the one legitimate cross-panel handoff made an explicit, named assignment instead of an implicit "skip the clear" boolean parameter - which let `HideSearchPanelAsync`'s own `restoreFocus` parameter disappear entirely as dead ceremony once it was no longer needed. Simplification helped: net structural clarity gained for a net-small line-count change, with zero XAML edits and zero observable behavior change (167/167 tests pass unchanged). Runtime ownership is now genuinely trustworthy for every mutable concern this loop's comprehensive fresh sweep covered - `state_management` and `credibility` both moved to 10 this loop, a call flagged for extra scrutiny in this loop's own humility check. Concurrency remains trustworthy (F-018's fix still holds; the one remaining accepted residual is inert by its own SPT-rejected reasoning). Tests reduce regression risk everywhere they can reach, but PrimaryWidget.xaml.cs's own architectural constraint (no desktop test projection) still excludes `GridImage_Click`'s session guard from that protection, unchanged. Future work risks overengineering if F-020's extraction reaches for a generic multi-purpose cache helper instead of the narrow two-method helper already scoped in the backlog.
+
+## Loop 8 Result
+Split `lastFocusedButton` (PrimaryWidget.xaml.cs:59) into two panel-scoped fields, `gridPanelFocusRestoreTarget` and `searchPanelFocusRestoreTarget`; `EditGameImage_Click`/`HideGridPanelAsync` now own the grid field exclusively, `SearchGameImage_Click`/`HideSearchPanelAsync` own the search field exclusively, and `SearchResult_Click`'s cross-panel handoff is now an explicit two-line assignment instead of an implicit "skip the clear" boolean parameter (which was deleted from `HideSearchPanelAsync`'s signature). Full build (msbuild, exit 0) and full test suite (run-tests.ps1: 167 passed/0 failed, unchanged before and after) both re-run, confirming zero regressions on this file's only reachable test surface (there is none - no desktop test projection). Finding F-019 (stable_id F-019) is **resolved** - `lastFocusedButton` no longer exists in current source, and every write site of its two replacement fields was independently grep-verified against the new field-declaration comment's exhaustive claim. No unintended scorecard regression observed; `state_management` and `credibility` both moved UP as a direct consequence.
+
+## Loop 8 Implementation Review
+Verdict: **approved**. Reason: `lastFocusedButton` no longer exists in current source, each of its three roles now maps to an explicit, single-purpose write site, the handoff is a named assignment rather than an implicit boolean suppression, and no new seam/costume-layer/suppression was introduced. Checks: reality=passed, honesty=passed, regression=passed. Regressions: none. Conditions: none. Rounds: 1.
+
+## Retired Findings (this loop)
+None.

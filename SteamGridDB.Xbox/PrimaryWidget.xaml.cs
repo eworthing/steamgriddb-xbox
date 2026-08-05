@@ -56,7 +56,16 @@ namespace SteamGridDB.Xbox
             Error
         }
 
-        private Button lastFocusedButton;
+        // Buttons to restore focus to once their panel closes. Each panel owns exactly one of these:
+        // EditGameImage_Click sets gridPanelFocusRestoreTarget for the grid picker; SearchGameImage_Click
+        // sets searchPanelFocusRestoreTarget for the search panel. The one exception is SearchResult_Click,
+        // which hands searchPanelFocusRestoreTarget over to gridPanelFocusRestoreTarget before opening the
+        // grid picker for the chosen result - focus should return to the button that originally opened
+        // the search panel once the grid picker (opened next, not the search panel) eventually closes.
+        // That handoff is the only place either field is written by anything other than its own panel's
+        // own open handler or its own panel's own close handler - see the handoff's own comment.
+        private Button gridPanelFocusRestoreTarget;
+        private Button searchPanelFocusRestoreTarget;
 
         // Guards the library-wide operations against each other - they all rewrite the same files and
         // rebuild the same collection, so overlapping runs duplicate entries or race on disk - AND
@@ -1279,7 +1288,7 @@ namespace SteamGridDB.Xbox
 
             if (button?.Tag is GameEntry gameEntry)
             {
-                lastFocusedButton = button;
+                gridPanelFocusRestoreTarget = button;
                 CurrentSelectedGame = gameEntry;
 
                 // Find the folder for this game
@@ -1689,8 +1698,8 @@ namespace SteamGridDB.Xbox
                 CurrentSelectedGame = null;
 
                 // Restore focus to the button that opened this panel
-                lastFocusedButton?.Focus(FocusState.Programmatic);
-                lastFocusedButton = null;
+                gridPanelFocusRestoreTarget?.Focus(FocusState.Programmatic);
+                gridPanelFocusRestoreTarget = null;
             }
             finally
             {
@@ -1720,7 +1729,7 @@ namespace SteamGridDB.Xbox
 
             if (button?.Tag is GameEntry gameEntry)
             {
-                lastFocusedButton = button;
+                searchPanelFocusRestoreTarget = button;
                 CurrentSelectedGame = gameEntry;
 
                 await ShowSearchPanelAsync();
@@ -1825,8 +1834,13 @@ namespace SteamGridDB.Xbox
             {
                 // DO NOT update current game's name - keep it as "Unknown" so the user can search again
 
-                // Hide search panel but don't clear lastFocusedButton yet
-                await HideSearchPanelAsync(false);
+                // Hand off focus-restore ownership from the search panel to the grid panel about to
+                // open: the button that originally opened the search panel is the one focus should
+                // return to once the grid panel (not the search panel) eventually closes.
+                gridPanelFocusRestoreTarget = searchPanelFocusRestoreTarget;
+                searchPanelFocusRestoreTarget = null;
+
+                await HideSearchPanelAsync();
                 await LoadGridSelectionByGameIdAsync(selectedGame);
             }
         }
@@ -1893,7 +1907,7 @@ namespace SteamGridDB.Xbox
         /// <summary>
         /// Hide the search panel with animation
         /// </summary>
-        private async Task HideSearchPanelAsync(bool restoreFocus = true)
+        private async Task HideSearchPanelAsync()
         {
             // Same shape as HideGridPanelAsync's own guard, one screen upstream - see its comment.
             if (!searchPanelCloseGuard.TryBegin())
@@ -1920,11 +1934,13 @@ namespace SteamGridDB.Xbox
                 GameSearchPanel.Visibility = Visibility.Collapsed;
                 SearchResultsListView.Items.Clear();
 
-                // Restore focus to the button that opened this panel
-                if (restoreFocus && lastFocusedButton != null)
+                // Restore focus to the button that opened this panel. Already null when
+                // SearchResult_Click has just handed this field's value over to
+                // gridPanelFocusRestoreTarget instead of clearing it - see that handoff's own comment.
+                if (searchPanelFocusRestoreTarget != null)
                 {
-                    lastFocusedButton.Focus(FocusState.Programmatic);
-                    lastFocusedButton = null;
+                    searchPanelFocusRestoreTarget.Focus(FocusState.Programmatic);
+                    searchPanelFocusRestoreTarget = null;
                 }
             }
             finally
