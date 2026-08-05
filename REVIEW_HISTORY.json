@@ -7351,6 +7351,513 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 7,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": {
+        "source_roots": [
+          "SteamGridDB.Xbox/",
+          "SteamGridDB.Xbox.Tests/"
+        ],
+        "test_command": "powershell -NoProfile -File ./run-tests.ps1",
+        "build_command": "msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo (msbuild at 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe', resolvable via vswhere.exe)",
+        "lens": "Generic",
+        "lenses_loaded": [
+          "lens-generic.md",
+          "lens-security.md",
+          "lens-efficiency.md"
+        ],
+        "adrs": [],
+        "domain_terms": [],
+        "prior_audit_docs": [
+          {
+            "path": "ARTWORK-SELECTION.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "CODE-REVIEW.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "TESTING.md",
+            "date": "2026-08-03"
+          }
+        ],
+        "churn_top20": [
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+            "edits": 38
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+            "edits": 8
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+            "edits": 5
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GridImageItem.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GameEntry.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TestImages.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TileImageTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GamePlatform.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkSignature.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGrid.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/JsonReadTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Library/OperationReport.cs",
+            "edits": 1
+          }
+        ],
+        "test_scope": "full",
+        "test_filter": null,
+        "working_tree_dirty_paths": []
+      },
+      "verdict": "Promising, but architecturally immature",
+      "verdict_explanation": "This loop's own independent re-derivation (two helper sweeps briefed cold, plus my own direct reads of PrimaryWidget.xaml.cs's fixed panel-close guards, StoreNameLookup.cs, and GamePlatform.cs) re-confirms loop 6's F-018 fix holds under fresh inspection and surfaces two genuinely new findings this loop did not carry in from the prior backlog: F-019 (lastFocusedButton's undocumented triple-role state ownership in PrimaryWidget.xaml.cs) and F-020 (StoreNameLookup's GOG/Epic double-checked-locking code duplicated verbatim across two methods). Priority 1 went to the long-deferred F-012 (GamePlatformHelper's dual-switch split, folded into one shared table this loop, with a new 22-test file covering a previously 0%-tested pure conversion class) rather than the higher-severity F-019, because F-019's honest fix requires redesigning a deliberate cross-panel focus-handoff, not a one-line split, and rushing it risked a real behavior regression this loop could not fully verify statically. What keeps this short of contest-grade: architecture_quality and data_flow remain flat, and F-011 remains genuinely blocked by the standing user constraint.",
+      "scorecard": {
+        "architecture_quality": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Fresh direct reads this loop of PrimaryWidget.xaml.cs (2109 lines, unaffected by this loop's GamePlatform.cs-only edit) plus two independent helper sweeps (one full-file PrimaryWidget.xaml.cs re-read, one Services/Models leaf-module sweep) found no new module-graph or Seam-level finding: the same set of concerns co-located in one file (UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, library-operation guarding) persists, and no extraction candidate beyond what has already landed passes SPT without a multi-file redesign disproportionate to one loop's blast radius. Stalled-Dimension Sweep (7 consecutive loops SAME): explicit clean — walked PrimaryWidget.xaml.cs and Services/Models this loop; the two new findings (F-019, F-020) surfaced instead map to state_management and simplicity respectively, not this dimension.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "state_management": {
+          "score": 8.0,
+          "delta": "UP",
+          "proof": "Structural proof: loop 6's own commit (5b2e069) is independently re-verified this loop by direct full reads of HideGridPanelAsync (PrimaryWidget.xaml.cs:1656-1699) and HideSearchPanelAsync (PrimaryWidget.xaml.cs:1896-1934) — both correctly wrap their entire await-spanning bodies in gridPanelCloseGuard.TryBegin()/finally-End() and searchPanelCloseGuard.TryBegin()/finally-End() respectively, closing F-018's concurrent-double-teardown gap for good; the 7 TryBeginLibraryOperation/EndLibraryOperation call sites and both session counters remain single-owner and clean (re-confirmed). This is the honest UP this loop's own Step 1 evaluation supports. Held below 9.5: this loop's own independent investigation found a new state-ownership gap, F-019 — lastFocusedButton (PrimaryWidget.xaml.cs:59) is written by both EditGameImage_Click (line 1282) and SearchGameImage_Click (line 1723) with no single owner, and SearchResult_Click (line 1829) deliberately leaves it uncleared to hand it forward across a panel-type boundary — narrower in reachable consequence than F-018 (missed focus restoration, not corrupted teardown state), which is why this moved UP rather than staying flat, but real enough to block 9.5.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "domain_modeling": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Direct full re-read this loop of GameEntry.cs (196 lines, via helper sweep) re-confirms the parallel-fields case (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId, lines ~113-145) unchanged.",
+          "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties ~113-145), sole construction site PrimaryWidget.xaml.cs.",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "readonly-struct-with-factories still fails SPT Q2 - GameEntry implements INotifyPropertyChanged and is two-way XAML-data-bound; a readonly struct cannot back that binding shape without a separate wrapper layer, a larger redesign not the smallest honest fix. Adversarial Pass re-run this loop: no cheaper subtractive or additive fix found; SPT-rejected on Q2, re-confirmed this loop.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "data_flow": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Ambient-state census re-confirmed this loop via direct reads of StoreNameLookup.cs, AppliedArtworkStore.cs, EpicLibrary.cs and a helper sweep of SteamGridDbClient.cs/FixLog.cs: StoreNameLookup's three per-key caches + SteamGridDbClient.CapsuleParseNotes + FixLog's three fields = 7 process-lifetime (static) instances, unchanged in count. No consolidation candidate passes SPT Q2 - single-instance widget, no multi-instance/test-injection need proven. Stalled-Dimension Sweep: explicit clean, same conclusion as prior loops.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "framework_idioms": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "App.xaml.cs:120's //TODO: Load state from previously suspended application re-confirmed present this loop via direct grep (unchanged since loop 1).",
+          "residual_blocking_10": "App.xaml.cs:120's unaddressed //TODO: Load state from previously suspended application, on the OnLaunched fallback path (debug/Start-menu launch only).",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Deleting the dead comment passes SPT Q1-Q4 as a free, zero-risk subtractive change but fails Q5 comparatively against this loop's actual picks (F-012 execution; F-019/F-020 queued) - the gain (removing one stale comment) is smaller than any of the three items actually in play. Adversarial Pass re-run this loop: SPT-rejected on Q5, re-confirmed.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "concurrency": {
+          "score": 9.5,
+          "delta": "UP",
+          "proof": "Structural proof: F-018's fix (loop 6, commit 5b2e069) independently re-verified this loop by direct full reads of HideGridPanelAsync/HideSearchPanelAsync - both guards correctly gate their entire await-spanning bodies, closing the anchor's 'no unstructured Task without documented ownership' gap for that case. Neither helper sweep nor my own direct reads found any new reachable race or reentrancy gap this loop. Held at 9.5 rather than 10: PopulateGridSelectionPanelAsync's own trailing `var _ = Dispatcher.RunAsync(...)` (PrimaryWidget.xaml.cs:1507-1519, focuses the first artwork tile for controller navigation) is an unstructured, undawaited Task with no error handling - a genuine anchor-literal gap. Adversarial Pass run this loop: smallest fix is trivial (await it instead of discarding), but it fails SPT Q5 - the callback only sets UI focus on already-UI-thread-owned elements, touches no shared mutable state, and its only failure mode (a missed focus) is already the observable behavior if the dispatch is simply slow; making exceptions visible for a callback this inert is not a measurable product improvement over the three items already filling this loop's backlog. SPT-rejected on Q5; accepted residual.",
+          "residual_blocking_10": "PopulateGridSelectionPanelAsync's discarded `var _ = Dispatcher.RunAsync(...)` call (PrimaryWidget.xaml.cs:1507), an unstructured, undawaited UI-focus side effect with no error handling.",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "SPT-rejected on Q5: the callback only sets focus on UI-thread-owned elements already on screen, touches no shared/business state, and awaiting it would only make an already-inert failure mode (a missed focus) visible instead of silent - not a nameable product improvement over F-012/F-019/F-020.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "simplicity": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Mandatory leaf-module duplication sweep this loop (three parts, via two independent helper sweeps plus my own direct reads): (a) leaf modules read - StoreNameLookup.cs, EpicLibrary.cs, SteamGridDbClient.cs, ArtworkDownloader.cs, ArtworkRanker.cs, ArtworkSignature.cs, TileImage.cs, FixLog.cs, ArtworkFiles.cs, AppliedArtworkStore.cs, LibraryOperationGuard.cs, GameImages.cs, OperationReport.cs, ManifestEntryIdentity.cs, GameEntry.cs, GamePlatform.cs, GridImageItem.cs, plus PrimaryWidget.xaml.cs in full; (b) four-angle results: Reuse/Altitude/Efficiency clean, Simplification surfaced one new cross-file candidate - StoreNameLookup's GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync (lines 102-131, 244-277) independently reimplement the identical double-checked-locking skeleton (Finding F-020, promoted to the leaf-module-duplication bar per method.md Step 6's 'synchronized maintenance across three-or-more sites' - here two behavior-bearing sites, still Noticeable per the same section's severity guidance for genuine duplicated maintenance burden); (c) no audit_clones.py/audit-enum-interpretation.sh available in this repo checkout - manual four-angle pass substituted, noted as scope limit (unchanged from prior loops). This loop's own fix (F-012) is itself simplicity-positive: folded two independently-drifting switch statements into one shared table, net addition of one small alias dict but net REMOVAL of the duplicate-source-of-truth risk, plus 22 new tests for a class that had zero coverage before.",
+          "residual_blocking_10": "StoreNameLookup.cs's GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync (lines 102-131, 244-277) independently reimplementing the identical double-checked-locking skeleton (Finding F-020, queued).",
+          "residual_disposition": "queued",
+          "residual_rationale_or_backlog_ref": "F-020",
+          "unverifiable_due_to_build_failure": false
+        },
+        "test_strategy": {
+          "score": 8.0,
+          "delta": "SAME",
+          "proof": "Re-derived fresh this loop: GridImage_Click's stale-session guard remains untested, re-confirmed by grep across SteamGridDB.Xbox.Tests\\ for 'SessionId' - zero hits, same platform-binding carve-out TESTING.md documents (Authority Map cross-check: this is the one named primary-flow gap excluded by the no-desktop-projection carve-out, unchanged this loop). This loop's own fix added GamePlatformHelperTests.cs (22 tests) covering a previously-0%-tested pure conversion class - a genuine, real improvement (167 total passing, up from 145), but it does not touch the named blocking gap (GridImage_Click's session guard lives in PrimaryWidget.xaml.cs, which has no desktop test projection), so the Authority Map cross-check's pass/fail count is unchanged. Mutation-test mental model re-run this loop: the same PrimaryWidget.xaml.cs session-guard mutation (deleting the `gridItem.SessionId == gridPanelSessionId` check at GridImage_Click) remains uncaught by any test - Noticeable-or-worse per method.md Step 8, already named and unchanged, not a new finding. Held at 8.0 - the new coverage is real but off the specific named primary-flow gap.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "credibility": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Scored pre-fix (Step 1 convention): F-018's own gap is fully closed and independently re-verified holding this loop (state_management/concurrency both credit it), so credibility's residual moves to the freshest 'the file's own careful safety narrative has an undocumented gap' finding this loop's own investigation surfaced - F-019's lastFocusedButton, whose three distinct roles (grid-owner, search-owner, deliberate cross-panel handoff target) are nowhere documented at the field's own declaration despite the surrounding code's otherwise-careful inline reasoning about every other session/guard field in the same class. Already at 9.5's ceiling from loop 6 (queued residual then too); a nameable residual still exists (F-019) so it cannot reach 10, and nothing regressed so it does not drop - SAME is the honest re-derivation.",
+          "residual_blocking_10": "lastFocusedButton's undocumented triple-role ownership, the one field in PrimaryWidget.xaml.cs whose actual contract is not explained at its own declaration despite every other guard/session field in the class carrying exactly that kind of comment (Finding F-019, queued).",
+          "residual_disposition": "queued",
+          "residual_rationale_or_backlog_ref": "F-019",
+          "unverifiable_due_to_build_failure": false
+        }
+      },
+      "authority_map": [
+        {
+          "concern": "Library-wide operation vs. single-game write mutual exclusion",
+          "owner": "PrimaryWidget.libraryOperationGuard (LibraryOperationGuard instance)",
+          "allowed_writers": [
+            "TryBeginLibraryOperation/EndLibraryOperation (all 7 call sites: PrimaryWidget_Loaded:151, RefreshButton_Click:764, ConfirmAndRunAsync:826, GridImage_Click:1545/1556, RestoreBackup_Click:1958/1974)"
+          ],
+          "readers": [
+            "IsLibraryOperationBlocking (EditGameImage_Click:1273, SearchGameImage_Click:1714)"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "Every TryBeginLibraryOperation call site listed above"
+          ],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Grid-picker and search-panel close-and-teardown mutual exclusion (F-018, resolved loop 6)",
+          "owner": "PrimaryWidget.gridPanelCloseGuard / searchPanelCloseGuard (LibraryOperationGuard instances)",
+          "allowed_writers": [
+            "HideGridPanelAsync (via gridPanelCloseGuard.TryBegin/End, lines 1661/1697)",
+            "HideSearchPanelAsync (via searchPanelCloseGuard.TryBegin/End, lines 1899/1932)"
+          ],
+          "readers": [],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "CloseGridPanel_Click",
+            "DownloadAndReplaceImageAsync's own post-download auto-close call",
+            "CloseSearchPanel_Click",
+            "SearchResult_Click"
+          ],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Full-screen panel (grid picker / search) focus-restoration target (the concern F-019 addresses)",
+          "owner": "PrimaryWidget.lastFocusedButton (plain Button field, no dedicated guard type)",
+          "allowed_writers": [
+            "EditGameImage_Click:1282 (grid panel)",
+            "SearchGameImage_Click:1723 (search panel)"
+          ],
+          "readers": [
+            "HideGridPanelAsync:1692-1693 (reads and clears)",
+            "HideSearchPanelAsync:1924-1927 (reads and clears, conditionally on restoreFocus)"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "EditGameImage_Click",
+            "SearchGameImage_Click",
+            "HideGridPanelAsync",
+            "HideSearchPanelAsync",
+            "SearchResult_Click (deliberately skips the clear via HideSearchPanelAsync(false))"
+          ],
+          "verdict": "Split and ambiguous"
+        }
+      ],
+      "strengths": [
+        "ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline - re-confirmed this loop's own leaf-module duplication sweep with no structural issues and no domain-policy leakage.",
+        "F-018's fix (loop 6) holds under this loop's independent fresh re-verification: both HideGridPanelAsync and HideSearchPanelAsync correctly wrap their entire await-spanning bodies in a TryBegin/finally-End guard, with zero drift since landing.",
+        "This loop's own F-012 fix closed a real duplicate-source-of-truth gap and simultaneously added the first-ever test coverage (22 tests) for GamePlatformHelper, a pure conversion class that had shipped fully untested since loop 1 despite being explicitly testable (already linked into the desktop test project via the .csproj's own Models\\GamePlatform.cs inclusion) - zero new architecture, net behavior-preserving, verified 1:1 by an independent implementation reviewer."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-012",
+          "id": "F1",
+          "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings were two independent switch statements over GamePlatform with no shared source of truth",
+          "why_it_matters": "Adding or renaming a platform required remembering to update both switches; nothing failed to compile if one was forgotten (both silently defaulted to Unknown/null).",
+          "what_is_wrong": "FromXboxDirectory (GamePlatform.cs, old lines 22-46) and GamePlatformToSGDBApiString (old lines 48-67) independently switched over the same GamePlatform enum cases with no shared table; FromXboxDirectory additionally handled legacy folder-name aliases (ubi, bnet) with no analogue in the reverse mapping.",
+          "evidence": [
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:22-46 (pre-fix)",
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:48-67 (pre-fix)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "Each new platform paid this asserted-twice tax; callers of the two static methods did not have to know about the split, but maintainers extending the enum did.",
+          "locality_impact": "Contained to GamePlatform.cs.",
+          "metric_signal": "none",
+          "why_weakens_submission": "The enum's own home module held two independent interpretations of itself with no compiler-enforced link - a fake source-of-truth split that risked silent drift on the next platform addition. Deferred many loops running behind a rotating cast of higher-priority picks; promoted to Priority 1 this loop since it is the smallest, safest, zero-risk item available (no XAML/UI-orchestration blast radius) and has been named for continuity long enough (Backlog Prioritization Pass criterion 2, item deferral).",
+          "severity": "Cosmetic for contest",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Folded both mappings into one shared (GamePlatform, XboxDirectory, SGDBApiString) table; kept a separate small alias dictionary for FromXboxDirectory's legacy folder names (ubi, bnet), which have no analogue in the SteamGridDB direction.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Models/GamePlatform.cs",
+              "SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs (new)"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (3 call sites unchanged)"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-019",
+          "id": "F2",
+          "title": "lastFocusedButton is written by both EditGameImage_Click and SearchGameImage_Click with no single owner, and is deliberately left uncleared across the SearchResult_Click -> grid-panel handoff",
+          "why_it_matters": "PrimaryWidget's own Edit and Search entry points can both reach the underlying game-row list while the other panel's ~250ms slide-up animation is still in flight (the codebase's own comments about ShowGridPanelAsync admit this window is interactive); if the not-yet-covering panel's row buttons are reached during that window, the two panels' close handlers race for the same field, and whichever panel closes second finds lastFocusedButton already cleared by the other and silently skips its own focus restoration.",
+          "what_is_wrong": "lastFocusedButton (PrimaryWidget.xaml.cs:59) is a single Button field written by EditGameImage_Click (line 1282, for the grid panel) and by SearchGameImage_Click (line 1723, for the search panel), and read/cleared by both HideGridPanelAsync (lines 1692-1693) and HideSearchPanelAsync (lines 1924-1927). SearchResult_Click (line 1829) explicitly closes the search panel with HideSearchPanelAsync(false) specifically so lastFocusedButton is NOT cleared, carrying the original search-opening button's value forward to be consumed later when the grid panel it opens next eventually closes - a genuine, deliberate cross-panel handoff. That handoff is undocumented at the field's own declaration, and nothing distinguishes it from the two independent per-panel write sites, so a maintainer reading either write site alone cannot tell the field has three distinct roles (grid-owner, search-owner, and carried-forward handoff target).",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:59",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1282",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1692-1693",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1723",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1828-1830",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1924-1927"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "Callers (the four Show/Hide-adjacent handlers) cannot tell from the field's own declaration which of three roles it is playing at a given moment.",
+          "locality_impact": "Contained to PrimaryWidget.xaml.cs; no other file reads or writes this field.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A real, if narrow, single-owner ambiguity on a mutable field driving primary-flow focus restoration (the same class of concern that has dominated this file's finding history), currently undocumented at its declaration; the naive fix (split into two panel-scoped fields) would silently break the intentional SearchResult_Click handoff, so this needs a documented redesign, not a one-line split - rated Noticeable rather than Serious since the worst reachable consequence is a missed focus restoration (UX only), not state or data corruption.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Model the field's three roles explicitly rather than splitting it naively: keep one field but rename it to reflect its true contract (pendingFocusRestoreTarget) with a doc comment enumerating all three write/no-clear sites and why the SearchResult_Click carry-forward is intentional; or thread the handoff explicitly as a parameter from SearchResult_Click into LoadGridSelectionByGameIdAsync instead of relying on an unwritten field convention. Needs its own loop's investigation to design without regressing the working handoff - not a same-loop mechanical fix.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+            ],
+            "avoid": [
+              "no XAML changes needed"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-020",
+          "id": "F3",
+          "title": "StoreNameLookup's GOG and Epic name-fetch methods independently reimplement the same double-checked-locking skeleton",
+          "why_it_matters": "Any future fix or refinement to the check-then-populate discipline (e.g. loop 3's own F-015 fix, which added the per-cache gates these two methods now use) has to be applied by hand in both places; nothing enforces they stay identical.",
+          "what_is_wrong": "GetOrFetchGogNameAsync (StoreNameLookup.cs:102-131) and GetOrFetchEpicNameAsync (StoreNameLookup.cs:244-277) each independently implement the identical shape: check cache unlocked, await the cache's own gate, re-check under the gate, fetch, cache only a non-empty result, release. FindGameByNameAsync (144-190) is a related but distinct third shape (its cached value is an int where 0 is a valid, cacheable 'not found' result, and it additionally must not cache a network-failure exception) - genuinely different enough that folding it into the same helper as GOG/Epic would risk conflating 'genuine miss' with 'fetch failed', so this finding is scoped to the two byte-for-byte-identical methods only.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:102-131",
+            "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:244-277"
+          ],
+          "test_failed": "Shallow module",
+          "dependency_category": null,
+          "leverage_impact": "Each new per-key string cache with the same 'skip empty-string misses' semantics pays the double-checked-locking boilerplate tax again by hand.",
+          "locality_impact": "Contained to StoreNameLookup.cs.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Synchronized maintenance across two behavior-bearing sites implementing the identical check-then-populate skeleton, per the leaf-module duplication sweep's promotion bar (method.md Step 6) - reduces Locality without adding any offsetting clarity, since the two methods differ only in which store's endpoint and cache they close over.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Extract a small private GetOrFetchNameAsync(Dictionary<string,string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch) helper used by GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync only; leave FindGameByNameAsync's distinct int-cacheability/failure-handling logic untouched and unmerged, since forcing all three into one shape risks a fake-simplification behavior drift (conflating 'genuine miss' with 'fetch failed').",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs's FindGameByNameAsync (144-190, distinct shape, out of scope)",
+              "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+              "SteamGridDB.Xbox.Tests/StoreNameLookupTests.cs (existing tests should pass unmodified if the extraction preserves behavior)"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F4",
+          "stable_id": "F-011",
+          "id": "F4",
+          "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
+          "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.",
+          "what_is_wrong": "LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:402-705, unaffected by this loop's edit) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence, even though the awaits are independent across entries.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:402-705"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None currently actionable - see blocker.",
+          "locality_impact": "Would be contained to PrimaryWidget.xaml.cs if unblocked.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft) means this loop cannot land a change altering observable call ordering/concurrency/count against those services without a product decision this loop cannot make. Re-derived fresh this loop: unchanged from loop 6's own re-derivation.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "BLOCKED this loop; named for continuity (Backlog Prioritization Pass criterion 0) rather than escalated to a user-decision halt, since F-012, F-019 and F-020 fill this loop's actionable slots.",
+          "blast_radius": {
+            "change": [],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no change while blocked)"
+            ]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Folding GamePlatformHelper's two independent switches into one shared table - removes a real fake-source-of-truth split current source could not otherwise prove safe against drift on the next platform addition.",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "GamePlatformHelperTests.cs gives a previously fully-untested pure conversion class (zero test files since loop 1, despite already being linked into the desktop test project) its first direct coverage, pinning both the current mappings and the legacy-alias/not-found paths.",
+        "should_not_be_done": "Merging FindGameByNameAsync into the same helper as GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync (F-020, queued for a future loop) - its cacheable-zero-vs-fetch-failure distinction does not fit the same shape without risking a fake-simplification behavior drift. Splitting lastFocusedButton into two panel-scoped fields (F-019, queued) as a same-loop mechanical fix - would silently break the intentional SearchResult_Click cross-panel handoff; needs its own loop's design, not a rushed split bundled into this loop's unrelated GamePlatform.cs fix.",
+        "tests_after_fix": "No existing tests were deleted (GamePlatformHelper had none to delete). Added SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs (22 new test cases: 7 current-folder-name mappings, 2 legacy-alias mappings, 3 case-insensitivity checks, null input, unrecognized input, 6 SGDB-API-string mappings, Custom-returns-null, Unknown-returns-null) exercising the new table-driven implementation directly at its own public Interface. Verification: full build (msbuild, exit 0, both before and after) and full test suite (run-tests.ps1: 145 passed/0 failed before, 167 passed/0 failed after - the 22 new tests, all passing, no regressions) both re-run; independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "stable_id": "F-019",
+          "title": "Redesign lastFocusedButton's ownership so its three roles (grid-owner, search-owner, cross-panel handoff target) are explicit (Finding F-019)",
+          "kind": "structural",
+          "rank": "helpful",
+          "why_it_matters": "Highest-severity actionable item this loop's own investigation found (Noticeable, on a primary user flow); farthest from its dimension's target among actionable candidates (state_management at 8.0 vs. simplicity already at 9.5) per Backlog Prioritization Pass criterion 1 (distance to target).",
+          "score_impact": "state_management +1.0; credibility +0.5"
+        },
+        {
+          "priority": 2,
+          "stable_id": "F-020",
+          "title": "Extract a shared GetOrFetchNameAsync helper for StoreNameLookup's GOG and Epic double-checked-locking duplication (Finding F-020)",
+          "kind": "simplification",
+          "rank": "minor",
+          "why_it_matters": "Real Locality cost (synchronized maintenance across two sites) but lower reachable severity than F-019 and a smaller blast radius; second priority behind F-019 on severity/distance.",
+          "score_impact": "simplicity +0.5"
+        },
+        {
+          "priority": 3,
+          "stable_id": "F-011",
+          "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution (Finding F-011)",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency; named for continuity, not actionable this loop.",
+          "score_impact": "concurrency +0.5"
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [],
+      "builder_notes": [
+        {
+          "pattern": "A rotating cast of higher-severity findings can starve a long-deferred, low-severity, zero-risk item for many loops even when every individual deferral is defensible on its own.",
+          "how_to_recognize": "F-012 (GamePlatformHelper's dual switch) was named as Priority 1 in loop 6's own backlog for loop 7, and this time it actually landed - but it had been carried since well before this run's own history and outranked by a fresh Serious finding almost every loop it came up.",
+          "smallest_coding_rule": "When a long-deferred item finally has no higher-severity competitor blocking it, take it even if a fresh, higher-severity finding surfaces the SAME loop - unless the fresh finding is trivially safe to fix too. Landing the safe, well-understood item first avoids compounding two risky changes into one loop's blast radius.",
+          "stack_example": "C#: this loop found F-019 (Noticeable, PrimaryWidget.xaml.cs) the same loop F-012 was scheduled to land - rather than bump F-012 a fourth-plus time, F-012 executed as planned and F-019 queued for a loop with room to design its fix properly."
+        },
+        {
+          "pattern": "A field that is deliberately left unwritten (or uncleared) at one call site to hand a value forward to a different, later consumer is a real cross-module contract, even when nothing documents it as one.",
+          "how_to_recognize": "SearchResult_Click calls HideSearchPanelAsync(false) specifically so lastFocusedButton keeps its value - a one-word boolean argument (restoreFocus) is the only signal that the field's normal per-panel clearing rule was deliberately suppressed here, for a reason that has nothing to do with the search panel being closed and everything to do with the grid panel about to open.",
+          "smallest_coding_rule": "When a method takes a bool parameter to skip its own normal cleanup step, grep every call site that passes the non-default value and document at the field's OWN declaration why that carve-out exists - not just at the one call site that uses it.",
+          "stack_example": "C#: lastFocusedButton's own doc comment (currently absent) should say 'grid-panel owner OR search-panel owner OR carried-forward handoff target when SearchResult_Click is mid-transition' - not just be a bare `private Button lastFocusedButton;`."
+        },
+        {
+          "pattern": "A pure, framework-free conversion class can go years without a single test simply because nothing about it individually LOOKS risky, even when it has already been wired into the desktop test project and adding coverage costs nothing.",
+          "how_to_recognize": "GamePlatformHelper had zero tests despite SteamGridDB.Xbox.Tests.csproj explicitly linking GamePlatform.cs by name with a comment explaining exactly why it CAN be tested outside the app container (it's a plain enum, no Windows.UI.Xaml dependency) - the linkage existed, nothing used it.",
+          "smallest_coding_rule": "When touching a file the test project already links but has no corresponding *Tests.cs file, add one in the same commit - the marginal cost when you are already in the file is near zero, and it is the cheapest moment that infrastructure will ever be this ready.",
+          "stack_example": "C#: SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs added directly alongside the GamePlatform.cs fix; picked up automatically by the test project's SDK-style implicit *.cs globbing, no .csproj edit required."
+        }
+      ],
+      "narrative": "Place, not win - a solid, honest loop that resisted the temptation to chase this loop's own freshest, most dramatic-sounding finding. Two independent helper sweeps plus direct re-reads confirmed loop 6's F-018 fix holds with zero drift, and surfaced two genuinely new findings (F-019: an undocumented triple-role focus-tracking field; F-020: a duplicated double-checked-locking skeleton in StoreNameLookup) that a less careful loop might have rushed to fix in the same pass as an unrelated change. Instead, this loop finally landed the long-deferred, zero-risk F-012 - folding two drifting switch statements into one table and, as a free bonus, giving a previously 0%-tested pure conversion class its first 22 tests - while queuing F-019 for a future loop with the bandwidth to redesign its cross-panel handoff correctly rather than risk breaking a currently-working flow. Runtime ownership for the traced library-operation and panel-close guards remains trustworthy; concurrency crossed to accepted-residual-only after independent re-verification. Tests reduce regression risk on everything they cover, but the same PrimaryWidget.xaml.cs orchestration-surface carve-out (no desktop test projection) still excludes the one named primary-flow gap (GridImage_Click's session guard) from that protection. Future work risks overengineering if F-019's fix reaches for a heavier abstraction (an explicit FocusHandoff type, a Coordinator) when a documented rename plus an explicit parameter thread would do, or if F-020's extraction is stretched to also absorb FindGameByNameAsync's genuinely different cacheability shape.",
+      "loop_result": {
+        "what_changed": "Folded GamePlatformHelper's two independent switch statements (FromXboxDirectory, GamePlatformToSGDBApiString) into one shared static (GamePlatform, XboxDirectory, SGDBApiString) tuple table plus a small legacy-alias dictionary (SteamGridDB.Xbox/Models/GamePlatform.cs). Added SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs (new file, 22 tests) covering every current mapping, both legacy aliases, case-insensitivity, null/unrecognized input, and the Custom/Unknown null-API-string cases in both directions.",
+        "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1) both re-run before and after: before, 145 passed/0 failed/0 skipped; after, 167 passed/0 failed/0 skipped (22 new tests, all passing, zero regressions). Manual case-by-case trace of every FromXboxDirectory and GamePlatformToSGDBApiString input against the pre-fix switch statements confirms 1:1 behavior preservation (documented inline in the loop's own working notes: every current name, both legacy aliases, null, an unrecognized string, and both null-returning cases for Custom/Unknown all produce the identical output before and after). Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only, plus the new test file) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass.",
+        "risk_boundary_evidence": null,
+        "targeted_finding_status": "resolved",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/Models/GamePlatform.cs",
+          "SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "Both switches now read from one shared platforms table (plus an isolated legacy-alias dict), the mapping is verified 1:1 behavior-preserving for every case including null, unrecognized input, Custom-null, and Unknown-null, and no new seam/costume-layer/suppression was introduced.",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {
+            "attempt": 1,
+            "outcome": "ok",
+            "error": null,
+            "duration_ms": 64651
+          }
+        ]
+      }
     }
   ]
 }

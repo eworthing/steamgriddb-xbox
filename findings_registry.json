@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 19,
+  "next_serial": 21,
   "entries": [
     {
       "stable_id": "F-001",
@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 6,
+      "last_seen_loop": 7,
       "occurrences": [
         {
           "loop": 7,
@@ -688,6 +688,18 @@
             "evidence_paths_hash": "sha256:0341354564ae003110ac7c894a70c194570bc99d67e18d7c660feaae5fc466b1"
           },
           "attempted_remedy_hash": "sha256:7d65386280b71ad2c6fe6ae7fb8070ed53ff900fd80402be39d5ca08f0232372"
+        },
+        {
+          "loop": 7,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:402-705, unaffected by this loop's own GamePlatform.cs-only edit). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop - a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it remains genuinely blocked. Outranked this loop by F-012 (executed), F-019 and F-020 (both new, higher severity); stays Priority 3 for continuity per Backlog Prioritization Pass criterion 0.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8422f5e41918eae3a8ead0552135f0a1cd88218afc8704d5a96ec044ed45ee30",
+            "evidence_paths_hash": "sha256:81462cf3f846a8c188043d0ebfdd26ab49e762aae5b0755df027bbce9f4ef4ac"
+          },
+          "attempted_remedy_hash": "sha256:94fa81c8bb44d403436a1d860650cea8b231b5ad5d1797b0708d1057b60950a7"
         }
       ]
     },
@@ -701,7 +713,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 6,
+      "last_seen_loop": 7,
       "occurrences": [
         {
           "loop": 8,
@@ -810,6 +822,18 @@
             "evidence_paths_hash": "sha256:bc422f042159eca8ffcbab76e0c7db5fab31fd6562eff988597e86440bbab947"
           },
           "attempted_remedy_hash": "sha256:cf518b77ca164c7cc3b8bf549954432a5c56cc37263b69c14d579a2893acee27"
+        },
+        {
+          "loop": 7,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: folded FromXboxDirectory and GamePlatformToSGDBApiString into one shared static (GamePlatform, XboxDirectory, SGDBApiString) tuple table plus a small legacy-alias dictionary for FromXboxDirectory's ubi/bnet aliases (GamePlatform.cs). Added SteamGridDB.Xbox.Tests/GamePlatformHelperTests.cs (22 new tests) - the class had zero tests despite already being explicitly linked into the desktop test project. Net verified 1:1 behavior-preserving by manual case-by-case trace against the pre-fix switch statements. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass. Ends a many-loop deferral (open at loops 8, 9, 10, and this run's loops 1-6) per the Backlog Prioritization Pass's item-deferral criterion.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a917544c53093ef5ff683930ec4a45f9fcec4fd21f454f6363454aca039f688f",
+            "evidence_paths_hash": "sha256:d5b0c1033c4714ee440ebc8d951d1251901e1c690fb4d40d21cd6921d3775db9"
+          },
+          "attempted_remedy_hash": "sha256:b31bacb69a1ca77175b3a40566ce93168031b727ae6361a4701333718acb1449"
         }
       ]
     },
@@ -1050,6 +1074,58 @@
             "evidence_paths_hash": "sha256:b8ae16523593906e8745c1bf83544ad00faa1925a829c28a66d9d7c86e76959b"
           },
           "attempted_remedy_hash": "sha256:0430823d2e08f8d9b79d906727ce0f6560811b6492efe79f84ba81a1b8af552c"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-019",
+      "title": "lastFocusedButton is written by both EditGameImage_Click and SearchGameImage_Click with no single owner, and is deliberately left uncleared across the SearchResult_Click -> grid-panel handoff",
+      "category_hint": "state-ownership/undocumented-cross-module-contract",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [59, 1927],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 7,
+      "first_seen_sha": "5b2e069d2ee47241112c8b705f9fbbe9f6845a13",
+      "last_seen_loop": 7,
+      "occurrences": [
+        {
+          "loop": 7,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "5b2e069d2ee47241112c8b705f9fbbe9f6845a13",
+          "note": "New finding this loop. Surfaced by an independent, cold PrimaryWidget.xaml.cs helper sweep (full 2109-line read, told to trace ownership/reentrancy shapes generically, not briefed on the finding history), independently confirmed by this loop's own direct reads of EditGameImage_Click:1282, SearchGameImage_Click:1723, HideGridPanelAsync:1692-1693, HideSearchPanelAsync:1924-1927, and SearchResult_Click:1828-1830. The naive fix (split into two panel-scoped fields) would break the intentional SearchResult_Click(false) carry-forward handoff into LoadGridSelectionByGameIdAsync, so this needs a documented redesign, not a same-loop mechanical split - not implemented this loop (F-012 executed instead: zero fix-design risk, long-deferred). Queued Priority 1 for loop 8.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:4952e1d58223c23a93cd820245ca0ef182b41b647a7fe2fd48cd2ed2afe0aa69",
+            "evidence_paths_hash": "sha256:4ed2a6883cfd52422e80c2c61828308a9fc33a2aacb1b2b8139b3e3a57cbbea7"
+          },
+          "attempted_remedy_hash": "sha256:41b386414390d906687f67e90c3fd76a39dcfc4c448a3e40b60d5206c59e048b"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-020",
+      "title": "StoreNameLookup's GOG and Epic name-fetch methods independently reimplement the same double-checked-locking skeleton",
+      "category_hint": "leaf-module-duplication",
+      "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+      "primary_evidence_lines": [102, 277],
+      "test_failed": "Shallow module",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 7,
+      "first_seen_sha": "5b2e069d2ee47241112c8b705f9fbbe9f6845a13",
+      "last_seen_loop": 7,
+      "occurrences": [
+        {
+          "loop": 7,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "5b2e069d2ee47241112c8b705f9fbbe9f6845a13",
+          "note": "New finding this loop. Surfaced by an independent, cold Services/Models helper sweep (told to run the four-angle leaf-module duplication sweep generically, not briefed on the finding history), independently confirmed by this loop's own direct read of StoreNameLookup.cs in full. Distinguished from F-015 (resolved loop 3, which added the per-cache gates these two methods now share) - this finding is about the duplicated CODE SHAPE across GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync, not about missing synchronization. FindGameByNameAsync's genuinely different cacheability semantics (int 0 is a valid cached miss; must not cache after a failed fetch) deliberately excluded from the proposed remedy's scope. Not implemented this loop (F-012 executed instead, zero fix-design risk); queued Priority 2 for loop 8.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0d256fdf05524ca53f0eef006a9eb2a8280fe125ac063f0af3ae3db54c87d399",
+            "evidence_paths_hash": "sha256:8f10d5b1f6be2caee8515247ce807c4fbc1a97dc88afb594ae3b5b29b530ddc8"
+          },
+          "attempted_remedy_hash": "sha256:728b64e10fe8016c5646cef2b2306eee2d4c678a3c1aa2ae5e427611fa6438f9"
         }
       ]
     }
