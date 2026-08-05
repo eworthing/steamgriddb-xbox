@@ -1383,3 +1383,231 @@ Changed `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` only (27 insertions, 0 deletion
 
 ## Loop 6 Implementation Review
 Verdict: **approved**. Reason: both Hide*PanelAsync methods now capture their session id before the animation delay and bail out on a session mismatch after it, exactly mirroring the five prior fixed sites, with no new same-or-higher-severity regression introduced. Checks: reality passed, honesty passed, regression passed. Regressions: none. Conditions: none.
+
+--- Loop 7 (UTC 2026-08-05T03:55:23Z) ---
+
+### Loop Counter
+Loop 7 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+**Functionally solid, but structurally compromised.**
+
+This loop ran an independent re-derivation from source (full re-read of `PrimaryWidget.xaml.cs`, plus fresh reads of every `Services/` and `Models/` file, `TESTING.md`, and the full test suite), plus two fresh-eyes helper sweeps briefed on the codebase's history but not its prior conclusions - one explicitly tasked with re-testing, method-by-method, whether the six-loop-running "stale async completion mutates shared picker UI state" defect class (F-001, F-005 through F-009) had a further instance anywhere in `PrimaryWidget.xaml.cs`, the other sweeping `Services/` and `Models/` cold. The first sweep, and my own independent trace of the same candidates, both converged on the same conclusion: `LoadGridSelectionAsync`'s and `ShowSearchPanelAsync`'s own unguarded post-await mutations are real but not exploitable (traced in full below), closing the three-loop-running completeness question with zero new instances found. This loop's Priority-1 finding (F-002, the four-times-duplicated panel slide animation, queued five loops) was implemented, verified by build + full test suite + independent implementation review. The second sweep independently re-confirmed F-010 (`StoreNameLookup` bypassing `JsonRead`) and surfaced a genuine new finding (F-011): `LoadGameEntriesAsync` resolves each unmatched game's name and SteamGridDB match sequentially rather than concurrently - a real structural-waste finding blocked from implementation this loop by the STANDING USER CONSTRAINT and a genuine new thread-safety risk a naive fix would introduce.
+
+## Scorecard (1-10)
+
+- Architecture quality: 7.5 | SAME | `Services/` modules re-read in full this loop, independently confirmed each still a deep, single-responsibility Module with a real Interface. `PrimaryWidget.xaml.cs` (now 2033 lines, down from 2058 pre-fix) still carries Finding F-003's three-times-duplicated dialog ceremony (open). Held at SAME rather than moved to reflect F-002's fix: this dimension's own 9-anchor language is about Module graph, Seams, and deletion-test pass-through structure, not shallow-module duplication within a single already-owned class - priced under simplicity below, matching loop 5/6's own non-double-counting discipline.
+- State management and runtime ownership: 7.0 | UP | F-001/F-005 through F-009's own fixes independently re-verified holding. This loop's own exhaustive, table-based enumeration of every async method in `PrimaryWidget.xaml.cs` with a mutation after its own await, cross-verified independently by a helper sweep, found **zero** new exploitable instances - the first clean result in three loops (4→5→6 each found one). The one candidate both traces surfaced (`LoadGridSelectionAsync:1315-1317`) was traced end-to-end and found NOT exploitable: `ShowGridPanelAsync`'s fixed 250ms `Task.Delay` guarantees an earlier-clicked session always reaches that line before a later-clicked session does, so the mutation is self-correcting. Moved UP on genuine structural completion evidence, not a code change.
+- Domain modeling: 8.5 | SAME | `GameEntry.cs`'s `OfficialCapsuleUrl`/`SteamGridDbGameId`/`HasSteamGridDBMatch` three-independently-settable-properties case remains the only known concern, still no live harm. **Stalled-Dimension Sweep (loop 7, 6th consecutive SAME):** explicit clean.
+- Data flow and dependency design: 7.0 | SAME | Finding F-010 independently re-confirmed unchanged this loop by direct read and a second independent helper sweep. Outranked by F-002 on stall; queued Priority 2 for loop 8.
+- Framework / platform best practices: 8.0 | SAME | `BuildUrl` and the `DataContractJsonSerializer`/`Windows.Data.Json` split re-verified. **Stalled-Dimension Sweep (loop 7, 6th consecutive SAME):** independently re-derived - F-002's fixed ceremony was never actually a framework_idioms concern (`DoubleAnimation`+`Storyboard` IS the idiomatic UWP approach; the defect was duplication, priced under simplicity) - correcting prior loops' categorization. No fresh candidate found.
+- Concurrency and runtime safety: 6.5 | UP | Same completed-audit evidence as state_management. Moved UP, tempered by a genuine new finding (F-011) surfaced this loop: `LoadGameEntriesAsync`'s per-entry loop awaits GOG/Epic/SteamGridDB calls in strict sequence with no ordering dependency - a D2 sequential-independent-effects shape on the library-load hot path. Queued, blocked by the STANDING USER CONSTRAINT and a real thread-safety risk (StoreNameLookup's caches are unlocked).
+- Code simplicity and clarity: 7.5 | UP | Finding F-002 fixed this loop: all four Show/Hide call sites now delegate to one shared `SlidePanelAsync` helper; net -26 lines. Verified behavior-preserving (all From/To/Duration/EasingMode literals unchanged; loop-6 session guards textually unchanged). Stall broken after five consecutive SAME loops. F-003 remains open, now Priority 1 for loop 8.
+- Test strategy and regression resistance: 6.5 | SAME | `PrimaryWidget.xaml.cs` remains untestable outside an app container, re-confirmed. **Stalled-Dimension Sweep (loop 7, 6th consecutive SAME, lowest-scored dimension):** F-004 remains the only candidate, Cosmetic/off-primary-flow, does not win Priority 1.
+- Overall implementation credibility: 8.5 | UP | Second consecutive loop where a targeted, adversarially-framed sweep (this time cross-verified) produced the headline result. F-002's fix independently reviewed, returned `approved`. Independent fingerprint-hash re-derivation reproduced three of loop 6's own stored hashes byte-for-byte before seeing them.
+
+## Authority Map
+See Loop 6 for full prior state; re-emitted this loop given the significant state_management/concurrency movement.
+
+- Concern: **Grid picker panel display contents / search results panel** — Owner: `PrimaryWidget`. Verdict: **Single and clear** - a three-loop-running open completeness question (loops 4, 5, 6 each found one further unguarded instance) closed this loop with zero further instances found by an exhaustive, cross-verified enumeration. Two unguarded-but-safe candidates (`LoadGridSelectionAsync:1315-1317`, `ShowSearchPanelAsync`'s focus-only tail) traced and documented rather than silently omitted.
+- Concern: **Library load's per-entry name/match resolution (`LoadGameEntriesAsync`'s sequential network calls)** — Owner: `PrimaryWidget.LoadGameEntriesAsync`, delegating to `StoreNameLookup`/`SteamGridDbClient`. Verdict: **Single and clear today** - the unlocked caches are safe under the current single-threaded-per-load design, but that safety is a load-bearing assumption, not an enforced invariant (see Finding F-011).
+
+## Strengths That Matter
+- This loop's own verification methodology held up under an independent same-loop cross-check for the first time: a helper sweep briefed to independently enumerate and trace every post-await mutation in `PrimaryWidget.xaml.cs` reached the identical UNGUARDED-BUT-SAFE conclusion on the same two candidates, without having seen my own trace first.
+- `ArtworkDownloader.cs`'s selection-and-veto pipeline (re-read in full this loop) remains a genuinely deep Module, documented with the specific graded incident that calibrated each threshold, both gate predicates mutation-tested.
+- `AsyncLazyCacheTests.cs`'s 32-concurrent-caller test is genuine concurrency verification under real `Task.Run` parallelism, not a timing-hack sleep.
+
+## Findings
+
+### Finding #1 (stable_id F-002): Grid and search panel slide animations duplicate the same Storyboard ceremony four times
+
+**Why it matters** — A future change to the panel's slide timing or easing (or a bug in it) had to be made and verified in four places instead of one, and the four copies had already begun to drift (200ms hide vs 250ms show, independently re-derived each time).
+
+**What is wrong** — `ShowGridPanelAsync`, `HideGridPanelAsync`, `ShowSearchPanelAsync` and `HideSearchPanelAsync` (pre-fix lines `1571-1592`, `1597-1640`, `1779-1847`, `1852-1891`) each hand-built a `DoubleAnimation` + `Storyboard` against a `TranslateTransform`, set From/To/Duration/EasingFunction, called `storyboard.Begin()`, then awaited `Task.Delay` matching the duration - four near-identical bodies in the single largest, most-churned file in the codebase.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1571-1592` (pre-fix, `ShowGridPanelAsync`), `:1597-1640` (pre-fix, `HideGridPanelAsync`), `:1779-1847` (pre-fix, `ShowSearchPanelAsync`), `:1852-1891` (pre-fix, `HideSearchPanelAsync`)
+
+**Architectural test failed** — Shallow module (each Show/Hide method's Interface ≈ its Implementation; no reuse across the four near-identical bodies)
+
+**Dependency category** — n/a
+
+**Leverage impact** — One call site to read/change instead of four; callers learn less, not more.
+
+**Locality impact** — Fully contained inside `PrimaryWidget.xaml.cs`; no other file's behavior changes.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Four near-identical bodies in `PrimaryWidget.xaml.cs` is exactly the leaf-module duplication the Simplicity dimension's 9-anchor requires be swept for; queued five full loops before being fixed this loop.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Extract a private `SlidePanelAsync(TranslateTransform transform, double from, double to, int durationMs, EasingMode mode)` helper that builds the `DoubleAnimation`/`Storyboard` once and awaits `Task.Delay(durationMs)`; each of the four call sites becomes a one-line call. No new Seam, no new file - the four bodies collapse into the one Module (`PrimaryWidget`) that already owns them.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`. Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml` (markup unchanged), `SteamGridDB.Xbox/Services/**`.
+
+**Status this loop: implemented — see Loop 7 Result below.**
+
+### Finding #2 (stable_id F-011): LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — A user whose library has many GOG/Epic games without a direct SteamGridDB match pays the full network latency of the GOG, Epic (or Ubisoft/community-database) endpoint plus the SteamGridDB name-search endpoint for every one of those games, one after another, before the library list finishes loading - which happens on every widget open, not once.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (`PrimaryWidget.xaml.cs:455-679`) awaits, in strict sequence for each manifest entry: `sgdbClient.GetGameByPlatformIdAsync` (`:581`), then when unmatched one of `StoreNameLookup.GetOrFetchGogNameAsync` (`:603`) / `GetOrFetchEpicNameAsync` (`:612`) / `GetUbisoftGameNameAsync` (`:621`), then `StoreNameLookup.FindGameByNameAsync` (`:641`) - each entry's network calls fully complete before the next entry's loop iteration starts any of its own. None of these calls read or write state another entry's iteration also touches, so the awaits are independent across entries and the loop body is a textbook sequential-independent-effects shape (efficiency lens, D2).
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:455-679` (per-manifest-entry `foreach` loop), `:581` (`sgdbClient.GetGameByPlatformIdAsync`), `:603` (`StoreNameLookup.GetOrFetchGogNameAsync`), `:612` (`StoreNameLookup.GetOrFetchEpicNameAsync`), `:641` (`StoreNameLookup.FindGameByNameAsync`)
+
+**Architectural test failed** — n/a - different category (efficiency/D2, not a Seam/Module-boundary finding)
+
+**Dependency category** — n/a (not a Coupling & Leakage finding)
+
+**Leverage impact** — None currently - no seam exists to batch or parallelize through; a fix would need one.
+
+**Locality impact** — Contained to `LoadGameEntriesAsync`'s own per-entry loop body and, if fixed, `StoreNameLookup`'s three dictionaries' thread-safety; no other file's behavior changes.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — This is a hot path (the library reloads on every widget open, per `StoreNameLookup`'s own class doc comment) doing per-item network I/O one item at a time where nothing in the current design requires that ordering - the structural cost scales linearly with the count of unmatched games in a user's library, and nothing amortizes it.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Not implemented this loop - blocked by the STANDING USER CONSTRAINT (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft). A safe fix would need bounded concurrency (never unbounded fan-out), and - because `StoreNameLookup`'s `gogNameCache`/`epicNameCache`/`nameMatchCache` dictionaries and `SteamGridDbClient.CapsuleParseNotes` list are currently unlocked, correct only because today's caller is single-threaded per load - would need real thread-safety added to those shared caches first, which is itself a non-trivial, behaviour-affecting change this loop declines to attempt without a broader design pass.
+
+**Blast radius** — Change: none this loop (not attempted). Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`, `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs` (both not attempted this loop).
+
+### Finding #3 (stable_id F-010): StoreNameLookup's GOG and Epic name-fetch methods bypass the JsonRead helper that exists to prevent a documented JSON null-vs-missing bug
+
+**Why it matters** — The codebase already shipped a bug once where a JSON member that was present-but-null was mishandled by raw `Windows.Data.Json` calls; `JsonRead.cs` exists specifically to make that class of bug impossible. Two of `StoreNameLookup`'s three network-backed name-lookup methods still use the pattern that caused it.
+
+**What is wrong** — `GetGogGameNameAsync` (`StoreNameLookup.cs:67-74`) and `GetEpicGameNameAsync` (`:188-190`) use raw `ContainsKey`/`GetNamedObject`/`GetNamedString` calls instead of `JsonRead.Object`/`JsonRead.String`, which `SteamGridDbClient.cs:155-181` and `EpicLibrary.cs` both correctly use.
+
+**Evidence** — `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:67-74`, `:188-190`, `SteamGridDB.Xbox/Services/JsonRead.cs:1-17`, `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:470-478`, `SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs:155-181`
+
+**Architectural test failed** — n/a - a Reuse/consistency finding
+
+**Dependency category** — n/a
+
+**Leverage impact** — None directly - `JsonRead` already exists; this brings the remaining two call sites into line.
+
+**Locality impact** — Contained to `StoreNameLookup.cs`'s two methods.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Credibility/consistency deduction, not a live defect (outer `catch` prevents a crash today).
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Replace the raw calls with `JsonRead.Object`/`JsonRead.String` calls, matching `SteamGridDbClient.cs`'s established pattern. Behavior-preserving per the five properties (call count, ordering, payload, error handling, observable result).
+
+**Blast radius** — Change: `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs`. Avoid: `SteamGridDB.Xbox/Services/JsonRead.cs`, `SteamGridDB.Xbox/Services/SteamGridDB/**`, `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`.
+
+### Finding #4 (stable_id F-003): Fix/Restore/Revert confirmation dialogs duplicate the same ContentDialog construction and guard-and-run ceremony three times
+
+**Why it matters** — Each of the three destructive-operation confirmations has to be kept in sync by hand.
+
+**What is wrong** — `FixLibraryButton_Click`, `RestoreChangesButton_Click` and `RevertDefaultsButton_Click` (lines `743-787`, `789-823`, `825-859` - shifted by one line this loop's own using-directive addition; unaffected by this loop's F-002 edit) each build a `ContentDialog` with the same ceremony.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:743-787`, `:789-823`, `:825-859`
+
+**Architectural test failed** — Shallow module
+
+**Dependency category** — n/a
+
+**Leverage impact** — Three call sites drop to naming their own title/content/action.
+
+**Locality impact** — Fully contained inside `PrimaryWidget.xaml.cs`.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Same leaf-module-duplication concern as F-002 (now fixed). Six loops queued without action.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Extract a private `ConfirmAndRunAsync(...)` helper.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`. Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml`, `SteamGridDB.Xbox/Services/**`.
+
+### Finding #5 (stable_id F-004): TileImage.FillsTileAsync's alpha and corner-count thresholds are untested at their exact boundary values
+
+**Why it matters** — A boundary-flip mutation would ship silently.
+
+**What is wrong** — `FillsTileAsync` (`TileImage.cs:231-265`) thresholds at `alpha < 64` and `transparentCorners < 2` are untested at their exact boundary. Re-read this loop, unchanged.
+
+**Evidence** — `SteamGridDB.Xbox/Services/Artwork/TileImage.cs:250`, `:263`
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None - test-only addition.
+
+**Locality impact** — Contained to the test file.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A minor, off-primary-flow gap.
+
+**Severity** — Cosmetic for contest
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Add two `TileImageTests` cases at the exact alpha/corner-count boundary.
+
+**Blast radius** — Change: `SteamGridDB.Xbox.Tests/TileImageTests.cs`. Avoid: `SteamGridDB.Xbox/Services/Artwork/TileImage.cs`.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | F-002's `SlidePanelAsync` extraction resolves a real, evidenced leaf-module duplication - passes the Shallow module test. |
+| New seam justified | No - `IAnimator`/`IPanelController` protocol fails the Unified Seam Policy's two-adapter rule immediately; private helper is the correct shape. |
+| Helpful simplification | F-002's fix is net -26 lines in `PrimaryWidget.xaml.cs` (33 insertions, 59 deletions) - genuinely subtractive. |
+| Should NOT be done | Do not introduce an `IAnimator`/`IPanelController` protocol for `SlidePanelAsync`. Do not attempt F-011's fix without first adding real locking to `StoreNameLookup`'s caches. |
+| Tests after fix | None added or deleted - `PrimaryWidget.xaml.cs` is outside the test-linked `Services/**` surface. Verification is build + full test suite + independent implementation review + a line-by-line literal-value diff. |
+
+## Improvement Backlog
+1. **Collapse the three-times-duplicated confirmation-dialog ceremony (Finding F-003).**
+   - why it matters: removes ~105 more lines of repeated ceremony; the sole remaining simplicity candidate, now the highest-stall item on the board (six consecutive loops SAME).
+   - score impact: `simplicity +0.5`
+   - simplification / helpful
+
+2. **Route StoreNameLookup's GOG and Epic name-fetch methods through the existing JsonRead helper (Finding F-010).**
+   - why it matters: removes a documented-bug-class inconsistency; small, mechanical, behavior-preserving.
+   - score impact: `data_flow +0.5`
+   - simplification / helpful
+
+3. **Add bounded concurrency to LoadGameEntriesAsync's per-entry name/match resolution, after first adding real locking to StoreNameLookup's caches (Finding F-011).**
+   - why it matters: removes a real, linearly-scaling latency cost on the primary library-load hot path - but not actionable yet: blocked by the STANDING USER CONSTRAINT and the unlocked-cache thread-safety prerequisite.
+   - score impact: `concurrency +0.5`
+   - structural / helpful
+
+**Priority-1 accounting**: F-003 is Priority 1 for the next loop on Stall (six consecutive loops SAME on `simplicity`) and criterion-4 subtractive-fix preference. F-010 is Priority 2 on lower stall. F-011 ranks on merit above both by distance-to-target but is not actionable this loop: blocked by the STANDING USER CONSTRAINT and a genuine new correctness risk naive parallelization would introduce; queued at Priority 3 rather than escalated to `user_decision`, since F-003 and F-010 remain fully actionable next-loop picks.
+
+## Deepening Candidates
+1. **Candidate Module**: `PrimaryWidget`'s confirmation-dialog ceremony (Finding F-003) - same shape F-002 had before this loop's fix. Smallest first step: extract a private `ConfirmAndRunAsync(...)` and replace all three call sites. What not to do: no `DialogService`/`IConfirmationCoordinator` protocol - fails the Unified Seam Policy's two-adapter rule.
+2. **Candidate Module**: `LoadGameEntriesAsync`'s per-entry name/match resolution (Finding F-011). Smallest first step: add real locking (a `SemaphoreSlim` per cache) to `StoreNameLookup`'s caches BEFORE attempting any concurrency change to the calling loop. What not to do: do not wrap the loop in `Task.WhenAll` before the caches are locked, and do not attempt the network-ordering half of this fix at all until a behavioural oracle exists.
+
+## Builder Notes
+1. **Pattern: an adversarially-framed completeness sweep converging with an independent second sweep on the SAME non-finding is itself the strongest evidence a defect class is actually closed.** → REVIEW_HISTORY.json `loops[6].builder_notes` for full notes (array index 6 = loop 7).
+2. **Pattern: not every duplicated code block that a Simplify Pressure Test wants collapsed belongs to the scorecard dimension a prior loop filed it under - re-derive the dimension mapping fresh each time.** → REVIEW_HISTORY.json `loops[6].builder_notes` for full notes.
+3. **Pattern: a structural-waste finding (slow, not wrong) can still be correctly blocked by a behavioral-preservation constraint even when the finding itself never touches the constrained surface directly.** → REVIEW_HISTORY.json `loops[6].builder_notes` for full notes.
+
+## Final Judge Narrative
+Place, not win, this loop. This loop's headline result is a negative one, and a rare one for this codebase: an exhaustive, cross-verified sweep for a sixth instance of the "stale async completion mutates shared picker UI state" defect class found none, closing a completeness question that loops 4, 5 and 6 each answered by finding one more instance. Two unguarded candidates were found and traced to genuine safety rather than silently passed over. State_management and concurrency both moved UP on that structural completion evidence, with concurrency's move tempered by a genuine new finding (F-011, sequential per-game network calls on the library-load hot path) that the same fresh-eyes sweep surfaced independently. This loop's own implementation work (F-002, collapsing the four-times-duplicated panel-slide animation into one shared helper) is real, net-subtractive (-26 lines), and verified by build + full test suite + an independent implementation review that returned `approved` on first pass. Simplicity's five-loop stall broke as a direct result. Runtime ownership is more trustworthy this loop by real evidence, not by the passage of time; concurrency is more trustworthy on the reentrancy axis specifically, but F-011 is an honest reminder that "trustworthy" does not mean "exhaustively efficient." Tests do not, and structurally cannot, reduce regression risk on `PrimaryWidget.xaml.cs`. Future work risks over-engineering only if F-003's eventual extraction reaches for a coordinator/service abstraction instead of a private helper method, or if F-011's eventual fix attempts to parallelize the network loop before adding real locks to `StoreNameLookup`'s caches.
+
+## Loop 7 Result
+Changed `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` only (92 lines changed: 33 insertions, 59 deletions, net -26 lines): replaced the four near-identical `DoubleAnimation`/`Storyboard` construction bodies in `ShowGridPanelAsync`, `HideGridPanelAsync`, `ShowSearchPanelAsync` and `HideSearchPanelAsync` with a single shared `SlidePanelAsync(TranslateTransform, from, to, durationMs, EasingMode)` private helper (`PrimaryWidget.xaml.cs:1569-1600`); each of the four call sites now delegates to it with its own original From/To/Duration/Easing arguments. The five prior session-guard fixes (F-001, F-005 through F-009) are untouched in substance - `HideGridPanelAsync`'s and `HideSearchPanelAsync`'s session captures and rechecks sit exactly where they did before, just after a call to the new helper instead of after inline animation code. Added one using directive (`Windows.UI.Xaml.Media`, for `TranslateTransform`) at the top of the file. Full build (`msbuild SteamGridDB.Xbox.sln /p:AppxBundle=Never`) exits 0 both before and after the change. The full test suite (`run-tests.ps1`) reports 138 passed / 0 failed / 0 skipped both before and after - unchanged, as expected, since `PrimaryWidget.xaml.cs` is not part of the test-linked `Services/**` surface. An independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on Finding F-002 and the diff only) returned verdict `approved` with all three checks (reality, honesty, regression) passed. Finding F1 (stable_id F-002) is **resolved**: verified by a line-by-line diff confirming every call site's From/To/Duration/EasingMode literal value is unchanged from the pre-fix code and the loop-6 session guards in `HideGridPanelAsync`/`HideSearchPanelAsync` are textually unchanged, only repositioned after the new helper call. This loop additionally re-verified Findings F-001/F-005 through F-009's fixes are still holding at their own call sites (no regression), completed a three-loop-running audit of the panel-state reentrancy hazard class with zero new instances found (two candidates traced to genuine safety, not silently passed over), and an independent helper sweep of `Services/`/`Models/` re-confirmed Finding F-010 and surfaced a new Finding F-011 (sequential per-game network calls in `LoadGameEntriesAsync`), both queued to the backlog rather than implemented this loop. No unintended scorecard regression: the change touches no network call, no ranking/selection logic, and no file outside the one named. Findings F-003, F-004, F-010 and F-011 are carried forward to the Improvement Backlog / Findings for future loops.
+
+## Loop 7 Implementation Review
+Verdict: **approved**. Reason: the four hand-built `DoubleAnimation`/`Storyboard` bodies are gone from source, replaced by one `SlidePanelAsync` helper with all four call sites preserving their original From/To/Duration/EasingMode values and the loop-6 session guards left untouched and merely repositioned after the new call. Checks: reality passed, honesty passed, regression passed. Regressions: none. Conditions: none.

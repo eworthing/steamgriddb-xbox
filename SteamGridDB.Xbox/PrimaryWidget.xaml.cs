@@ -13,6 +13,7 @@ using Windows.UI.Core;
 using Windows.UI.ViewManagement.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
 
@@ -1566,6 +1567,39 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Slides a panel's transform between two Y offsets and waits for the animation to finish.
+        ///
+        /// Shared by all four Show/Hide panel methods below, which previously each hand-built this same
+        /// DoubleAnimation/Storyboard: the two Show/Hide pairs had already drifted apart once (200ms
+        /// hide vs 250ms show, independently re-derived each time), which is what four copies of the
+        /// same six lines cost.
+        /// </summary>
+        /// <param name="transform">The panel's own TranslateTransform.</param>
+        /// <param name="from">Starting Y offset.</param>
+        /// <param name="to">Ending Y offset.</param>
+        /// <param name="durationMs">Animation duration in milliseconds.</param>
+        /// <param name="mode">Easing mode - EaseOut for showing, EaseIn for hiding.</param>
+        private async Task SlidePanelAsync(TranslateTransform transform, double from, double to, int durationMs, EasingMode mode)
+        {
+            DoubleAnimation animation = new DoubleAnimation
+            {
+                From = from,
+                To = to,
+                Duration = TimeSpan.FromMilliseconds(durationMs),
+                EasingFunction = new CubicEase { EasingMode = mode }
+            };
+
+            Storyboard storyboard = new Storyboard();
+            storyboard.Children.Add(animation);
+            Storyboard.SetTarget(animation, transform);
+            Storyboard.SetTargetProperty(animation, "Y");  // Animate Y instead of X
+
+            storyboard.Begin();
+
+            await Task.Delay(durationMs);
+        }
+
+        /// <summary>
         /// Show the grid selection panel with animation
         /// </summary>
         private async Task ShowGridPanelAsync()
@@ -1573,22 +1607,7 @@ namespace SteamGridDB.Xbox
             GridSelectionPanel.Visibility = Visibility.Visible;
 
             // Slide up from bottom animation (like Xbox notifications)
-            DoubleAnimation animation = new DoubleAnimation
-            {
-                From = 800,  // Start below screen
-                To = 0,      // End at normal position
-                Duration = TimeSpan.FromMilliseconds(250),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-
-            Storyboard storyboard = new Storyboard();
-            storyboard.Children.Add(animation);
-            Storyboard.SetTarget(animation, GridPanelTransform);
-            Storyboard.SetTargetProperty(animation, "Y");  // Animate Y instead of X
-
-            storyboard.Begin();
-
-            await Task.Delay(250);
+            await SlidePanelAsync(GridPanelTransform, 800, 0, 250, EasingMode.EaseOut);
         }
 
         /// <summary>
@@ -1601,22 +1620,7 @@ namespace SteamGridDB.Xbox
             int session = gridPanelSessionId;
 
             // Slide down animation (reverse)
-            DoubleAnimation animation = new DoubleAnimation
-            {
-                From = 0,
-                To = 800,  // Slide below screen
-                Duration = TimeSpan.FromMilliseconds(200),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
-            };
-
-            Storyboard storyboard = new Storyboard();
-            storyboard.Children.Add(animation);
-            Storyboard.SetTarget(animation, GridPanelTransform);
-            Storyboard.SetTargetProperty(animation, "Y");  // Animate Y instead of X
-
-            storyboard.Begin();
-
-            await Task.Delay(200);
+            await SlidePanelAsync(GridPanelTransform, 0, 800, 200, EasingMode.EaseIn);
 
             // A newer picker session has started while this close animation was in flight (the panel
             // is only partially covering the screen during the slide, so the list underneath - and a
@@ -1815,22 +1819,7 @@ namespace SteamGridDB.Xbox
             SearchPanelStatus.Text = "Enter game name to search";
 
             // Slide up from bottom animation
-            DoubleAnimation animation = new DoubleAnimation
-            {
-                From = 800,
-                To = 0,
-                Duration = TimeSpan.FromMilliseconds(250),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-
-            Storyboard storyboard = new Storyboard();
-            storyboard.Children.Add(animation);
-            Storyboard.SetTarget(animation, SearchPanelTransform);
-            Storyboard.SetTargetProperty(animation, "Y");
-
-            storyboard.Begin();
-
-            await Task.Delay(250);
+            await SlidePanelAsync(SearchPanelTransform, 800, 0, 250, EasingMode.EaseOut);
 
             // Focus search box if empty, otherwise focus search button
             if (!string.IsNullOrEmpty(GameSearchBox.Text))
@@ -1855,22 +1844,7 @@ namespace SteamGridDB.Xbox
             int session = searchPanelSessionId;
 
             // Slide down animation
-            DoubleAnimation animation = new DoubleAnimation
-            {
-                From = 0,
-                To = 800,
-                Duration = TimeSpan.FromMilliseconds(200),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn }
-            };
-
-            Storyboard storyboard = new Storyboard();
-            storyboard.Children.Add(animation);
-            Storyboard.SetTarget(animation, SearchPanelTransform);
-            Storyboard.SetTargetProperty(animation, "Y");
-
-            storyboard.Begin();
-
-            await Task.Delay(200);
+            await SlidePanelAsync(SearchPanelTransform, 0, 800, 200, EasingMode.EaseIn);
 
             // A newer search session has started while this close animation was in flight - see
             // HideGridPanelAsync's own comment for why finishing this stale close now would corrupt
