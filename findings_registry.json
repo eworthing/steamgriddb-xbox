@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 7,
@@ -640,6 +640,18 @@
             "evidence_paths_hash": "sha256:f147fe69b19cee5da64f1298403f24fe7be0ef43739862ee819242c64c83309c"
           },
           "attempted_remedy_hash": "sha256:92464101b786d79ee12e90c08156b82e04bec40c56e80921da07492cb6a32bb6"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:455-717 at current line numbers; unaffected by this loop's F-015 edit, confined to StoreNameLookup.cs). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop rather than just citing it - confirmed a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it remains genuinely blocked. F-015's cache-locking prerequisite is now satisfied (resolved this loop), removing one of the two reasons a naive parallelization fix was unsafe as of loop 9's note - the STANDING USER CONSTRAINT remains the sole live blocker. Named per Backlog Prioritization Pass criterion 0; stays Priority 2 in this loop's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0e0199f13f3dffffb19d13d7f778f0c081ec372c732b1b6b9bfdc4f2fd91962d",
+            "evidence_paths_hash": "sha256:bda7d50e3555815a1a1082704aecd2f1d3f5519faeeba14cbdba33f78ad84e80"
+          },
+          "attempted_remedy_hash": "sha256:d0e599e7e12bc628b89c9078cbe8b08b8e666c958b91c9e6b4251c4e3e26e12c"
         }
       ]
     },
@@ -653,7 +665,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 8,
@@ -711,6 +723,18 @@
           "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (untouched by this loop's F-013 edit, confined to PrimaryWidget.xaml.cs). Still Cosmetic, still no live harm. Text re-derived independently this loop (own wording), noting FromXboxDirectory's legacy alias handling ('ubi'/'ubisoft', 'bnet'/'battlenet') as an added nuance not previously called out, which is why claim_consequence_hash moves despite the underlying claim/evidence/remedy being unchanged in substance. Outranked this loop by F-013 (higher severity, three-loop deferral) and F-015 (higher severity) for the top backlog slots; not in this loop's backlog but remains a tracked open finding.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:ed230e37d2845f1faa106f4d23b4bae08777c23cb3f335914ce5e9294826d16c",
+            "evidence_paths_hash": "sha256:9a7efc857f6803358386a2aa5ab4f4bea168e42e86a704e9c47971d43ca78d38"
+          },
+          "attempted_remedy_hash": "sha256:4ac12a06da8c9b9b583d6a257282cc4c983688e9a4ca351ef6476bdf065b8719"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (untouched by this loop's F-015 edit, confined to StoreNameLookup.cs). Still Cosmetic, still no live harm. Adversarial Pass re-run this loop (triggered because simplicity newly accepted this finding as its own residual): smallest fix (fold both mappings into one table plus alias list) still passes SPT Q1-Q4 but fails Q5 comparatively against F-015 (this loop's actual, higher-severity pick). Outranked this loop by F-015 for the Priority-1 slot; not in this loop's backlog but remains a tracked open finding and simplicity's accepted residual.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:dbc4fdf9b8a859aba0fc9a125b68513e835bd194db9db1d1e51162eba4109e4b",
             "evidence_paths_hash": "sha256:9a7efc857f6803358386a2aa5ab4f4bea168e42e86a704e9c47971d43ca78d38"
           },
           "attempted_remedy_hash": "sha256:4ac12a06da8c9b9b583d6a257282cc4c983688e9a4ca351ef6476bdf065b8719"
@@ -827,7 +851,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
-      "last_seen_loop": 2,
+      "last_seen_loop": 3,
       "occurrences": [
         {
           "loop": 1,
@@ -852,6 +876,18 @@
             "evidence_paths_hash": "sha256:3eb7894a585fb9e90f518198e8805a792f940a3531b0a5e17feb18f433c805a8"
           },
           "attempted_remedy_hash": "sha256:c4b98558137ae5b28a006e7844bf52b709ccd0cad51b4db4f02eaec506b2a5bb"
+        },
+        {
+          "loop": 3,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: added a dedicated SemaphoreSlim (gogNameGate, epicNameGate, nameMatchGate) to each of gogNameCache/epicNameCache/nameMatchCache and wrapped GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync/FindGameByNameAsync's check-then-populate bodies in the standard double-checked-lock pattern already used one field over by ubisoftGameListCache via AsyncLazyCache<T>. Each cache keeps its own dedicated gate rather than sharing one, so unrelated stores' lookups stay independent under a future concurrent caller (deliberately not the shared gate the finding's own remedy text offered as an alternative - see Simplification Check's should_not_be_done). No network call, ordering, or count changed for the current sequential caller. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a29a080085d0a809bf6462fa58127f80c54237095d675b23d713b44f344d2b82",
+            "evidence_paths_hash": "sha256:87257f44d20e3bb757599fcd5190f4435b647b90110b18bb153e73064126e7b5"
+          },
+          "attempted_remedy_hash": "sha256:c42dd1263fb12b4ceb32333ba3ab850926da6b63b97f3abe06c929006a7cc6f1"
         }
       ]
     }

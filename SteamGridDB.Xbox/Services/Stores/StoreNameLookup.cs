@@ -24,19 +24,27 @@ namespace SteamGridDB.Xbox.Services.Stores
     /// </summary>
     internal static class StoreNameLookup
     {
-        // Both caches are private: GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync below each own
-        // the "is this cached" decision for their store, matching GetUbisoftGameNameAsync's shape.
+        // GetOrFetchGogNameAsync, GetOrFetchEpicNameAsync and FindGameByNameAsync below each own the
+        // "is this cached" decision for their store, matching GetUbisoftGameNameAsync's shape - and
+        // each now guards its check-then-populate body with its own dedicated gate, immediately below
+        // its cache. A dedicated gate per cache, not one shared gate: the three caches hold unrelated
+        // per-game data, so serialising them behind a single lock would block one store's lookup on a
+        // completely different store's network round trip for no reason - the same per-cache
+        // granularity AppliedArtworkStore's own single Dictionary already uses one dedicated gate for.
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly SemaphoreSlim gogNameGate = new SemaphoreSlim(1, 1);
         private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly SemaphoreSlim epicNameGate = new SemaphoreSlim(1, 1);
 
         // Games found by name rather than by store ID. Misses are cached too: a miss walked the
         // whole result list to conclude nothing matched.
         private static readonly Dictionary<string, int> nameMatchCache = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private static readonly SemaphoreSlim nameMatchGate = new SemaphoreSlim(1, 1);
 
         // Unlike the three caches above, this one is a single value loaded once rather than a
         // per-key lookup - the exact shape EpicLibrary's and AppliedArtworkStore's own caches have,
         // so this uses their same AsyncLazyCache<T> instead of a fourth hand-rolled copy of the same
-        // check-then-populate logic (previously unlocked here, unlike its two siblings).
+        // check-then-populate logic.
         private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
         private static readonly AsyncLazyCache<Dictionary<string, string>> ubisoftGameListCache =
             new AsyncLazyCache<Dictionary<string, string>>(gate, LoadUbisoftGameListFromWebAsync);
@@ -83,6 +91,11 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// Resolves a GOG game's name, using the cached value when one is on file. An empty cached
         /// value is treated the same as a miss and retried - the cache is only ever written on a
         /// successful fetch below, so this only matters if that invariant is ever relaxed.
+        ///
+        /// The re-check inside the gate is the same double-checked shape
+        /// <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/> uses: two callers can both pass the first,
+        /// unlocked check while a fetch for the same ID is already in flight, and only the second
+        /// caller's own re-check under the gate stops it from fetching and writing the same key again.
         /// </summary>
         /// <param name="gogId">The GOG game ID.</param>
         /// <returns>Game name, or null when GOG has none for it.</returns>
@@ -93,14 +106,28 @@ namespace SteamGridDB.Xbox.Services.Stores
                 return cached;
             }
 
-            string name = await GetGogGameNameAsync(gogId);
+            await gogNameGate.WaitAsync();
 
-            if (!string.IsNullOrEmpty(name))
+            try
             {
-                gogNameCache[gogId] = name;
-            }
+                if (gogNameCache.TryGetValue(gogId, out cached) && !string.IsNullOrEmpty(cached))
+                {
+                    return cached;
+                }
 
-            return name;
+                string name = await GetGogGameNameAsync(gogId);
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    gogNameCache[gogId] = name;
+                }
+
+                return name;
+            }
+            finally
+            {
+                gogNameGate.Release();
+            }
         }
 
         /// <summary>
@@ -123,29 +150,43 @@ namespace SteamGridDB.Xbox.Services.Stores
                 return cached;
             }
 
-            int found = 0;
+            await nameMatchGate.WaitAsync();
 
             try
             {
-                foreach (SteamGridDbGame candidate in await client.SearchGameByNameAsync(gameName))
+                if (nameMatchCache.TryGetValue(wanted, out cached))
                 {
-                    if (NormaliseGameName(candidate.Name) == wanted)
-                    {
-                        found = candidate.Id;
-
-                        break;
-                    }
+                    return cached;
                 }
 
-                nameMatchCache[wanted] = found;
-            }
-            catch (Exception ex)
-            {
-                // Not cached - a failed request should be retried, unlike a genuine miss
-                System.Diagnostics.Debug.WriteLine($"Could not search SteamGridDB for {gameName}: {ex.Message}");
-            }
+                int found = 0;
 
-            return found;
+                try
+                {
+                    foreach (SteamGridDbGame candidate in await client.SearchGameByNameAsync(gameName))
+                    {
+                        if (NormaliseGameName(candidate.Name) == wanted)
+                        {
+                            found = candidate.Id;
+
+                            break;
+                        }
+                    }
+
+                    nameMatchCache[wanted] = found;
+                }
+                catch (Exception ex)
+                {
+                    // Not cached - a failed request should be retried, unlike a genuine miss
+                    System.Diagnostics.Debug.WriteLine($"Could not search SteamGridDB for {gameName}: {ex.Message}");
+                }
+
+                return found;
+            }
+            finally
+            {
+                nameMatchGate.Release();
+            }
         }
 
         /// <summary>
@@ -207,18 +248,32 @@ namespace SteamGridDB.Xbox.Services.Stores
                 return cached;
             }
 
-            // Epic's own install manifests first: they are local, they carry the real title, and they
-            // cover games the online database does not. The database is keyed by catalog item ID, not
-            // by the appName SteamGridDB wants.
-            string name = await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
-                ?? await GetEpicGameNameAsync(catalogItemId ?? appName);
+            await epicNameGate.WaitAsync();
 
-            if (!string.IsNullOrEmpty(name))
+            try
             {
-                epicNameCache[appName] = name;
-            }
+                if (epicNameCache.TryGetValue(appName, out cached) && !string.IsNullOrEmpty(cached))
+                {
+                    return cached;
+                }
 
-            return name;
+                // Epic's own install manifests first: they are local, they carry the real title, and
+                // they cover games the online database does not. The database is keyed by catalog item
+                // ID, not by the appName SteamGridDB wants.
+                string name = await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
+                    ?? await GetEpicGameNameAsync(catalogItemId ?? appName);
+
+                if (!string.IsNullOrEmpty(name))
+                {
+                    epicNameCache[appName] = name;
+                }
+
+                return name;
+            }
+            finally
+            {
+                epicNameGate.Release();
+            }
         }
 
         /// <summary>
