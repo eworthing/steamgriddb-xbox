@@ -62,8 +62,11 @@ namespace SteamGridDB.Xbox
         // rebuild the same collection, so overlapping runs duplicate entries or race on disk - AND
         // against a single-game write (GridImage_Click, RestoreBackup_Click): those also write files a
         // library-wide reload can be mid-rebuild of, and TryBeginLibraryOperation/EndLibraryOperation
-        // wrap both kinds of caller identically so the two block each other.
-        private bool isLibraryOperationRunning;
+        // wrap both kinds of caller identically so the two block each other. The guard's own
+        // begin/end/is-running rule lives in LibraryOperationGuard, not here - see its doc comment for
+        // why: this class binds to Windows.UI.Xaml and has no desktop test projection, so the rule
+        // could not be tested in place.
+        private readonly LibraryOperationGuard libraryOperationGuard = new LibraryOperationGuard();
 
         // Incremented every time the artwork picker is (re)populated - by EditGameImage_Click,
         // SearchGameImage_Click or a search result choosing a game - and stamped onto every
@@ -193,7 +196,7 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private bool IsLibraryOperationBlocking()
         {
-            if (!isLibraryOperationRunning)
+            if (!libraryOperationGuard.IsRunning)
             {
                 return false;
             }
@@ -209,14 +212,13 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private bool TryBeginLibraryOperation()
         {
-            if (isLibraryOperationRunning)
+            if (!libraryOperationGuard.TryBegin())
             {
                 StatusText.Text = busyStatusText;
 
                 return false;
             }
 
-            isLibraryOperationRunning = true;
             SetHeaderButtonsEnabled(false);
 
             return true;
@@ -227,7 +229,7 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private void EndLibraryOperation()
         {
-            isLibraryOperationRunning = false;
+            libraryOperationGuard.End();
             SetHeaderButtonsEnabled(true);
         }
 

@@ -5992,6 +5992,468 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 4,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": {
+        "source_roots": [
+          "SteamGridDB.Xbox/",
+          "SteamGridDB.Xbox.Tests/"
+        ],
+        "test_command": "powershell -NoProfile -File ./run-tests.ps1",
+        "build_command": "msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo (msbuild at 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe', resolvable via vswhere.exe)",
+        "lens": "Generic",
+        "lenses_loaded": [
+          "lens-generic.md",
+          "lens-security.md",
+          "lens-efficiency.md"
+        ],
+        "adrs": [],
+        "domain_terms": [],
+        "prior_audit_docs": [
+          {
+            "path": "ARTWORK-SELECTION.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "CODE-REVIEW.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "TESTING.md",
+            "date": "2026-08-03"
+          }
+        ],
+        "churn_top20": [
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+            "edits": 38
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+            "edits": 8
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+            "edits": 5
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GridImageItem.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GameEntry.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TestImages.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TileImageTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GamePlatform.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkSignature.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGrid.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/JsonReadTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Library/OperationReport.cs",
+            "edits": 1
+          }
+        ],
+        "test_scope": "full",
+        "test_filter": null,
+        "working_tree_dirty_paths": []
+      },
+      "verdict": "Promising, but architecturally immature",
+      "verdict_explanation": "Concurrency is credited this loop for a real, already-landed fix (F-015), tempered by this loop's own discovery of the identical defect class recurring in a second location (F-017, new, queued). This loop's own pick, F-016, breaks the longest-running stall in this project's history: test_strategy has scored exactly 6.5 SAME for all 13 loops of this project's review record, and architecture_quality has been flat at 7.5 for 9 of those. F-016 extracts PrimaryWidget's untested library-operation guard into a small, directly-testable class, following the Compute/Do split TESTING.md already documents. What keeps this short of contest-grade: PrimaryWidget.xaml.cs still spans five concerns, data_flow's ambient-state count grew from 4 to 7 confirmed instances (capped, not worsened), and F-011 remains genuinely blocked.",
+      "scorecard": {
+        "architecture_quality": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Direct full re-read this loop of PrimaryWidget.xaml.cs (2067 lines pre-fix) confirms the same five concerns in one Module as loops 1-3. Triggers the Stalled-Dimension Sweep (SAME for loops 1-3 of this run, 9 of the last 10 loops overall). Candidate named and acted on: F-016 extracts the library-operation guard out of this file, but per this project's established credit-lands-next-loop convention, this score reflects the pre-fix file and stays SAME; credited at loop 5's Step 1 against this loop's own commit SHA.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "state_management": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Direct re-read this loop of PrimaryWidget.xaml.cs's guard paths (TryBeginLibraryOperation/EndLibraryOperation/IsLibraryOperationBlocking, GridImage_Click:1531, RestoreBackup_Click:1916, pre-fix line numbers) re-confirms F-014's fix holds with no unguarded single-game write path. The 9-anchor is met.",
+          "residual_blocking_10": "SteamGridDbClient.CapsuleParseNotes (SteamGridDbClient.cs:47) is public static readonly List<string> - the readonly only pins the reference, not the contents.",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Adversarial Pass re-run this loop: smallest fix (private backing field + IReadOnlyList<string> accessor) passes SPT Q1-Q4 but fails Q5 comparatively - the gain is real but smaller than this loop's actual pick (F-016). This loop separately discovered F-017, a distinct concurrency-atomicity defect in the same field's NoteCapsuleParse method; a future fix to F-017 may naturally resolve this encapsulation residual as a side effect (noted in Deepening Candidates prose). SPT-rejected on Q5.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "domain_modeling": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Direct re-read this loop of GameEntry.cs (196 lines, in full) re-confirms the parallel-fields case (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId, lines 113-145) unchanged.",
+          "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties ~113-145), sole construction site PrimaryWidget.xaml.cs.",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Adversarial Pass re-run: readonly-struct-with-factories still fails SPT Q2 - GameEntry implements INotifyPropertyChanged and is two-way XAML-data-bound; a readonly struct cannot back that binding shape without a separate wrapper layer, a larger redesign not the smallest honest fix.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "data_flow": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Triggers the Stalled-Dimension Sweep (SAME for loops 1-3 of this run). Broadened evidence this loop: StoreNameLookup's three locked caches + SteamGridDbClient.CapsuleParseNotes (4, as before) plus, newly confirmed this loop, FixLog's three static fields (lines/fileName/logFolder, FixLog.cs:24,26,28, read in full) - 7 process-lifetime ambient-state instances total, exceeding the 9-anchor's allowance. Per the Delta Derivation Guardrail, finding more instances of an already-below-anchor defect does not itself move the score further down - stays SAME. Named candidate rejected: consolidating behind fewer owners fails SPT Q2 (this is a single-instance Game Bar widget with no multi-instance/test-injection need beyond the settable RecordFolder/LogFolder pattern already used for ApplicationData.Current; threading state through the many call chains that reach these fields is a much larger redesign than any single loop's blast radius).",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "framework_idioms": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "App.xaml.cs:120's //TODO: Load state from previously suspended application re-read in full this loop, unchanged.",
+          "residual_blocking_10": "App.xaml.cs:120's unaddressed //TODO: Load state from previously suspended application, on the OnLaunched fallback path (debug/Start-menu launch only).",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Adversarial Pass re-run: deleting the dead comment still passes SPT Q1-Q4 as a free, zero-risk subtractive change but fails Q5 comparatively against F-016; bundling it would also cross into a fourth unrelated file, breaking F-016's own bounded blast radius. SPT-rejected on Q5.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "concurrency": {
+          "score": 7.0,
+          "delta": "UP",
+          "proof": "Structural proof for the UP: commit d062d1d (loop 3) added three dedicated SemaphoreSlim gates to StoreNameLookup's gogNameCache/epicNameCache/nameMatchCache, independently re-verified this loop by a full direct re-read of StoreNameLookup.cs (all 361 lines) - gogNameGate/epicNameGate/nameMatchGate all present, double-checked-locking pattern correct, matches AsyncLazyCache<T>'s already-proven shape. Tempering the UP: this loop's own investigation found the identical defect class in a second location, not yet fixed - SteamGridDbClient.NoteCapsuleParse (SteamGridDbClient.cs:49-55) performs an unsynchronized Count-check-then-Add on the same static CapsuleParseNotes list (Finding F-017, new, queued). F-011 remains blocked by the standing user constraint, re-derived fresh this loop: a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it stays genuinely blocked.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "simplicity": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Mandatory leaf-module duplication sweep this loop (three parts per method.md Step 6): (a) leaf modules read - full direct read of PrimaryWidget.xaml.cs, StoreNameLookup.cs, SteamGridDbClient.cs, AppliedArtworkStore.cs, FixLog.cs, GameEntry.cs, GamePlatform.cs, plus two independent helper sweeps covering Services/Artwork+Library+SteamGridDB+Stores, Models, App.xaml.cs, MainPage.xaml.cs; (b) four-angle results - Reuse: clean (F-002/F-003/F-013's helpers all confirmed still the sole call path, no drift); Simplification: gridPanelSessionId/searchPanelSessionId session-token pattern is a real structural echo of F-002/F-003's shape but at exactly 2 instances, below this project's own established 3-instance extraction threshold - correctly not a finding, watched; Altitude: clean; Efficiency (D1-D4): clean; (c) no audit_clones.py/audit-enum-interpretation.sh available in this repo checkout - manual four-angle pass substituted, noted as scope limit.",
+          "residual_blocking_10": "GamePlatform.cs's two independent switch statements over GamePlatform with no shared source of truth (Finding F-012, Cosmetic).",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Adversarial Pass re-run: F-012's own smallest fix still passes SPT Q1-Q4 but fails Q5 comparatively against F-016 (this loop's actual, higher-severity, dual-dimension pick).",
+          "unverifiable_due_to_build_failure": false
+        },
+        "test_strategy": {
+          "score": 6.5,
+          "delta": "SAME",
+          "proof": "Scored against source as read at Step 1, before this loop's own Step 2/3 fix. PrimaryWidget.xaml.cs carried zero direct or indirect test coverage as of Step 1 - the same primary-flow gap named on every loop of this project's 13-loop history, triggering the Stalled-Dimension Sweep. Mutation-test mental model re-applied: a mutation flipping TryBeginLibraryOperation's if (isLibraryOperationRunning) to if (!isLibraryOperationRunning) would silently let a second write-flow start while one is already running, and no test in the pre-fix repo would catch it. This is the named candidate satisfying the Stalled-Dimension Sweep, and this loop's own Step 2/3 directly fixes it (extracted LibraryOperationGuard, five new direct tests including the exact named mutation). Credit lands at loop 5's Step 1.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "credibility": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Scored against source as read at Step 1 (pre-fix): F-016's untested-guard gap is still present in the source this Step 1 evaluates, so the residual stays queued rather than moving to accepted - it is this loop's own Priority-1 pick, and the queued-to-resolved transition (like F-013's, F-014's and F-015's before it) will show up in the next loop's Step 1, scored against this loop's own commit.",
+          "residual_blocking_10": "PrimaryWidget.xaml.cs's library-operation guard (isLibraryOperationRunning, pre-fix) had, as of Step 1, no automated test proving its mutual-exclusion rule (Finding F-016, queued).",
+          "residual_disposition": "queued",
+          "residual_rationale_or_backlog_ref": "F-016",
+          "unverifiable_due_to_build_failure": false
+        }
+      },
+      "authority_map": [],
+      "strengths": [
+        "ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline - independently re-confirmed this loop by a cold helper sweep finding no structural issues, no domain-policy leakage, documentation matching implementation, and static-compiled regex/one-time histogram computation with no re-derivation on match calls.",
+        "StoreNameLookup's three newly-locked caches (gogNameGate/epicNameGate/nameMatchGate, landed loop 3) are independently re-verified this loop as correct double-checked locking matching AsyncLazyCache<T>'s already-proven shape, confirmed via both a direct full read and an independent helper sweep that explicitly checked the locking was correct and consistent, not just present.",
+        "This loop's own fix (F-016) required zero new architecture: LibraryOperationGuard is a plain internal sealed class with two methods and one field, placed in Services/Library/ next to OperationReport - the exact precedent this project already established for extracting a Compute concern out of the untestable PrimaryWidget.xaml.cs."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-016",
+          "id": "F1",
+          "title": "PrimaryWidget's library-operation guard has no automated test, and the mutation-test gap it represents has been named on every loop of this project's history",
+          "why_it_matters": "isLibraryOperationRunning's try-begin/end rule is the single mechanism preventing a bulk library reload and a single-game write (or two single-game writes) from racing each other; F-014 proved the rule's coverage was once incomplete, and nothing in this repository can mechanically re-prove it stays complete. test_strategy has scored exactly 6.5 SAME on all 13 loops of this project's recorded history citing this exact gap, and architecture_quality has been flat at 7.5 for 9 of those.",
+          "what_is_wrong": "IsLibraryOperationBlocking/TryBeginLibraryOperation/EndLibraryOperation (pre-fix PrimaryWidget.xaml.cs:194-232) implement the mutual-exclusion rule directly against a private bool isLibraryOperationRunning field, inline in a WinUI Page class. Per TESTING.md, PrimaryWidget.xaml.cs binds to Windows.UI.Xaml, which has no desktop projection in this repo's xunit infrastructure - so this rule could never be tested in place, unlike every other compute concern in this codebase (GameImages, OperationReport, ManifestEntryIdentity), which TESTING.md documents as already extracted and covered for exactly this reason.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:66 (field, pre-fix)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:194-232 (pre-fix)",
+            "TESTING.md:49-56",
+            "SteamGridDB.Xbox.Tests/OperationReportTests.cs",
+            "SteamGridDB.Xbox/Services/Library/OperationReport.cs"
+          ],
+          "test_failed": "Shallow module",
+          "dependency_category": "in-process",
+          "leverage_impact": "Before the fix, no caller - human reviewer or future refactor - could get a machine-checked guarantee that the mutual-exclusion rule still holds; confidence depended entirely on reading three methods together and trusting they agree, the same failure mode named at F-001/F-005 through F-009/F-014.",
+          "locality_impact": "Contained: the rule's decision logic moves to one 20-line class with no dependents beyond PrimaryWidget; the rule's UI side effects stay in PrimaryWidget, matching the split TESTING.md already uses.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Not a live bug (F-014's fix independently re-confirmed holding), but the single highest-value untested surface in the codebase by the severity anchor's own language, and the only scorecard gap that survived unchanged through all 13 of this project's loops without an actionable, unblocked fix.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Extract the guard's begin/end/is-running state machine into a new internal sealed class LibraryOperationGuard in Services/Library/ (no WinUI dependency), and have PrimaryWidget's three wrapper methods delegate to it while keeping their own UI side effects unchanged. Add LibraryOperationGuardTests.cs asserting the exact mutation named above. No new Seam - a plain class, directly testable, following the OperationReport.cs precedent already established in this codebase.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+              "SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs",
+              "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+              "SteamGridDB.Xbox.Tests/LibraryOperationGuardTests.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+              "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+              "SteamGridDB.Xbox/Models/GamePlatform.cs",
+              "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-011",
+          "id": "F2",
+          "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
+          "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.",
+          "what_is_wrong": "LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:455-717, pre-fix line numbers) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence, even though the awaits are independent across entries.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:455-717"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None currently actionable - see blocker.",
+          "locality_impact": "Would be contained to PrimaryWidget.xaml.cs if unblocked.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft) means this loop cannot land a change altering observable call ordering/concurrency/count against those services without a product decision this loop cannot make. Re-derived fresh this loop: a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it stays genuinely blocked.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "BLOCKED this loop; named for continuity (Backlog Prioritization Pass criterion 0) rather than escalated to a user-decision halt, since F-016 filled this loop's actionable Priority-1 slot.",
+          "blast_radius": {
+            "change": [],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no change while blocked)"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-017",
+          "id": "F3",
+          "title": "SteamGridDbClient.NoteCapsuleParse and FixLog perform unsynchronized check-then-populate/append writes on static mutable collections, the same defect class F-015 just fixed in StoreNameLookup",
+          "why_it_matters": "Both are safe today only by the same single-threaded-per-load convention that made StoreNameLookup's three caches safe before F-015 fixed them last loop. Neither guarantee is enforced by the fields themselves - a future concurrent caller (including a future unblocked F-011) would silently inherit an unsynchronized write, exactly the risk F-015's own fix eliminated for StoreNameLookup.",
+          "what_is_wrong": "SteamGridDbClient.NoteCapsuleParse (SteamGridDbClient.cs:49-55) checks CapsuleParseNotes.Count < 5 then calls CapsuleParseNotes.Add(note) with no lock - a TOCTOU race on a List<string>, which is not thread-safe for concurrent Add calls even individually. FixLog's three static fields (lines/fileName/logFolder, FixLog.cs:24,26,28) are mutated by Start()/Write()/read by SaveAsync() with no synchronization at all.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs:47",
+            "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs:49-55",
+            "SteamGridDB.Xbox/Services/Artwork/FixLog.cs:24,26,28",
+            "SteamGridDB.Xbox/Services/Artwork/FixLog.cs:46-59",
+            "SteamGridDB.Xbox/Services/AsyncLazyCache.cs:19-60"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": "in-process",
+          "leverage_impact": "A caller gets no concurrent-access-safety guarantee from either type's Interface alone; safety depends entirely on today's callers happening to be sequential.",
+          "locality_impact": "SteamGridDbClient.cs's fix is fully contained to that file; FixLog.cs's fix is fully contained to that file - two independent, small remedies, not one shared abstraction.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Not currently reachable as a live race (LoadGameEntriesAsync's loop awaits one entry at a time; FixLog's two callers are mutually exclusive under the library-operation guard), but the identical structural inconsistency F-015 closed in StoreNameLookup last loop, found in two more locations this loop.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "SteamGridDbClient: wrap NoteCapsuleParse's check-then-populate body in a dedicated SemaphoreSlim gate, matching StoreNameLookup's per-cache gate pattern (F-015's own remedy). FixLog: same pattern, or fold the three fields into one small owned type analogous to OperationReport.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+              "SteamGridDB.Xbox/Services/Artwork/FixLog.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F4",
+          "stable_id": "F-012",
+          "id": "F4",
+          "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
+          "why_it_matters": "Adding or renaming a platform requires remembering to update both switches; nothing fails to compile if one is forgotten (both silently default to Unknown/null).",
+          "what_is_wrong": "FromXboxDirectory (GamePlatform.cs:22-46) and GamePlatformToSGDBApiString (GamePlatform.cs:48-67) independently switch over the same platform cases with no shared table; FromXboxDirectory additionally handles legacy folder-name aliases with no analogue in the reverse mapping. Re-confirmed unchanged via direct full read this loop.",
+          "evidence": [
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:22-46",
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:48-67"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "Each new platform pays this asserted-twice tax; small today, compounds at scale.",
+          "locality_impact": "Contained to GamePlatform.cs.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Minor, but the enum's own home module holds two independent interpretations of itself with no compiler-enforced link. This loop's Adversarial Pass re-tested the smallest fix and confirmed it still fails Simplify Pressure Test Q5 against F-016.",
+          "severity": "Cosmetic for contest",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Fold both mappings into one table keyed by GamePlatform, with a separate small alias list for FromXboxDirectory's legacy folder names.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Models/GamePlatform.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (call sites unchanged)"
+            ]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Extracting isLibraryOperationRunning's begin/end/is-running rule into LibraryOperationGuard - passes the Shallow module test (the rule's Interface and Implementation were the same thing, inline, in an untestable class; now the rule has Depth behind a 3-method Interface with its own tests).",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "Also removes credibility's own queued residual (F-016) and directly targets the one gap test_strategy has cited on every loop of this project's 13-loop history.",
+        "should_not_be_done": "Extracting gridPanelSessionId/searchPanelSessionId's session-token pattern in the same commit - a real structural echo of the same shape, but at exactly 2 instances it sits below this project's own established 3-instance extraction threshold; bundling it would widen this loop's blast radius past one concern (fails SPT Q2). Fixing F-017 (CapsuleParseNotes/FixLog) in the same commit - a different file, different defect class, would cross this loop's own bounded blast radius for no shared mechanism.",
+        "tests_after_fix": "No existing tests were deleted (none existed for this surface). Five new tests added directly at the new Interface (LibraryOperationGuardTests.cs): starts-not-running, TryBegin succeeds when free, TryBegin fails (and leaves state unchanged) when already running - the exact mutation this finding names - End releases the guard, End is safe to call when idle. Verification: full build (msbuild, exit 0) and full test suite (run-tests.ps1, 143 passed / 0 failed / 0 skipped - 138 prior + 5 new) both re-run before and after the change; a line-by-line diff review confirms PrimaryWidget's three wrapper methods produce byte-identical StatusText/SetHeaderButtonsEnabled side effects and return values to the pre-fix version."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "stable_id": "F-016",
+          "title": "Extract PrimaryWidget's library-operation guard into a directly-testable class (Finding F-016)",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "Breaks the 13-loop test_strategy stall and the 9-loop architecture_quality stall simultaneously.",
+          "score_impact": "architecture_quality +0.5; test_strategy +0.5"
+        },
+        {
+          "priority": 2,
+          "stable_id": "F-017",
+          "title": "Wrap SteamGridDbClient.CapsuleParseNotes and FixLog's static fields in synchronization (Finding F-017)",
+          "kind": "structural",
+          "rank": "helpful",
+          "why_it_matters": "Matches F-015's own remedy pattern for the same defect class recurring in two more locations.",
+          "score_impact": "concurrency +0.5"
+        },
+        {
+          "priority": 3,
+          "stable_id": "F-011",
+          "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution (Finding F-011)",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency; named for continuity, not actionable this loop.",
+          "score_impact": "concurrency +1.0"
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [],
+      "builder_notes": [
+        {
+          "pattern": "Credit for a fix lands at the START of the next loop's Step 1, not inside the loop that made the fix.",
+          "how_to_recognize": "This loop's own scorecard shows both halves of the pattern again: concurrency moved up crediting loop 3's already-landed F-015 fix, while architecture_quality, test_strategy and credibility stayed flat even though this loop's own Step 2/3 is about to fix the exact thing keeping two of them capped - because Step 1 scores the source as it exists before that fix runs. This is the fourth loop running this exact pattern (F-013 at loop 2, F-014 at loop 1, F-015 at loop 3, now F-016 at loop 4).",
+          "smallest_coding_rule": "Always score against the source as read at Step 1, before this loop's own Step 2/3 executes.",
+          "stack_example": "C#: concurrency moved to 7.0 this loop crediting F-015 (loop 3's own fix), while F-016 (this loop's own fix) will show up at loop 5's Step 1 against this loop's own commit SHA."
+        },
+        {
+          "pattern": "The same untested-surface citation, repeated for many loops, was never itself investigated as a fixable architecture problem until this loop asked why THIS SPECIFIC PIECE can't be tested instead of accepting that the FILE can't be tested.",
+          "how_to_recognize": "Every prior loop correctly named PrimaryWidget.xaml.cs's guard logic as the primary-flow mutation gap capping test_strategy, and correctly cited TESTING.md's platform-binding explanation for why the file has no desktop projection. What went unexamined for 13 loops is that the specific rule being tested (a boolean mutual-exclusion guard) has zero dependency on Windows.UI.Xaml itself - only its UI side effects do.",
+          "smallest_coding_rule": "When a class is untestable because of a platform binding, ask which specific pieces of its logic actually use that binding, and which don't - the ones that don't can be extracted and tested even though the file as a whole cannot.",
+          "stack_example": "C#: PrimaryWidget.xaml.cs cannot be instantiated in the desktop test host (Windows.UI.Xaml.Page has no desktop projection), but a private bool field and three methods that only touch StatusText.Text as a side effect can be pulled out with zero WinUI dependency."
+        },
+        {
+          "pattern": "A duplication pattern below the project's own established instance threshold is a candidate to watch, not a finding to force.",
+          "how_to_recognize": "This loop found the gridPanelSessionId/searchPanelSessionId session-token idiom duplicated at exactly 2 sites - structurally the same shape as F-002/F-003 (fixed at loops 7-8) - but this project has consistently treated 2 instances as below the bar that justifies extraction, reserving that for 3+.",
+          "smallest_coding_rule": "Apply the same instance-count bar consistently across loops rather than lowering it for a pattern that superficially resembles a previously-fixed one.",
+          "stack_example": "C#: GameEntry.cs/GridImageItem.cs's shared INotifyPropertyChanged boilerplate was correctly not a finding at loop 3 for the same reason (2 instances); the session-token pattern gets the same treatment this loop."
+        }
+      ],
+      "narrative": "Place, not win, yet - but this loop breaks new ground rather than repeating the pattern of the last three. Concurrency is credited for a real, verified fix (F-015, landed loop 3) while this loop's own investigation immediately found the same defect class recurring in a second location (F-017, new, queued) - closing one instance of a defect class does not close the class. The larger event this loop is F-016: for the first time in this project's 13-loop history, the test_strategy gap that every prior loop named and declined to act on has an actionable, unblocked, low-risk fix, and this loop takes it - not by inventing new architecture, but by applying a pattern this codebase already uses everywhere else (TESTING.md's documented Compute/Do split). Runtime ownership remains trustworthy for every traced write path (F-014 holds, independently re-verified). Simplification did not hurt this loop: zero new ceremony, zero new Seams, a plain class following an established precedent. Tests newly cover a primary-flow concurrency-safety mechanism no test in this repository could previously reach at all. Future work still risks over-engineering if it tries to extract PrimaryWidget's orchestration wholesale, unify StoreNameLookup's differently-shaped caches, or extract the session-token pattern before a third instance justifies it; this loop re-examined all three candidates independently and reached the same restrained conclusions prior loops did.",
+      "loop_result": {
+        "what_changed": "Extracted PrimaryWidget's library-operation guard (isLibraryOperationRunning plus the begin/end/is-running rule in IsLibraryOperationBlocking/TryBeginLibraryOperation/EndLibraryOperation) into a new internal sealed class LibraryOperationGuard (SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs) with a bool IsRunning, bool TryBegin() and void End() - no WinUI dependency. PrimaryWidget.xaml.cs's three wrapper methods now delegate their state-transition decision to a private readonly LibraryOperationGuard field while keeping their own UI side effects (StatusText.Text, SetHeaderButtonsEnabled) exactly where and when they ran before. Registered the new file in SteamGridDB.Xbox.csproj. Added SteamGridDB.Xbox.Tests/LibraryOperationGuardTests.cs with five tests.",
+        "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1) both re-run before and after the change: before, 138 passed / 0 failed / 0 skipped; after, 143 passed / 0 failed / 0 skipped (138 prior + 5 new, all green, no prior test's behavior changed). A line-by-line diff review (git diff) confirms PrimaryWidget's three wrapper methods produce byte-identical StatusText/SetHeaderButtonsEnabled side effects and return values to the pre-fix version - no network call, UI side effect, or return value changed anywhere.",
+        "risk_boundary_evidence": null,
+        "targeted_finding_status": "resolved",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+          "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+          "SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs",
+          "SteamGridDB.Xbox.Tests/LibraryOperationGuardTests.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "LibraryOperationGuard.cs is a plain, dependency-free class picked up by the test project's Services\\**\\*.cs glob, its tests assert real mutual-exclusion behavior (TryBegin fails and IsRunning stays true when already running), PrimaryWidget.xaml.cs no longer contains the isLibraryOperationRunning field, and the diff preserves StatusText/SetHeaderButtonsEnabled ordering exactly with no new Seam introduced.",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {
+            "attempt": 1,
+            "outcome": "ok",
+            "error": null,
+            "duration_ms": 88976
+          }
+        ]
+      }
     }
   ]
 }

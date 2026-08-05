@@ -2884,3 +2884,195 @@ Verdict: **approved**. Reason: All three previously-unlocked StoreNameLookup cac
 
 ## Retired Findings (this loop)
 None.
+
+--- Loop 4 (UTC 2026-08-05T20:40:18Z) ---
+
+### Discovery
+see Loop 1 Discovery
+
+### Loop Counter
+Loop 4 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+**Promising, but architecturally immature.**
+
+Concurrency is credited this loop for a real, already-landed fix: F-015 (StoreNameLookup's three unsynchronized caches) is confirmed resolved and holding in current source (commit d062d1d). This loop's own investigation found the identical defect class in a second location — `SteamGridDbClient.CapsuleParseNotes` and `FixLog`'s three static fields (F-017, new, queued) — which tempers how far concurrency moves. This loop's own pick, F-016, breaks the longest-running stall in this project's history: `test_strategy` has scored exactly 6.5 with `delta: SAME` for all 13 loops of this project's review record, and `architecture_quality` has been flat at 7.5 for 9 of those. F-016 extracts `PrimaryWidget`'s untested library-operation guard into a small, directly-testable `LibraryOperationGuard` class — following the exact Compute/Do split `TESTING.md` already documents — and adds direct unit tests asserting the exact mutation named as an uncaught gap on every prior loop. What keeps this short of contest-grade: `PrimaryWidget.xaml.cs` still spans five concerns in one Module, `data_flow`'s ambient-state count grew from 4 to 7 confirmed instances this loop (still capped, not worsened), and F-011 remains genuinely blocked by the standing user constraint.
+
+**Prior-audit adopt-or-falsify**: `CODE-REVIEW.md`, `TESTING.md` and `ARTWORK-SELECTION.md` were adopted/falsified against current source in loop 1 with no open claim dropped; this loop re-confirmed no new prior-audit claim changed status. `TESTING.md` was re-read in full this loop and directly informed F-016's remedy; grep of `CODE-REVIEW.md` for the guard/session-token/CapsuleParseNotes symbols this loop's findings cite returned no matches — F-016 and F-017 are novel discoveries, not pre-documented claims.
+
+## Scorecard (1-10)
+
+- Architecture quality: **7.5** | SAME | Direct full re-read this loop of `PrimaryWidget.xaml.cs` (2067 lines pre-fix) confirms the same five concerns in one Module as loops 1-3. Triggers the Stalled-Dimension Sweep (SAME for loops 1-3 of this run, 9 of the last 10 loops overall). Candidate named and acted on: F-016 extracts the library-operation guard out of this file, but per this project's established credit-lands-next-loop convention, this score reflects the pre-fix file and stays SAME; credited at loop 5's Step 1.
+- State management and runtime ownership: **9.5** | SAME | `residual_disposition: accepted` | F-014's fix re-confirmed holding, no unguarded single-game write path. Residual: `SteamGridDbClient.CapsuleParseNotes` is `public static readonly List<string>` — the `readonly` only pins the reference. Adversarial Pass re-run: smallest fix passes SPT Q1-Q4 but fails Q5 comparatively against F-016; SPT-rejected on Q5, residual holds.
+- Domain modeling: **9.5** | SAME | `residual_disposition: accepted` | `GameEntry.cs`'s parallel-fields case (`HasSteamGridDBMatch`/`OfficialCapsuleUrl`/`SteamGridDbGameId`, lines 113-145) unchanged, re-confirmed via full re-read. Adversarial Pass: readonly-struct fix still fails SPT Q2 (two-way XAML data-binding via `INotifyPropertyChanged`); residual holds.
+- Data flow and dependency design: **7.5** | SAME | Triggers the Stalled-Dimension Sweep. Evidence broadened this loop: `StoreNameLookup`'s three locked caches + `CapsuleParseNotes` (4, as before) plus newly-confirmed `FixLog`'s three static fields — 7 ambient-state instances total. Per the Delta Derivation Guardrail, more instances of an already-below-anchor defect doesn't move the score further; stays SAME. Named candidate (consolidation via DI) rejected on SPT Q2 — this is a single-instance widget with no multi-instance need, and threading state through the many call chains that reach these fields is a much larger redesign than this loop's blast radius.
+- Framework / platform best practices: **9.5** | SAME | `residual_disposition: accepted` | `App.xaml.cs:120`'s dead TODO re-read in full, unchanged. Adversarial Pass: deleting it still passes SPT Q1-Q4 but fails Q5 against F-016; residual holds.
+- Concurrency and runtime safety: **7.0** | UP | Structural proof: commit d062d1d (loop 3) added three dedicated `SemaphoreSlim` gates to `StoreNameLookup`, independently re-verified this loop via a full direct re-read of `StoreNameLookup.cs` (all 361 lines). Tempering the UP: this loop's own investigation found the identical defect class recurring in `SteamGridDbClient.NoteCapsuleParse` (F-017, new, queued). F-011 remains blocked, re-derived fresh.
+- Code simplicity and clarity: **9.5** | SAME | `residual_disposition: accepted` | Mandatory leaf-module duplication sweep (three parts): leaf modules read directly plus two independent helper sweeps; four-angle results all clean except the `gridPanelSessionId`/`searchPanelSessionId` session-token pattern at exactly 2 instances — below this project's own established 3-instance extraction threshold, correctly not a finding, watched. Residual unchanged: `GamePlatform.cs`'s two switches (F-012, Cosmetic). Adversarial Pass: still SPT-Q5-rejected against F-016; residual holds.
+- Test strategy and regression resistance: **6.5** | SAME | Scored pre-fix (Step 1 convention). `PrimaryWidget.xaml.cs` carried zero test coverage as of Step 1 — the same gap named on all 13 loops of this project's history, triggering the Stalled-Dimension Sweep. Uniquely this loop, the named candidate (the guard's untested mutual-exclusion rule) is directly, actionably fixed this loop's own Step 2/3 — credit lands at loop 5's Step 1.
+- Overall implementation credibility: **9.5** | SAME | `residual_disposition: queued` (F-016) | F-016's gap still present in the pre-fix source Step 1 evaluates; queued-to-resolved transition lands at loop 5's Step 1 against this loop's own commit.
+
+## Strengths That Matter
+- `ArtworkRanker`/`ArtworkDownloader`/`ArtworkSignature`/`TileImage` remain a genuinely deep, pure, well-tested pipeline — independently re-confirmed this loop by a cold helper sweep.
+- `StoreNameLookup`'s three newly-locked caches are independently re-verified this loop as correct double-checked locking matching `AsyncLazyCache<T>`'s already-proven shape.
+- This loop's own fix (F-016) required zero new architecture: `LibraryOperationGuard` is a plain `internal sealed class` placed in `Services/Library/` next to `OperationReport` — the exact precedent this project already established.
+
+## Findings
+
+### Finding #1: PrimaryWidget's library-operation guard has no automated test, and the mutation-test gap it represents has been named on every loop of this project's history
+
+**Why it matters** — `isLibraryOperationRunning`'s try-begin/end rule is the single mechanism preventing a bulk library reload and a single-game write from racing each other; `test_strategy` has scored exactly 6.5 SAME on all 13 loops of this project's recorded history citing this exact gap.
+
+**What is wrong** — `IsLibraryOperationBlocking`/`TryBeginLibraryOperation`/`EndLibraryOperation` (pre-fix `PrimaryWidget.xaml.cs`:194-232) implement the mutual-exclusion rule directly against a private `bool` field, inline in a WinUI `Page` class with no desktop test projection (`TESTING.md`), unlike every other compute concern in this codebase already extracted and covered.
+
+**Evidence** — `PrimaryWidget.xaml.cs`:66, `PrimaryWidget.xaml.cs`:194-232 (pre-fix), `TESTING.md`:49-56, `OperationReportTests.cs` + `OperationReport.cs` (the precedent this fix follows).
+
+**Architectural test failed** — Shallow module.
+
+**Dependency category** — `in-process`.
+
+**Leverage impact** — No caller could get a machine-checked guarantee the mutual-exclusion rule holds; confidence depended on reading three methods together and trusting they agree.
+
+**Locality impact** — Contained: the rule's decision logic moves to one 20-line class; UI side effects stay in `PrimaryWidget`.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — Not a live bug, but the single highest-value untested surface in the codebase, and the only scorecard gap that survived unchanged through all 13 of this project's loops without an actionable fix.
+
+**Severity** — Serious deduction.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — Extract the guard's state machine into `internal sealed class LibraryOperationGuard` in `Services/Library/`; `PrimaryWidget`'s three wrapper methods delegate to it, keeping UI side effects unchanged. Add direct tests. No new Seam.
+
+**Blast radius** — Change: `PrimaryWidget.xaml.cs`, `Services/Library/LibraryOperationGuard.cs` (new), `SteamGridDB.Xbox.csproj`, `LibraryOperationGuardTests.cs` (new). Avoid: `StoreNameLookup.cs`, `SteamGridDbClient.cs`, `GamePlatform.cs`, `EpicLibrary.cs`.
+
+---
+
+### Finding #2: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — Fully-sequential per-entry network chain adds latency scaling with library size.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (`PrimaryWidget.xaml.cs`:455-717, pre-fix) awaits independent per-entry work in strict sequence.
+
+**Evidence** — `PrimaryWidget.xaml.cs`:455-717.
+
+**Architectural test failed** — n/a.
+
+**Leverage impact** — None currently actionable.
+
+**Locality impact** — Would be contained to `PrimaryWidget.xaml.cs` if unblocked.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — Real cost, but **BLOCKED** by the standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency). Re-derived fresh this loop: a pure extraction would not be blocked, but F-011's own remedy necessarily changes call ordering.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — BLOCKED; named for continuity.
+
+**Blast radius** — Change: none this loop. Avoid: `PrimaryWidget.xaml.cs`.
+
+---
+
+### Finding #3: SteamGridDbClient.NoteCapsuleParse and FixLog perform unsynchronized check-then-populate/append writes on static mutable collections, the same defect class F-015 just fixed in StoreNameLookup
+
+**Why it matters** — Both are safe today only by the same single-threaded-per-load convention that made `StoreNameLookup`'s caches safe before F-015. A future concurrent caller would silently inherit an unsynchronized write.
+
+**What is wrong** — `SteamGridDbClient.NoteCapsuleParse` (`SteamGridDbClient.cs`:49-55) checks `Count < 5` then `Add`s with no lock — a TOCTOU race on a non-thread-safe `List<string>`. `FixLog`'s three static fields (`FixLog.cs`:24,26,28) are mutated with no synchronization.
+
+**Evidence** — `SteamGridDbClient.cs`:47, `SteamGridDbClient.cs`:49-55, `FixLog.cs`:24,26,28, `FixLog.cs`:46-59, `AsyncLazyCache.cs`:19-60.
+
+**Architectural test failed** — n/a.
+
+**Dependency category** — `in-process`.
+
+**Leverage impact** — No concurrent-access-safety guarantee from either type's Interface alone.
+
+**Locality impact** — Two independent, small, file-contained remedies.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — Not currently reachable as a live race, but the identical structural inconsistency F-015 closed in `StoreNameLookup` last loop, found in two more locations.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — `SteamGridDbClient`: dedicated `SemaphoreSlim` gate matching F-015's pattern. `FixLog`: same pattern, or fold into one owned type analogous to `OperationReport`.
+
+**Blast radius** — Change: `SteamGridDbClient.cs`, `FixLog.cs`. Avoid: `PrimaryWidget.xaml.cs`, `StoreNameLookup.cs`.
+
+---
+
+### Finding #4: GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth
+
+**Why it matters** — Adding/renaming a platform requires updating both switches; nothing fails to compile if one is forgotten.
+
+**What is wrong** — `FromXboxDirectory` (`GamePlatform.cs`:22-46) and `GamePlatformToSGDBApiString` (`GamePlatform.cs`:48-67) independently switch with no shared table. Re-confirmed unchanged.
+
+**Evidence** — `GamePlatform.cs`:22-46, `GamePlatform.cs`:48-67.
+
+**Architectural test failed** — n/a.
+
+**Leverage impact** — Each new platform pays this asserted-twice tax.
+
+**Locality impact** — Contained to `GamePlatform.cs`.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — Minor; Adversarial Pass re-confirmed still SPT-Q5-rejected against F-016.
+
+**Severity** — Cosmetic for contest.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — Fold both mappings into one table with a small alias list.
+
+**Blast radius** — Change: `GamePlatform.cs`. Avoid: `PrimaryWidget.xaml.cs`.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Extracting `isLibraryOperationRunning`'s rule into `LibraryOperationGuard` — passes the Shallow module test |
+| New seam justified | false — plain concrete class, no interface/port, tested directly |
+| Helpful simplification | Also removes credibility's queued residual (F-016); targets the 13-loop `test_strategy` gap |
+| Should NOT be done | Extracting the session-token pattern (2 instances, below the 3-instance bar) or fixing F-017 in the same commit (different file, different defect class) |
+| Tests after fix | 5 new tests at the new Interface; none deleted (none existed); 138→143 passing |
+
+## Improvement Backlog
+1. **[F-016]** Extract PrimaryWidget's library-operation guard into a directly-testable class — structural, needed for winning. Score impact: `architecture_quality +0.5; test_strategy +0.5`.
+2. **[F-017]** Wrap `SteamGridDbClient.CapsuleParseNotes` and `FixLog`'s static fields in synchronization — structural, helpful. Score impact: `concurrency +0.5`.
+3. **[F-011]** Parallelize `LoadGameEntriesAsync`'s per-entry network resolution — needed for winning once unblocked. **BLOCKED**. Score impact: `concurrency +1.0`.
+
+**Priority-1 accounting**: The Stalled-Dimension Sweep triggered on `architecture_quality`, `test_strategy` (13 loops, the longest stall on this scorecard) and `data_flow`. F-016 is the only candidate that directly breaks a stall — two at once — via an established, low-risk, precedented pattern.
+
+## Deepening Candidates
+→ REVIEW_HISTORY.json `loops[3].deepening_candidates` for full notes (empty array this loop; two watched, non-finding patterns discussed in Builder Notes and prose).
+
+## Builder Notes
+- Credit for a fix lands at the START of the next loop's Step 1, not inside the loop that made the fix. → REVIEW_HISTORY.json `loops[3].builder_notes` for full notes.
+- The same untested-surface citation, repeated for 13 loops, was never itself investigated as a fixable architecture problem until this loop asked "why can't this specific piece be tested" instead of "this can't be tested." → REVIEW_HISTORY.json `loops[3].builder_notes` for full notes.
+- A duplication pattern below the project's own established instance threshold is a candidate to watch, not a finding to force. → REVIEW_HISTORY.json `loops[3].builder_notes` for full notes.
+
+**Scorecard humility check.** Three claims this loop's critic is least confident about: (1) F-016's severity as "Serious deduction" rather than "Likely disqualifier" — the severity anchor's own language describes this guard almost verbatim, and 13 consecutive loops of an unfixed primary-flow test gap could be read as crossing into disqualifying territory; this loop judged "no live-reachable harm" as the deciding factor, a real but not airtight distinction. (2) `concurrency`'s UP move to 7.0 — crediting F-015's fix while discovering F-017's new instance in the same investigation makes the net direction genuinely ambiguous; a stricter reading could hold at 6.5 (net zero). (3) `data_flow` held at 7.5 rather than nudged down for finding 3 more ambient-state instances (4→7) — the Delta Derivation Guardrail warns against mechanical down-scoring on "found a new instance," and this loop's call that the qualitative picture is unchanged is a judgment a stricter reading could contest.
+
+## Final Judge Narrative
+Place, not win, yet — but this loop breaks new ground rather than repeating the pattern of the last three. Concurrency is credited for a real, verified fix (F-015) while this loop's own investigation immediately found the same defect class recurring in a second location (F-017) — closing one instance of a defect class does not close the class. The larger event this loop is F-016: for the first time in this project's 13-loop history, the `test_strategy` gap that every prior loop named and declined to act on has an actionable, unblocked, low-risk fix, and this loop takes it — not by inventing new architecture, but by applying a pattern this codebase already uses everywhere else. Runtime ownership remains trustworthy (F-014 holds). Simplification did not hurt this loop: zero new ceremony, zero new Seams. Tests newly cover a primary-flow concurrency-safety mechanism no test in this repository could previously reach at all. Future work still risks over-engineering if it tries to extract PrimaryWidget's orchestration wholesale, unify StoreNameLookup's caches, or extract the session-token pattern before a third instance justifies it; this loop re-examined all three candidates independently and reached the same restrained conclusions prior loops did.
+
+## Loop 4 Result
+Extracted `PrimaryWidget`'s library-operation guard into a new `internal sealed class LibraryOperationGuard` (`Services/Library/LibraryOperationGuard.cs`) with `bool IsRunning`, `bool TryBegin()`, `void End()` — no WinUI dependency. `PrimaryWidget.xaml.cs`'s three wrapper methods now delegate to it while keeping their own UI side effects unchanged. Registered the new file in `SteamGridDB.Xbox.csproj`. Added `LibraryOperationGuardTests.cs` with five tests, including one asserting the exact mutation this finding names. Full build (exit 0) and full test suite both re-run before (138 passed) and after (143 passed / 0 failed / 0 skipped) the change. Finding F-016 (stable_id F-016) is **resolved**. No unintended scorecard regression observed; F-017 was discovered during this loop's own Step 1 investigation, not introduced by this loop's edit.
+
+## Loop 4 Implementation Review
+Verdict: **approved**. Reason: `LibraryOperationGuard.cs` is a plain, dependency-free class picked up by the test project's `Services\**\*.cs` glob, its tests assert real mutual-exclusion behavior, `PrimaryWidget.xaml.cs` no longer contains the `isLibraryOperationRunning` field, and the diff preserves `StatusText`/`SetHeaderButtonsEnabled` ordering exactly with no new Seam introduced. Checks: reality=passed, honesty=passed, regression=passed. Regressions: none. Conditions: none. Rounds: 1.
+
+## Retired Findings (this loop)
+None.
