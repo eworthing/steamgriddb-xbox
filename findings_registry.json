@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 12,
+  "next_serial": 13,
   "entries": [
     {
       "stable_id": "F-001",
@@ -134,7 +134,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 1,
@@ -218,6 +218,18 @@
             "evidence_paths_hash": "sha256:68904e8b7cadc6dfb2ce55cddf4a8940e7d539178cf01da7052bc43ca5e15e90"
           },
           "attempted_remedy_hash": "sha256:67296fc9af008c0b46eaf44cf2d68133d1de332cfe11fc33361be40c075a244a"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: extracted a shared private ConfirmAndRunAsync(title, content, primaryButtonText, secondaryButtonText, shouldRun, action) helper that owns dialog construction, the XamlRoot check, and the TryBeginLibraryOperation/EndLibraryOperation wrapping; all three call sites now delegate to it, with FixLibraryButton_Click's shouldRun/action still branching on Primary vs Secondary via the passed-through ContentDialogResult. Net -22 lines (2032 -> 2010; 59 insertions, 81 deletions). Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8b1d18f73884a60a21a9dbc1834d4e5a301f0f28b54df10b3662533e98b05405",
+            "evidence_paths_hash": "sha256:ec37d67d460a7e2d7427f6cff3f18ebcec1fbf50ee53b026983cb77fcdf30aa1"
+          },
+          "attempted_remedy_hash": "sha256:65d29e27c5c5f39c4f6de978636a963988bbd0ab5d7c20e501e2f88ede1dce3f"
         }
       ]
     },
@@ -231,7 +243,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 1,
@@ -311,6 +323,18 @@
           "note": "re-derived loop 7 (TileImage.cs/TileImageTests.cs unaffected by this loop's F-002 edit; gap re-confirmed, evidence lines unchanged). Claim/Consequence/Remedy text unchanged verbatim from loop 6, so all three fingerprint components are identical to loop 6's - included here per Step 1.7's per-loop re-derivation discipline. Still the only test_strategy candidate; still Cosmetic/off-primary-flow; does not win Priority 1.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:578bef996c2b73931b19c91037f0c97c69f5808a269a13a2c1931e1cc5e6af4a",
+            "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
+          },
+          "attempted_remedy_hash": "sha256:e0275c984711e09a76ee9c1669d65a12393f85086e57ecc4eb64c4c599abf182"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F5",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "re-derived loop 8 (TileImage.cs/TileImageTests.cs unaffected by this loop's F-003 edit; gap re-confirmed, evidence lines unchanged). Still the only test_strategy candidate; still Cosmetic/off-primary-flow; does not win Priority 1. Re-examined this loop via the mutation-test mental model (method.md Step 8) alongside a fresh, source-backed PrimaryWidget.xaml.cs mutation (deleting a session guard) that IS on a primary flow - that primary-flow gap is the one actually capping test_strategy below 9.5 this loop, not this Cosmetic boundary gap.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0036e90a610e2d10481d16caaa1ac843c25b360ce2abf9035d8755ed111f78f2",
             "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
           },
           "attempted_remedy_hash": "sha256:e0275c984711e09a76ee9c1669d65a12393f85086e57ecc4eb64c4c599abf182"
@@ -457,7 +481,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 6,
       "first_seen_sha": "99f8ace",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 6,
@@ -482,6 +506,18 @@
             "evidence_paths_hash": "sha256:f6c55adbe3bb8f0ab5cf38bee8743c4bbba8fef3b992a639cbbb4e0a81e8ae65"
           },
           "attempted_remedy_hash": "sha256:205c2d2af9ca383dcf8450be9660d76a885ff6d9f56997c58f304b981ad6bee8"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of StoreNameLookup.cs in full (untouched by this loop's F-003 edit, which is confined to PrimaryWidget.xaml.cs). Evidence lines unchanged. Outranked this loop by F-003 (higher stall, seven consecutive loops SAME on simplicity vs. this finding's own one-loop stall on data_flow); Priority 1 for loop 9.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:d3033191990a1701ef3d95de138eb7c42cbb320b14fcea9fc137eeaf43b26007",
+            "evidence_paths_hash": "sha256:f6c55adbe3bb8f0ab5cf38bee8743c4bbba8fef3b992a639cbbb4e0a81e8ae65"
+          },
+          "attempted_remedy_hash": "sha256:523b71445f86656ec1fedd573dafa19f692475a5f73da1b2623d7a0e6db0c352"
         }
       ]
     },
@@ -495,7 +531,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 7,
+      "last_seen_loop": 8,
       "occurrences": [
         {
           "loop": 7,
@@ -508,6 +544,44 @@
             "evidence_paths_hash": "sha256:809c77b1cc653f812e3d1bcd3b4c796d39807f2c5c7a6d158128456aebedcb68"
           },
           "attempted_remedy_hash": "sha256:75af7690920843cc09519d61c4209cc5ef9ac4c8a8a9c9db29fe0c74adb8e1a4"
+        },
+        {
+          "loop": 8,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:455-679, unaffected by this loop's F-003 edit at lines 743-859+ - only lines below the edit point shifted). Still blocked by the STANDING USER CONSTRAINT and the unlocked-cache prerequisite. Ranks above F-010 and F-012 on merit (concurrency is jointly the lowest-scored dimension on the board with test_strategy) but stays listed at Priority 3 in the backlog since it is not yet actionable, per Backlog Prioritization criterion 0.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2ac4372d75cb11fab2e7aac8656e349c9a5c32eba1320dee595be601b76548d2",
+            "evidence_paths_hash": "sha256:809c77b1cc653f812e3d1bcd3b4c796d39807f2c5c7a6d158128456aebedcb68"
+          },
+          "attempted_remedy_hash": "sha256:75af7690920843cc09519d61c4209cc5ef9ac4c8a8a9c9db29fe0c74adb8e1a4"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-012",
+      "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
+      "category_hint": "duplicate-abstraction",
+      "primary_file": "SteamGridDB.Xbox/Models/GamePlatform.cs",
+      "primary_evidence_lines": [22, 67],
+      "test_failed": "n/a",
+      "severity": "Cosmetic for contest",
+      "first_seen_loop": 8,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 8,
+      "occurrences": [
+        {
+          "loop": 8,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Surfaced by an independent, cold Services/Models helper sweep this loop (Reuse/Simplification/Altitude/Efficiency angles), independently confirmed by direct read of GamePlatform.cs. Not yet manifesting live harm - the six shared platform cases are currently correctly mirrored in both switches - so ranked last of the three backlog items on both severity and distance-to-target (simplicity is the least-distant non-9.5 dimension after this loop's F-003 fix). Queued Priority 2 for loop 9.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:cb7f35863b7b14179e8e61800a455c1677bb99029aefaf8eb7adf59a2b1bf74c",
+            "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
+          },
+          "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
         }
       ]
     }

@@ -738,25 +738,43 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Handles fix library button click to automatically download artwork for all eligible games.
+        /// Shows a confirm/cancel (or confirm/alternate/cancel) dialog, then runs the chosen action
+        /// under the library-operation guard. Owns the dialog construction, the XamlRoot API-contract
+        /// check, and the TryBeginLibraryOperation/EndLibraryOperation wrapping that
+        /// FixLibraryButton_Click, RestoreChangesButton_Click and RevertDefaultsButton_Click each used
+        /// to duplicate. <paramref name="action"/> receives the dialog result so a caller with a
+        /// secondary button (FixLibraryButton_Click) can still branch on which one was pressed.
         /// </summary>
-        private async void FixLibraryButton_Click(object sender, RoutedEventArgs e)
+        /// <param name="title">Dialog title.</param>
+        /// <param name="content">Dialog body text.</param>
+        /// <param name="primaryButtonText">Primary button text.</param>
+        /// <param name="secondaryButtonText">Secondary button text, or null/empty for a two-button dialog.</param>
+        /// <param name="shouldRun">Whether <paramref name="action"/> should run for a given result.</param>
+        /// <param name="action">The guarded operation to run when <paramref name="shouldRun"/> allows it.</param>
+        private async Task ConfirmAndRunAsync(
+            string title,
+            string content,
+            string primaryButtonText,
+            string secondaryButtonText,
+            Func<ContentDialogResult, bool> shouldRun,
+            Func<ContentDialogResult, Task> action)
         {
-            // Show confirmation dialog
             ContentDialog confirmDialog = new ContentDialog
             {
-                Title = "Fix my library",
-                Content = "This will automatically download the best artwork from SteamGridDB for all games that have a direct SteamGridDB match.\n\n" +
-                          "\"Fix new games\" only processes games that have not been modified yet. \"Re-fix all games\" also re-downloads artwork for games customised earlier, replacing their current images.\n\n" +
-                          "Original Xbox app images are backed up and can always be restored later.",
-                PrimaryButtonText = "Fix new games",
-                SecondaryButtonText = "Re-fix all games",
+                Title = title,
+                Content = content,
+                PrimaryButtonText = primaryButtonText,
                 CloseButtonText = "Cancel",
                 Style = Resources["DarkContentDialogStyle"] as Style,
                 PrimaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
-                SecondaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
                 CloseButtonStyle = Resources["ContentDialogButtonStyle"] as Style
             };
+
+            if (!string.IsNullOrEmpty(secondaryButtonText))
+            {
+                confirmDialog.SecondaryButtonText = secondaryButtonText;
+                confirmDialog.SecondaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style;
+            }
 
             // Set XamlRoot for proper dialog display
             if (Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 8))
@@ -766,96 +784,56 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            if (result != ContentDialogResult.Primary && result != ContentDialogResult.Secondary)
-            {
-                return;
-            }
-
-            if (!TryBeginLibraryOperation())
+            if (!shouldRun(result) || !TryBeginLibraryOperation())
             {
                 return;
             }
 
             try
             {
-                await FixLibraryAsync(result == ContentDialogResult.Secondary);
+                await action(result);
             }
             finally
             {
                 EndLibraryOperation();
             }
+        }
+
+        private async void FixLibraryButton_Click(object sender, RoutedEventArgs e)
+        {
+            await ConfirmAndRunAsync(
+                "Fix my library",
+                "This will automatically download the best artwork from SteamGridDB for all games that have a direct SteamGridDB match.\n\n" +
+                "\"Fix new games\" only processes games that have not been modified yet. \"Re-fix all games\" also re-downloads artwork for games customised earlier, replacing their current images.\n\n" +
+                "Original Xbox app images are backed up and can always be restored later.",
+                "Fix new games",
+                "Re-fix all games",
+                result => result == ContentDialogResult.Primary || result == ContentDialogResult.Secondary,
+                result => FixLibraryAsync(result == ContentDialogResult.Secondary));
         }
 
         private async void RestoreChangesButton_Click(object sender, RoutedEventArgs e)
         {
-            ContentDialog confirmDialog = new ContentDialog
-            {
-                Title = "Restore my changes",
-                Content = "This will restore all previously customised artwork (useful if your changes were reset by the Xbox app).\n\n" +
-                          "Do you want to continue?",
-                PrimaryButtonText = "Restore my changes",
-                CloseButtonText = "Cancel",
-                Style = Resources["DarkContentDialogStyle"] as Style,
-                PrimaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
-                CloseButtonStyle = Resources["ContentDialogButtonStyle"] as Style
-            };
-
-            if (Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 8))
-            {
-                confirmDialog.XamlRoot = Content.XamlRoot;
-            }
-
-            ContentDialogResult result = await confirmDialog.ShowAsync();
-
-            if (result != ContentDialogResult.Primary || !TryBeginLibraryOperation())
-            {
-                return;
-            }
-
-            try
-            {
-                await RestoreAllChangesAsync();
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
+            await ConfirmAndRunAsync(
+                "Restore my changes",
+                "This will restore all previously customised artwork (useful if your changes were reset by the Xbox app).\n\n" +
+                "Do you want to continue?",
+                "Restore my changes",
+                null,
+                result => result == ContentDialogResult.Primary,
+                _ => RestoreAllChangesAsync());
         }
 
         private async void RevertDefaultsButton_Click(object sender, RoutedEventArgs e)
         {
-            ContentDialog confirmDialog = new ContentDialog
-            {
-                Title = "Revert to Xbox defaults",
-                Content = "This will restore the original Xbox app artwork for all customised games and remove the SteamGridDB artwork applied to them.\n\n" +
-                          "Do you want to continue?",
-                PrimaryButtonText = "Revert all",
-                CloseButtonText = "Cancel",
-                Style = Resources["DarkContentDialogStyle"] as Style,
-                PrimaryButtonStyle = Resources["ContentDialogButtonStyle"] as Style,
-                CloseButtonStyle = Resources["ContentDialogButtonStyle"] as Style
-            };
-
-            if (Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent("Windows.Foundation.UniversalApiContract", 8))
-            {
-                confirmDialog.XamlRoot = Content.XamlRoot;
-            }
-
-            ContentDialogResult result = await confirmDialog.ShowAsync();
-
-            if (result != ContentDialogResult.Primary || !TryBeginLibraryOperation())
-            {
-                return;
-            }
-
-            try
-            {
-                await RevertAllToDefaultAsync();
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
+            await ConfirmAndRunAsync(
+                "Revert to Xbox defaults",
+                "This will restore the original Xbox app artwork for all customised games and remove the SteamGridDB artwork applied to them.\n\n" +
+                "Do you want to continue?",
+                "Revert all",
+                null,
+                result => result == ContentDialogResult.Primary,
+                _ => RevertAllToDefaultAsync());
         }
 
         /// <summary>
