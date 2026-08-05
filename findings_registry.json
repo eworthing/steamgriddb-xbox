@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 7,
@@ -628,6 +628,18 @@
             "evidence_paths_hash": "sha256:ada13e302356a1c561f4b526ec8d81316b527cf85af46727003e76c7f2c5188d"
           },
           "attempted_remedy_hash": "sha256:d5faf9a21c4fa8f747439172bc8c2d8bdcfb95915e49eadcb04c9a932799333f"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "9b2c4cbbeaa7ff019160901b30d51352045d9f2f",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:421-683 at current line numbers, shifted from loop 1's cited 455-679 by loop 1's own F-014 guard-extension edit above it; underlying sequential-await shape unchanged). Still blocked by the STANDING USER CONSTRAINT (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft). Named per Backlog Prioritization Pass criterion 0 (blocker stated in the accounting sentence) rather than placed in the strict 1-3-item backlog top rank; still listed at Priority 3 for continuity.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:c79bc071a0e428dabda13ed7cf983a8e8977b9e215574fce256dd9885a7d8097",
+            "evidence_paths_hash": "sha256:f147fe69b19cee5da64f1298403f24fe7be0ef43739862ee819242c64c83309c"
+          },
+          "attempted_remedy_hash": "sha256:92464101b786d79ee12e90c08156b82e04bec40c56e80921da07492cb6a32bb6"
         }
       ]
     },
@@ -641,7 +653,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 8,
@@ -690,6 +702,18 @@
             "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
           },
           "attempted_remedy_hash": "sha256:d773788c671675e050b27f8c48a5ad8fc4bc7d14a84d0491b5083ad5f42d0bac"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "9b2c4cbbeaa7ff019160901b30d51352045d9f2f",
+          "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (untouched by this loop's F-013 edit, confined to PrimaryWidget.xaml.cs). Still Cosmetic, still no live harm. Text re-derived independently this loop (own wording), noting FromXboxDirectory's legacy alias handling ('ubi'/'ubisoft', 'bnet'/'battlenet') as an added nuance not previously called out, which is why claim_consequence_hash moves despite the underlying claim/evidence/remedy being unchanged in substance. Outranked this loop by F-013 (higher severity, three-loop deferral) and F-015 (higher severity) for the top backlog slots; not in this loop's backlog but remains a tracked open finding.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:ed230e37d2845f1faa106f4d23b4bae08777c23cb3f335914ce5e9294826d16c",
+            "evidence_paths_hash": "sha256:9a7efc857f6803358386a2aa5ab4f4bea168e42e86a704e9c47971d43ca78d38"
+          },
+          "attempted_remedy_hash": "sha256:4ac12a06da8c9b9b583d6a257282cc4c983688e9a4ca351ef6476bdf065b8719"
         }
       ]
     },
@@ -703,7 +727,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 9,
@@ -740,6 +764,18 @@
             "evidence_paths_hash": "sha256:9e3ca9d748d580923f3e3bc925617665bbea23024da3e0ede0c3448c29e72b9c"
           },
           "attempted_remedy_hash": "sha256:ced7d3114a8fc4fe12bf142a9fa38d9b52edc7e830ec0eedc44059db76beafe9"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: extracted a shared private UpdateSharedEntriesAsync(GameEntry, string, BitmapImage, bool?, string) helper (PrimaryWidget.xaml.cs, added after EntriesSharingImage); all three call sites (ReplaceImageCoreAsync, RestoreAllChangesAsync, RestoreBackupCoreAsync) now delegate to it, with bool? hasBackup and string statusText null-means-untouched parameters preserving each site's exact pre-fix behavior (RestoreAllChangesAsync never touched HasBackup or StatusText from this block; ReplaceImageCoreAsync/RestoreBackupCoreAsync's conditional status messages and HasBackup writes reproduced exactly). Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass, explicitly re-deriving that the HasBackup/StatusText behavior differences across the three call sites are preserved. Ends a three-loop deferral (open at loops 9, 10, and this run's loop 1) per the Backlog Prioritization Pass's item-deferral criterion.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:83b434ad6a8c019fe7d8d82663d66be5f5698554629b6c9d5b637c4464f27cd9",
+            "evidence_paths_hash": "sha256:35e3ee699d90ef8e12949ebf9e7d8252b238a1f8524d168658f8cff04dd49057"
+          },
+          "attempted_remedy_hash": "sha256:9314987cbb2f131c015f94aebf20247e4c8e9b7c20ac12954170c17080182cbe"
         }
       ]
     },
@@ -783,7 +819,7 @@
     },
     {
       "stable_id": "F-015",
-      "title": "StoreNameLookup's GOG and Epic name caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
+      "title": "StoreNameLookup's three hand-rolled caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
       "category_hint": "unsynchronized-cache/concurrency-inconsistency",
       "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
       "primary_evidence_lines": [29, 222],
@@ -791,7 +827,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -804,6 +840,18 @@
             "evidence_paths_hash": "sha256:a5985145128745081600d53beed08fc5500f6dadc0a20a1eb664ef0e299df3c7"
           },
           "attempted_remedy_hash": "sha256:4adbed385dee68c6866cf112cbe2a67347164dc002a9a2ccb846233a6701e768"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "9b2c4cbbeaa7ff019160901b30d51352045d9f2f",
+          "note": "Independently re-derived this loop by a full direct re-read of StoreNameLookup.cs (all 306 lines, mandatory churn-top-3 deep-review target). Evidence broadened from loop 1's citation: nameMatchCache (:34, :117-149) has the identical unsynchronized check-then-populate shape as gogNameCache/epicNameCache, which loop 1's evidence did not cite - three of the file's four mutable-state fields share the defect, not two. Severity and remedy class unchanged (Noticeable weakness; same SemaphoreSlim-gate reuse). Not implemented this loop (outranked by F-013 per the Backlog Prioritization Pass's item-deferral criterion); queued Priority 2.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:08b25aeccd27ffd0f71771f55a59fd7de2f85025bcc84d610e819511ed7e3a93",
+            "evidence_paths_hash": "sha256:3eb7894a585fb9e90f518198e8805a792f940a3531b0a5e17feb18f433c805a8"
+          },
+          "attempted_remedy_hash": "sha256:c4b98558137ae5b28a006e7844bf52b709ccd0cad51b4db4f02eaec506b2a5bb"
         }
       ]
     }

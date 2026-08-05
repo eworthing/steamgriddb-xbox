@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "loop": 1,
+  "loop": 2,
   "loop_cap": 10,
   "state": "CONTINUE",
   "halt_subtype": null,
@@ -11,12 +11,10 @@
   "dry_run": false,
   "strictness": "standard",
   "loop_metrics": null,
-
-  "run_id": null,
-  "source_rev": null,
+  "run_id": "",
+  "source_rev": "",
   "candidate_fingerprint": null,
   "halt_success_challenge": null,
-
   "provider": "claude_code",
   "loop_model": "claude-sonnet-5",
   "loop_model_source": "default",
@@ -25,9 +23,7 @@
   "spawn_isolation": "subagent",
   "premium_dry_run": null,
   "premium_loop_override": false,
-
   "findings_registry_path": "./findings_registry.json",
-
   "discovery": {
     "source_roots": ["SteamGridDB.Xbox/", "SteamGridDB.Xbox.Tests/"],
     "test_command": "powershell -NoProfile -File ./run-tests.ps1",
@@ -67,34 +63,32 @@
     "test_filter": null,
     "working_tree_dirty_paths": ["CURRENT_REVIEW.json", "REVIEW_HISTORY.md"]
   },
-
   "verdict": "Promising, but architecturally immature",
-  "verdict_explanation": "The artwork pipeline (ArtworkRanker/ArtworkDownloader/TileImage/ArtworkSignature) is genuinely deep, pure and well-tested, and PrimaryWidget.xaml.cs's own state-ownership discipline keeps improving loop over loop. This loop independently re-derived the same Serious reentrancy gap loop 10's Critic-only pass surfaced (F-014) and closed it, but its existence after nine prior dedicated session-guard sweeps, plus a fresh latent inconsistency this loop found in StoreNameLookup's caches (F-015), keep this codebase short of contest-grade. Prior-audit adopt-or-falsify pass (after this loop's independent scorecard draft): CODE-REVIEW.md (2026-08-03) is self-dispositioned 'Status - all fixed' for all 15 findings except the deliberately-rejected .new-file cleanup; spot-checked three of its closed claims (#8 DecodePixelWidth, #10 GridMetadata memoization, #12 BuildUrl consolidation) directly against current source and confirmed all three still hold, so no re-open. TESTING.md is scope documentation, not a findings list, and its 'PrimaryWidget.xaml.cs is not covered' claim is the same boundary this loop's own test_strategy proof independently reached. ARTWORK-SELECTION.md (2026-08-03) is self-dispositioned via its own Status table - every proposal is implemented or tried-and-reverted except §4.8 (corner gate at 9% reach), which the document's own author already concluded 'no evidence calls for it'; artwork-selection quality is also outside this rubric's architecture scope regardless. No open claim from any of the three docs was silently dropped.",
-
+  "verdict_explanation": "Runtime ownership took a real step forward this loop: F-014's guard-scope fix (landed loop 1, commit 9b2c4cb) is now visible in current source with no remaining unguarded single-game write path, and state management is credited for it this loop per this project's own established scoring convention. This loop's own refactor (F-013) collapsed the third instance of a duplicated UI-thread entry-update block. The artwork pipeline remains genuinely deep and well-tested. What keeps this short of contest-grade: PrimaryWidget.xaml.cs still spans five concerns in one Module, StoreNameLookup's cache-locking inconsistency (F-015) is now confirmed to span all three of its hand-rolled caches (not just two), and the untestable-by-platform-constraint surface (PrimaryWidget.xaml.cs) is exactly where every Serious finding this run has lived. Prior-audit adopt-or-falsify pass: CODE-REVIEW.md, TESTING.md and ARTWORK-SELECTION.md were adopted/falsified against current source in loop 1 with no open claim dropped; this loop re-confirmed no new prior-audit claim changed status.",
   "scorecard": {
     "architecture_quality": {
       "score": 7.5,
       "delta": "SAME",
-      "proof": "Direct re-reads this loop (PrimaryWidget.xaml.cs in full; ArtworkRanker.cs, ArtworkDownloader.cs, TileImage.cs, ArtworkFiles.cs, AppliedArtworkStore.cs, StoreNameLookup.cs, SteamGridDbClient.cs, GamePlatform.cs, GameEntry.cs, GridImageItem.cs) plus two independently-briefed helper sweeps (Services/Artwork+Models; Services/Stores+SteamGridDB) converge on the same picture as the prior loop: Services/* remains a set of deep, single-responsibility Modules with real Interfaces (e.g. ArtworkRanker.RankGrids hides a whole scoring pipeline - demotion regex, edition-mismatch check, boosted/foreign-language tie-breaks - behind one call used identically by both the auto-fixer and the manual picker). PrimaryWidget.xaml.cs still spans five concerns in one Module (library load, bulk fix/restore/revert, grid picker, search panel, single-game ops); this loop's own fix added to that file rather than reducing its scope. No structural proof of a move either direction: the fix executed this loop (F-014) is a state-ownership/mutual-exclusion fix, not a Module-boundary change.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
+      "proof": "Direct re-read this loop of PrimaryWidget.xaml.cs in full (2051 lines pre-fix) plus two independently-briefed helper sweeps (Services/Artwork+Library; Services/Stores+SteamGridDB+Models) converge on the same picture as loop 1: Services/* remains deep, single-responsibility Modules (ArtworkRanker.RankGrids, TileImage.WithDecoderAsync genuinely hide implementation behind small Interfaces). PrimaryWidget.xaml.cs still spans five concerns (library load/manifest parsing, bulk fix/restore/revert, grid picker, search panel, single-game ops) in one Module; this loop's own fix (F-013) added a private helper inside that same Module rather than reducing its scope. No structural proof of a move either direction.",
+      "residual_blocking_10": "PrimaryWidget.xaml.cs's own five co-located concerns (library load/manifest parsing, bulk operations, grid picker, search panel, single-game ops) - see Deepening Candidates for why extraction fails SPT this loop.",
+      "residual_disposition": "accepted",
+      "residual_rationale_or_backlog_ref": "Extracting LoadGameEntriesAsync's manifest-parsing block fails Simplify Pressure Test Q2 this loop (see Deepening Candidates): CreateThumbnailAsync's Dispatcher-thread affinity and GameEntry's WinRT-typed properties (BitmapImage, StorageFolder) mean a clean extraction requires first splitting GameEntry into a pure DTO plus a UI-bound wrapper - a larger, simultaneous redesign, not a smallest honest fix.",
       "unverifiable_due_to_build_failure": false
     },
     "state_management": {
-      "score": 7.0,
-      "delta": "SAME",
-      "proof": "Independently re-derived from source before reading findings_registry.json or REVIEW_HISTORY.json (blind-critic ordering for this --reset run): direct full-file read of PrimaryWidget.xaml.cs found the same gap loop 10's own helper sweep had surfaced - IsLibraryOperationBlocking (PrimaryWidget.xaml.cs:191-201) is checked but never claimed by GridImage_Click's write path or RestoreBackup_Click, so TryBeginLibraryOperation (:207-220) has no way to know a single-game write is in flight and can let a bulk reload rebuild GameEntries out from under it (Finding F-014, Serious). This loop's own Step 2/3 closed the gap (see Loop 1 Result), but the score reflects source AS SCORED AT STEP 1, before the fix - the improvement is credited next loop against this loop's own commit sha, matching this project's established convention (see F-001's loop-1-vs-loop-2 scoring precedent).",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
+      "score": 9.5,
+      "delta": "UP",
+      "proof": "Structural proof for the UP: git log 05d06a9..9b2c4cbbeaa7ff019160901b30d51352045d9f2f shows loop 1's own commit, which this loop's direct re-read of current source confirms landed - GridImage_Click (PrimaryWidget.xaml.cs:1504-1522) and RestoreBackup_Click (:1891-1911) now both wrap their single-game write in TryBeginLibraryOperation()/EndLibraryOperation(), closing F-014's gap; no other write path to GameEntries or a game's image file bypasses the guard (traced every caller of ReplaceImageCoreAsync, RestoreBackupCoreAsync, RestoreAllChangesAsync, LoadGameEntriesAsync). The 9-anchor (one owner per mutable concern, including process lifetime; writers explicit) is met.",
+      "residual_blocking_10": "SteamGridDbClient.CapsuleParseNotes (SteamGridDbClient.cs:47) is declared public static readonly List<string> - the readonly only pins the reference, not the contents, so any external caller can mutate or clear it, unlike every other cross-file mutable-state instance in this codebase (isLibraryOperationRunning, the picker session IDs, AppliedArtworkStore's cache) which all keep their writer private.",
+      "residual_disposition": "accepted",
+      "residual_rationale_or_backlog_ref": "Cosmetic for contest: diagnostic-only list, capped at 5 entries (SteamGridDbClient.cs:49-55), one actual reader (PrimaryWidget.xaml.cs:933), zero live-harm evidence. Promoting it to the backlog this loop would rank below F-013/F-015 on severity and distance-to-target per the Backlog Prioritization Pass.",
       "unverifiable_due_to_build_failure": false
     },
     "domain_modeling": {
       "score": 9.5,
       "delta": "SAME",
-      "proof": "Adversarial Pass re-run this loop against the accepted residual (GameEntry's HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId parallel-fields case): re-confirmed by direct read that a platform-ID match with no capsule still leaves SteamGridDbGameId=0/OfficialCapsuleUrl=null while HasSteamGridDBMatch=true (PrimaryWidget.xaml.cs:581-590), and re-confirmed the smallest candidate fix on file (a readonly struct with factory methods, mirroring ManifestEntryIdentity.Result's own idiom) still fails Simplify Pressure Test Q5 - the blast radius (construction site + 5 non-construction read sites across the file) is real cost for a Cosmetic-severity concern with zero live-harm evidence across 11 cumulative loops of active development on this exact type. Domain types elsewhere (GamePlatform, ArtworkSource, SteamGridDbGrid) remain well modeled; GamePlatformHelper's own two-switch inconsistency is tracked separately as F-012 (Cosmetic, not this residual).",
-      "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties ~113-145), sole construction site PrimaryWidget.xaml.cs:651-665.",
+      "proof": "Adversarial Pass re-run: GameEntry's parallel-fields case (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId, GameEntry.cs:113-145, constructed at PrimaryWidget.xaml.cs:654-668) re-confirmed live in current source. Smallest candidate fix (readonly-struct-with-factories mirroring ManifestEntryIdentity.Result) still fails Simplify Pressure Test Q5 on call-site blast radius for a Cosmetic-severity, zero-live-harm concern on a mutable, XAML-data-bound MVVM type.",
+      "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties ~113-145), sole construction site PrimaryWidget.xaml.cs:654-668.",
       "residual_disposition": "accepted",
       "residual_rationale_or_backlog_ref": "Fails Simplify Pressure Test on the smallest available fix (readonly-struct-with-factories mirroring the codebase's own ManifestEntryIdentity.Result idiom) via call-site blast radius, for a Cosmetic-severity, no-live-harm concern on a mutable, XAML-data-bound MVVM type. No ADR exists in this repo; disposition rests on the Simplify Pressure Test.",
       "unverifiable_due_to_build_failure": false
@@ -102,7 +96,7 @@
     "data_flow": {
       "score": 7.5,
       "delta": "SAME",
-      "proof": "Direct re-read of StoreNameLookup.cs, SteamGridDbClient.cs and AppliedArtworkStore.cs this loop: several process-lifetime static-mutable-state instances remain (StoreNameLookup's gogNameCache/epicNameCache/nameMatchCache, SteamGridDbClient.CapsuleParseNotes), exceeding the 9-anchor's 'one or two ambient-context dependencies' allowance. This loop's own new finding (F-015) narrows the framing of part of this list from 'ambient state' to 'inconsistently-synchronized ambient state', but does not change the count or the dimension's score - locking a cache without also changing the calling loop's concurrency (blocked, F-011) delivers no verifiable data-flow-shape change on its own.",
+      "proof": "Direct re-read of StoreNameLookup.cs this loop (all 306 lines) plus independent helper confirmation: three static Dictionary caches (gogNameCache, epicNameCache, nameMatchCache, :29-34) remain process-lifetime ambient state, exceeding the 9-anchor's 'one or two ambient-context dependencies' allowance - this loop's own re-read found nameMatchCache (:34, :117-149) has the identical unsynchronized check-then-populate shape as the two caches F-015 already named, which the prior loop's evidence did not cite. SteamGridDbClient.CapsuleParseNotes (SteamGridDbClient.cs:47) is a fourth instance of the same class. Locking a cache changes its concurrency-safety story, not its data-flow shape, so this count (not F-015's eventual fix) is what keeps the score here.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -111,16 +105,16 @@
     "framework_idioms": {
       "score": 9.5,
       "delta": "SAME",
-      "proof": "Direct re-read of App.xaml.cs, MainPage.xaml.cs and SteamGridDbClient.cs this loop: App.xaml.cs:120's `//TODO: Load state from previously suspended application` inside OnLaunched's Terminated-state branch is unchanged - dead Visual-Studio-template scaffolding on a path MainPage.xaml.cs's own doc comment confirms is a fallback only (the widget's real entry point is OnActivated/XboxGameBarWidgetActivatedEventArgs). Grepped the repo fresh for PreviousExecutionState/Terminated: still the only reference. csproj's UWP/AppContainerExe targeting still makes DataContractJsonSerializer/Windows.Data.Json period-appropriate; no records/switch-expressions anywhere confirms the project's actual C# baseline, so JsonRead's manual null-handling remains idiomatic for this codebase.",
-      "residual_blocking_10": "App.xaml.cs:120's unaddressed `//TODO: Load state from previously suspended application`, on the OnLaunched fallback path (debug/Start-menu launch only).",
+      "proof": "App.xaml.cs:120's //TODO: Load state from previously suspended application (dead Visual-Studio-template scaffolding on the documented fallback-only OnLaunched path) re-confirmed unchanged; not touched by this loop's edits.",
+      "residual_blocking_10": "App.xaml.cs:120's unaddressed //TODO: Load state from previously suspended application, on the OnLaunched fallback path (debug/Start-menu launch only).",
       "residual_disposition": "accepted",
-      "residual_rationale_or_backlog_ref": "Cosmetic for contest: dead template scaffolding on a documented fallback-only path with zero live-harm evidence across 11 cumulative loops. Implementing real suspend/resume restoration for a rarely-exercised debug/Start-menu path would be disproportionate (over-engineering a fallback); this loop's one refactor slot went to the higher-severity F-014.",
+      "residual_rationale_or_backlog_ref": "Cosmetic for contest: dead template scaffolding on a documented fallback-only path with zero live-harm evidence across 12 cumulative loops. Implementing real suspend/resume restoration for a rarely-exercised debug/Start-menu path would be disproportionate; this loop's one refactor slot went to F-013.",
       "unverifiable_due_to_build_failure": false
     },
     "concurrency": {
       "score": 6.5,
       "delta": "SAME",
-      "proof": "F-011 (LoadGameEntriesAsync's sequential per-entry network calls) independently re-confirmed unchanged by direct re-read this loop; still blocked by the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft), carried forward per this run's own instruction not to re-litigate it as newly actionable. This loop's own new finding (F-015 - StoreNameLookup's GOG/Epic caches are unsynchronized, unlike its own Ubisoft cache) is latent, not live (the sole caller path is sequential today), so it does not move the score further down; it also does not move it up, since it is not yet fixed. F-014 (this loop's fix target) is a UI-thread reentrancy/ownership gap, not a concurrency-primitive hazard (nothing runs off the UI thread today) - filed under state_management, matching this codebase's own established categorization for the same class (F-001, F-005 through F-009).",
+      "proof": "F-011 (sequential per-entry network calls) re-confirmed unchanged, still blocked by the standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency against SteamGridDB/GOG/Epic/Ubisoft). F-015 re-derived this loop with broadened evidence (nameMatchCache added, see data_flow) - still latent, not live, since the sole caller path (LoadGameEntriesAsync's per-entry loop) awaits sequentially. Not fixed this loop (outranked by F-013 per the Backlog Prioritization Pass's item-deferral criterion).",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -129,7 +123,7 @@
     "simplicity": {
       "score": 8.0,
       "delta": "SAME",
-      "proof": "F-013 (ReplaceImageCoreAsync/RestoreAllChangesAsync/RestoreBackupCoreAsync's triplicated UI-thread entry-update loop) re-confirmed present by direct re-read this loop at its current line ranges. Not fixed this loop (F-014 outranked it on severity); still a real, source-backed leaf-duplication instance of the same class already collapsed twice in this file (F-002, F-003). No new simplicity finding surfaced this loop beyond what F-013 already covers.",
+      "proof": "F-013 (ReplaceImageCoreAsync/RestoreAllChangesAsync/RestoreBackupCoreAsync's triplicated UI-thread entry-update loop) re-confirmed present at Step 1, at its pre-fix line ranges (PrimaryWidget.xaml.cs:1101-1114, :1169-1188, :1962-1981) - this score reflects source as read at Step 1, before this loop's own Step 2/3 fix; per this project's established convention, the credit for closing F-013 lands in loop 3's Step-1 scorecard against this loop's own commit SHA.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -138,7 +132,7 @@
     "test_strategy": {
       "score": 6.5,
       "delta": "SAME",
-      "proof": "PrimaryWidget.xaml.cs carries zero test coverage (WinUI Page, no desktop projection for Windows.UI.Xaml types in this repo's xunit infra - re-confirmed via direct read and TESTING.md's own documented boundary), and it is where this loop's own new finding (F-014) lived: found by direct source reading, not by a failing test. Mutation-test mental model re-applied this loop: GridImage_Click's new `if (!TryBeginLibraryOperation()) { return; }` guard (a mutation flipping this to `if (TryBeginLibraryOperation())` would silently invert which clicks are allowed to write) sits on this same untested surface and cannot be caught by any test in this repo. F-004 (TileImage boundary tests, Cosmetic, off the primary flow) re-confirmed unchanged. The blocker remains the same permanent platform constraint documented in TESTING.md, not an unaddressed choice.",
+      "proof": "PrimaryWidget.xaml.cs carries zero direct or indirect test coverage - confirmed again this loop (no test file under SteamGridDB.Xbox.Tests/ references PrimaryWidget; run-tests.ps1 output unchanged at 138/138 before and after this loop's edit). Mutation-test mental model re-applied: a mutation flipping GridImage_Click's if (!TryBeginLibraryOperation()) { return; } guard would silently invert which clicks are allowed to write, and no test in this repo would catch it. Services/* remains comprehensively covered per the independent helper sweep (12 of 13 reviewed Service files: 'Comprehensive'; ArtworkDownloader.cs's network+orchestration combination is the sole, already-known, structurally-untestable exception). Permanent platform constraint (WinUI Page, no desktop projection for Windows.UI.Xaml types in this repo's xunit infra), not an unaddressed choice - TESTING.md documents the same boundary.",
       "residual_blocking_10": null,
       "residual_disposition": null,
       "residual_rationale_or_backlog_ref": null,
@@ -147,302 +141,202 @@
     "credibility": {
       "score": 9.5,
       "delta": "SAME",
-      "proof": "Adversarial Pass re-run this loop on the accepted residual (a targeted-tracing discipline in place of blanket re-derivation of every historical claim every loop): the SPT's own Q2 (smallest honest fix) still rejects the only alternative (mandate full re-derivation of all resolved fixes every loop) as strictly more ceremony. This loop's own experience adds one more data point in the residual's favor rather than against it: this loop independently re-derived F-014 from source BEFORE reading the registry (this run's blind-critic ordering for the --reset), converging on the identical claim loop 10's helper sweep had found - a targeted, mechanism-level trace catching what a doc-comment-level read would miss, which is exactly the discipline this residual already names as the model. This loop's own new finding (F-015) is a source-backed, local, subtractive-fixable inconsistency (three cache implementations of one pattern, one correctly gated) - the kind of honest, contained gap the 9-anchor's 'few honesty leaks... local and subtractive' language already accounts for, not a new category of leak.",
-      "residual_blocking_10": "StoreNameLookup's GOG/Epic caches (StoreNameLookup.cs:29-30, 89-104, 203-222) are documented as 'shared across the whole process' but performed with unsynchronized check-then-populate Dictionary writes, unlike the file's own Ubisoft cache three lines below (Finding F-015, queued).",
+      "proof": "Adversarial Pass re-run on the residual (targeted mechanism-level tracing, not blanket re-derivation): this loop's own direct re-read of StoreNameLookup.cs strengthened rather than weakened the residual's case - the same gate-reuse fix (SemaphoreSlim-backed AsyncLazyCache<T>, already used by the file's own Ubisoft cache) still applies cleanly to all three unsynchronized caches, confirming F-015 is exactly the 'local, subtractive-fixable' class the 9-anchor's 'few honesty leaks' language already accounts for, not a new leak category. F-015's broadened scope (three caches, not two) is additional evidence for the existing queued residual, not a fresh leak.",
+      "residual_blocking_10": "StoreNameLookup's three hand-rolled caches (StoreNameLookup.cs:29-30, :34, :89-104, :117-149, :203-222) are documented as 'shared across the whole process' but performed with unsynchronized check-then-populate Dictionary writes, unlike the file's own Ubisoft cache three lines below (Finding F-015, queued).",
       "residual_disposition": "queued",
       "residual_rationale_or_backlog_ref": "F-015",
       "unverifiable_due_to_build_failure": false
     }
   },
-
-  "authority_map": [
-    {
-      "concern": "Library-wide vs. single-game write mutual exclusion",
-      "owner": "PrimaryWidget.isLibraryOperationRunning",
-      "allowed_writers": ["TryBeginLibraryOperation/EndLibraryOperation (PrimaryWidget.xaml.cs:207-233)"],
-      "readers": ["IsLibraryOperationBlocking (:191-201)"],
-      "persistence_seam": null,
-      "async_mutation_entry_points": ["PrimaryWidget_Loaded", "RefreshButton_Click", "ConfirmAndRunAsync (FixLibraryButton_Click/RestoreChangesButton_Click/RevertDefaultsButton_Click)", "GridImage_Click (claimed as of this loop's fix)", "RestoreBackup_Click (claimed as of this loop's fix)"],
-      "verdict": "Single and clear"
-    },
-    {
-      "concern": "In-memory game list (GameEntries)",
-      "owner": "PrimaryWidget.GameEntries (ObservableCollection<GameEntry>)",
-      "allowed_writers": ["LoadGameEntriesAsync (wholesale Clear+Add, :359,:695-701)", "ReplaceImageCoreAsync/RestoreBackupCoreAsync/RestoreAllChangesAsync (in-place field mutation via EntriesSharingImage)"],
-      "readers": ["GameEntriesListView (XAML binding)", "GamesToProcess/EntriesSharingImage"],
-      "persistence_seam": null,
-      "async_mutation_entry_points": ["LoadGameEntriesAsync", "ReplaceImageCoreAsync", "RestoreBackupCoreAsync", "RestoreAllChangesAsync"],
-      "verdict": "Single and clear"
-    },
-    {
-      "concern": "Grid picker session identity",
-      "owner": "PrimaryWidget.gridPanelSessionId",
-      "allowed_writers": ["LoadGridSelectionAsync (increment before await)"],
-      "readers": ["PopulateGridSelectionPanelAsync", "GridImage_Click", "HideGridPanelAsync", "DownloadAndReplaceImageAsync"],
-      "persistence_seam": null,
-      "async_mutation_entry_points": ["LoadGridSelectionAsync"],
-      "verdict": "Single and clear"
-    },
-    {
-      "concern": "Search panel session identity",
-      "owner": "PrimaryWidget.searchPanelSessionId",
-      "allowed_writers": ["PerformGameSearchAsync (increment before await)", "ShowSearchPanelAsync (increment)"],
-      "readers": ["PerformGameSearchAsync", "HideSearchPanelAsync"],
-      "persistence_seam": null,
-      "async_mutation_entry_points": ["PerformGameSearchAsync", "ShowSearchPanelAsync"],
-      "verdict": "Single and clear"
-    },
-    {
-      "concern": "Applied-artwork record (which SteamGridDB ID is on each tile)",
-      "owner": "AppliedArtworkStore.appliedCache + gate",
-      "allowed_writers": ["SetAsync/ClearAsync via UpdateAsync"],
-      "readers": ["GetAsync (consumed by PopulateGridSelectionPanelAsync)"],
-      "persistence_seam": "applied-artwork.json in RecordFolder (ApplicationData.Current.LocalFolder)",
-      "async_mutation_entry_points": ["ReplaceImageCoreAsync", "RestoreBackupCoreAsync"],
-      "verdict": "Single and clear"
-    },
-    {
-      "concern": "Store name-resolution caches (GOG/Epic/name-match/Ubisoft)",
-      "owner": "StoreNameLookup's static Dictionary fields (3, unsynchronized) + ubisoftGameListCache (AsyncLazyCache<T>, gated)",
-      "allowed_writers": ["GetOrFetchGogNameAsync", "GetOrFetchEpicNameAsync", "FindGameByNameAsync", "LoadUbisoftGameListFromWebAsync (via ubisoftGameListCache)"],
-      "readers": ["same four methods (read-through cache)"],
-      "persistence_seam": null,
-      "async_mutation_entry_points": ["LoadGameEntriesAsync's per-entry loop (StoreNameLookup's own callers)"],
-      "verdict": "Split and ambiguous"
-    }
-  ],
-
+  "authority_map": [],
   "strengths": [
-    "ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage form a genuinely deep, pure, well-tested pipeline (no I/O, no UI) with documented calibration history - e.g. ArtworkDownloader.cs:26-33's colour-match floor/ceiling, tuned against a specific graded incident (Mad Max at 0.51) - and real Leverage: GetTitleBearingGridsAsync (PrimaryWidget.xaml.cs:1387-1399) serves both the auto-fixer and the manual picker from one Interface.",
-    "AppliedArtworkStore and StoreNameLookup's own Ubisoft cache correctly serialize concurrent access against a shared Dictionary with one SemaphoreSlim-backed AsyncLazyCache<T> gate - the exact primitive this loop's F-015 finding shows was not reused for the file's other two caches, so the codebase already knows how to do this right.",
-    "The picker session-guard idiom (gridPanelSessionId/searchPanelSessionId) is applied consistently across all six of its call sites, independently re-verified this loop by direct full-file read with zero drift since it was completed."
+    "ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline (no I/O beyond the download itself, no UI) with documented calibration history (ArtworkDownloader.cs's colour-match floor/ceiling) and real Leverage: GetTitleBearingGridsAsync (PrimaryWidget.xaml.cs:1387-1399, unaffected by this loop) serves both the auto-fixer and the manual picker from one Interface.",
+    "AppliedArtworkStore and StoreNameLookup's own Ubisoft cache correctly gate concurrent access to a shared Dictionary behind one SemaphoreSlim-backed AsyncLazyCache<T> - the exact primitive this loop's re-derivation of F-015 confirms the file's other three mutable-state instances (gogNameCache, epicNameCache, nameMatchCache) still do not reuse, so the fix is a known-good pattern away, not a new design.",
+    "This loop's own fix (UpdateSharedEntriesAsync, PrimaryWidget.xaml.cs) collapsed three independently-drifting UI-thread entry-update blocks into one Interface without adding a new Seam or ceremony layer - matching this codebase's own established 'third instance triggers extraction' convention already used for F-002 (four copies) and F-003 (three copies)."
   ],
-
   "findings": [
     {
       "loop_local_id": "F1",
-      "stable_id": "F-014",
+      "stable_id": "F-013",
       "id": "F1",
-      "title": "Single-game artwork operations check IsLibraryOperationBlocking only at the click, never claim it, so a bulk operation can start and corrupt freshly-loaded entries mid-flight",
-      "why_it_matters": "A user can click Restore Backup or pick artwork from the grid picker on one row, then click Refresh, Fix Library, Restore Changes or Revert Defaults before the first click's file I/O completes; the second operation replaces the whole game list with newly-built objects, and when the first operation resumes it silently writes its now-stale result onto whichever freshly-loaded entries share that image path instead of being rejected or serialized.",
-      "what_is_wrong": "IsLibraryOperationBlocking (PrimaryWidget.xaml.cs:191-201) was checked by RestoreBackup_Click (:1857) and GridImage_Click's write path before starting their own single-game async flow, but neither flow ever set isLibraryOperationRunning, so the check only guarded against a bulk operation already running at click time. TryBeginLibraryOperation (:207-220), the guard RefreshButton_Click and ConfirmAndRunAsync's callers already hold for the duration of their own operations, had no awareness of an in-flight single-game write, so it could succeed and let LoadGameEntriesAsync clear and rebuild GameEntries (:359, :695-701) with brand-new GameEntry instances while RestoreBackupCoreAsync's or ReplaceImageCoreAsync's own await was still pending.",
+      "title": "ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times",
+      "why_it_matters": "A future edit to how a tile is refreshed after a write has three call sites to find and keep in sync, and the field-list differences between the three copies (whether HasBackup is touched, whether a status message is shown) are not documented as intentional versus oversight.",
+      "what_is_wrong": "ReplaceImageCoreAsync (PrimaryWidget.xaml.cs:1169-1188 pre-fix), RestoreAllChangesAsync's per-entry block (:1101-1114 pre-fix) and RestoreBackupCoreAsync (:1962-1981 pre-fix) each independently dispatch to the UI thread and foreach over EntriesSharingImage(game), with no shared helper.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:63 (isLibraryOperationRunning field)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:191-201 (IsLibraryOperationBlocking - check only, never claims the flag)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:207-229 (TryBeginLibraryOperation/EndLibraryOperation - the existing guard, unaware of in-flight single-game operations)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1491-1497 (GridImage_Click, unguarded write trigger)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1857-1870 (RestoreBackup_Click, check-only guard)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1900-1952 (RestoreBackupCoreAsync's post-await EntriesSharingImage mutation)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:351-366,695-701 (LoadGameEntriesAsync replaces GameEntries wholesale)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1101-1114 (pre-fix)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1169-1188 (pre-fix)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1962-1981 (pre-fix)"
       ],
       "test_failed": "n/a",
       "dependency_category": null,
-      "leverage_impact": "None - this is a missing claim on an already-existing gate, not a Module boundary; the fix reuses TryBeginLibraryOperation/EndLibraryOperation exactly as three other call sites already do.",
-      "locality_impact": "Fully contained inside PrimaryWidget.xaml.cs; the fix mirrors the idiom that already closed F-001 and F-005 through F-009 in this same file.",
+      "leverage_impact": "Callers previously had to independently verify each of three copies stayed correct; a shared helper lets one Interface carry the invariant.",
+      "locality_impact": "Fully contained inside PrimaryWidget.xaml.cs.",
       "metric_signal": "none",
-      "why_weakens_submission": "Reachable from ordinary UI interaction with no special timing skill required (start a per-game write, then click any header button before it finishes) and silently corrupts user-visible tile state (image, filename, or the backup flag controlling the Restore Backup button's own visibility) with no error surfaced - the same class of harm F-005 through F-009 were rated Serious deduction for, in the same file, discovered from a direction nine prior session-guard sweeps had not checked: per-game-operation versus bulk-operation, rather than per-game-operation versus a second per-game operation.",
-      "severity": "Serious deduction",
+      "why_weakens_submission": "A leaf-duplication pattern already collapsed twice in this file (F-002 at four copies, F-003 at three) recurring a third time - and being deferred across loops 9, 10 and this run's loop 1 in favor of higher-severity findings - reduces confidence the codebase's own collapse-on-third-instance idiom was being applied consistently until this loop.",
+      "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Extend the guard's claim to the two call sites that actually start an unguarded single-game write reachable from a single click: wrap GridImage_Click's DownloadAndReplaceImageAsync call and RestoreBackup_Click's RestoreBackupAsync call in TryBeginLibraryOperation()/EndLibraryOperation(), the same guard RefreshButton_Click and ConfirmAndRunAsync's callers already hold for their own duration. Do not add the guard inside the shared ReplaceImageCoreAsync/DownloadAndReplaceImageCoreAsync helpers themselves - they are also reached from FixLibraryAsync's bulk loop, which already holds the same non-reentrant guard via ConfirmAndRunAsync, and a second acquire there would reject the bulk operation's own per-game writes.",
+      "minimal_correction_path": "Extract a private UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText) helper; delete the three independent blocks. hasBackup: null and statusText: null mean 'leave untouched' for the one call site (RestoreAllChangesAsync) that doesn't know or doesn't always set that value.",
       "blast_radius": {
         "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"],
-        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml (markup unchanged)", "SteamGridDB.Xbox/Services/** (no service-layer change needed)"]
+        "avoid": ["SteamGridDB.Xbox/Services/**", "SteamGridDB.Xbox/PrimaryWidget.xaml (markup unchanged)"]
       }
     },
     {
       "loop_local_id": "F2",
-      "stable_id": "F-013",
+      "stable_id": "F-015",
       "id": "F2",
-      "title": "ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times",
-      "why_it_matters": "A future edit to how a game's tile is refreshed after a write (a new field to update, a different sharing rule) has three call sites to find and keep in sync instead of one, and the existing field-list differences between the three copies (whether HasBackup or StatusText.Text is written) are not documented as intentional, so the next edit cannot tell divergence from drift.",
-      "what_is_wrong": "ReplaceImageCoreAsync (PrimaryWidget.xaml.cs:1154-1192), RestoreAllChangesAsync's per-entry block (:1067-1135) and RestoreBackupCoreAsync (:1900-1976) each independently dispatch to the UI thread via OnUiThreadAsync and foreach over EntriesSharingImage(game), writing entry.Image and entry.ImageFileName in all three, entry.HasBackup in two of three, and StatusText.Text conditionally in two of three, with no shared helper and no comment distinguishing the field-list differences from oversight.",
+      "title": "StoreNameLookup's three hand-rolled caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
+      "why_it_matters": "The type's own doc comment says every cache here is 'shared across the whole process,' but only the Ubisoft cache (via AsyncLazyCache<T>) actually protects that shared state from a concurrent race; a future caller or a future fix to F-011 (blocked) would silently inherit an unsynchronized write.",
+      "what_is_wrong": "gogNameCache/epicNameCache (StoreNameLookup.cs:29-30) are plain Dictionary<string,string> read/written by GetOrFetchGogNameAsync (:89-104) / GetOrFetchEpicNameAsync (:203-222) with a bare check-then-populate and no lock - known as of loop 1. This loop's own direct re-read of the full file additionally confirms nameMatchCache (:34) has the identical shape, populated by FindGameByNameAsync (:117-149) with the same unsynchronized check-then-populate. All three sit three lines from ubisoftGameListCache (:40-42), which solves the identical shape via AsyncLazyCache<T>'s SemaphoreSlim gate. No comment explains why three of the file's four caches are exempt from the pattern the fourth uses.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1154-1192 (ReplaceImageCoreAsync)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1067-1135 (RestoreAllChangesAsync)",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1900-1976 (RestoreBackupCoreAsync)"
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:29-30",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:34",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:89-104",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:117-149",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:203-222",
+        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:40-42",
+        "SteamGridDB.Xbox/Services/AsyncLazyCache.cs:19-60"
       ],
-      "test_failed": "Shallow module",
-      "dependency_category": null,
-      "leverage_impact": "Callers currently need to independently verify each of the three copies stays correct; a shared helper would let one Interface carry the invariant.",
-      "locality_impact": "Change is fully contained inside PrimaryWidget.xaml.cs.",
+      "test_failed": "n/a",
+      "dependency_category": "in-process",
+      "leverage_impact": "A caller gets no concurrent-access-safety guarantee from the Interface alone; safety today depends on the sole caller (LoadGameEntriesAsync's per-entry loop) happening to await sequentially.",
+      "locality_impact": "Fully contained inside StoreNameLookup.cs; the fix reuses the file's own existing gate idiom.",
       "metric_signal": "none",
-      "why_weakens_submission": "A leaf-duplication pattern already fixed twice in this same file at smaller scope (F-002's animation duplication, F-003's confirmation-dialog duplication) recurring a third time in the entry-update shape reduces confidence the codebase's own established idiom of collapsing on the third instance is being applied consistently.",
+      "why_weakens_submission": "Not currently reachable as a live race (F-011's own evidence: the sole caller awaits sequentially), so latent rather than Serious - but a real structural inconsistency spanning three of the file's four mutable-state fields, not two as previously scoped, in a codebase whose own doc comments elsewhere go out of their way to prevent exactly this (see AppliedArtworkStore.cs's explicit shared-gate rationale).",
       "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Extract a private UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText) helper (or equivalent) that the three call sites invoke, passing null for the two optional fields where the current behavior omits them; delete the three independent OnUiThreadAsync/foreach blocks.",
+      "minimal_correction_path": "Wrap GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync/FindGameByNameAsync's check-then-populate bodies in the same SemaphoreSlim gate ubisoftGameListCache already uses (or convert each to its own AsyncLazyCache-style guarded dictionary), matching AppliedArtworkStore's own shared-gate pattern.",
       "blast_radius": {
-        "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"],
-        "avoid": ["SteamGridDB.Xbox/Services/**"]
+        "change": ["SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"],
+        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs"]
       }
     },
     {
       "loop_local_id": "F3",
-      "stable_id": "F-015",
+      "stable_id": "F-012",
       "id": "F3",
-      "title": "StoreNameLookup's GOG and Epic name caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
-      "why_it_matters": "The type's own doc comment says every cache here is shared across the whole process and lives for as long as the widget does, but only one of the three caches (Ubisoft, via AsyncLazyCache<T>) actually protects that shared state from a concurrent check-then-populate race; a future caller that reaches GetOrFetchGogNameAsync or GetOrFetchEpicNameAsync from more than one place at once - or a future fix to Finding F-011's currently-sequential per-entry loop - would silently inherit an unsynchronized Dictionary write with no compiler or test signal.",
-      "what_is_wrong": "gogNameCache and epicNameCache (StoreNameLookup.cs:29-30) are plain Dictionary<string,string> instances read and written by GetOrFetchGogNameAsync (:89-104) and GetOrFetchEpicNameAsync (:203-222) with a bare check-then-populate (TryGetValue, then an unguarded index-set after an await) and no lock. ubisoftGameListCache (:40-42), three lines below, solves the identical shape - a value loaded once and shared for the process's lifetime - through AsyncLazyCache<T>, which takes a SemaphoreSlim gate specifically so a concurrent caller cannot observe or write a half-populated value. The file implements the same pattern three times with two different concurrency guarantees and no comment explaining why GOG/Epic are exempt from the protection Ubisoft has.",
+      "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
+      "why_it_matters": "Adding or renaming a platform requires remembering to update both switches; nothing fails to compile if one is forgotten (both silently default to Unknown/null).",
+      "what_is_wrong": "FromXboxDirectory (GamePlatform.cs:22-46) and GamePlatformToSGDBApiString (:48-67) independently switch over the same platform cases with no shared table. Re-read in full this loop: FromXboxDirectory additionally handles legacy folder-name aliases ('ubi'/'ubisoft', 'bnet'/'battlenet') that have no analogue in the reverse mapping, so a naive single dictionary would need to model the alias fan-in explicitly rather than being a trivial two-way fold.",
       "evidence": [
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:29-30 (gogNameCache, epicNameCache - unsynchronized Dictionary)",
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:89-104 (GetOrFetchGogNameAsync - check-then-populate, no lock)",
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:203-222 (GetOrFetchEpicNameAsync - check-then-populate, no lock)",
-        "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:40-42 (ubisoftGameListCache - same shape, properly gated via AsyncLazyCache<T>)",
-        "SteamGridDB.Xbox/Services/AsyncLazyCache.cs:19-60 (the existing gated-cache primitive already available to reuse)"
+        "SteamGridDB.Xbox/Models/GamePlatform.cs:22-46",
+        "SteamGridDB.Xbox/Models/GamePlatform.cs:48-67"
       ],
       "test_failed": "n/a",
-      "dependency_category": "in-process",
-      "leverage_impact": "A caller of GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync today gets no guarantee about concurrent-access safety from the Interface alone - it has to read the implementation to learn it is currently safe only because its sole caller (LoadGameEntriesAsync) happens to await sequentially.",
-      "locality_impact": "Fully contained inside StoreNameLookup.cs; the fix reuses the file's own existing AsyncLazyCache<T>-based gate idiom rather than inventing a new one.",
+      "dependency_category": null,
+      "leverage_impact": "Each new platform pays this asserted-twice tax; small today, compounds at scale.",
+      "locality_impact": "Contained to GamePlatform.cs.",
       "metric_signal": "none",
-      "why_weakens_submission": "Not currently reachable as a live race (LoadGameEntriesAsync's only caller awaits each entry in strict sequence, per Finding F-011's own evidence), so this is latent rather than a Serious deduction - but it is a real structural inconsistency: the same file solves the identical problem two different ways with no stated reason, which is exactly the kind of drift-inviting pattern the codebase's own doc comments elsewhere go out of their way to prevent (see AppliedArtworkStore.cs's explicit comment on why GetAsync and UpdateAsync share one gate).",
-      "severity": "Noticeable weakness",
+      "why_weakens_submission": "Minor, but the enum's own home module holds two independent interpretations of itself with no compiler-enforced link.",
+      "severity": "Cosmetic for contest",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Replace gogNameCache/epicNameCache's raw Dictionary fields with a per-key gated cache, or - smaller - wrap the existing check-then-populate body of GetOrFetchGogNameAsync/GetOrFetchEpicNameAsync in the same SemaphoreSlim gate field ubisoftGameListCache already uses, matching AppliedArtworkStore's own pattern of one shared gate serializing multiple methods against the same Dictionary.",
+      "minimal_correction_path": "Fold both mappings into one table keyed by GamePlatform, with a separate small alias list for FromXboxDirectory's legacy folder names.",
       "blast_radius": {
-        "change": ["SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"],
-        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no caller change needed)", "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs"]
+        "change": ["SteamGridDB.Xbox/Models/GamePlatform.cs"],
+        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (call sites unchanged)"]
       }
     },
     {
       "loop_local_id": "F4",
-      "stable_id": "F-012",
-      "id": "F4",
-      "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
-      "why_it_matters": "Adding a ninth platform, or renaming an existing one, requires remembering to update both switch statements; nothing fails to compile if one is forgotten, since both already have a default case that silently returns Unknown or null rather than erroring.",
-      "what_is_wrong": "GamePlatformHelper.FromXboxDirectory (GamePlatform.cs:22-46) maps an Xbox ThirdPartyLibraries folder name to GamePlatform; GamePlatformHelper.GamePlatformToSGDBApiString (GamePlatform.cs:48-67) maps GamePlatform back to SteamGridDB's own platform strings. Both switch over the same enum with the same six platform cases (Steam, GOG, Epic, Ubisoft, BattleNet, EA) independently authored, with no shared table and no exhaustiveness check tying them together.",
-      "evidence": [
-        "SteamGridDB.Xbox/Models/GamePlatform.cs:22-46 (FromXboxDirectory)",
-        "SteamGridDB.Xbox/Models/GamePlatform.cs:48-67 (GamePlatformToSGDBApiString)"
-      ],
-      "test_failed": "n/a",
-      "dependency_category": null,
-      "leverage_impact": "Each new platform pays this asserted-twice tax; small at 6 cases, would compound at 15+.",
-      "locality_impact": "Contained to GamePlatform.cs.",
-      "metric_signal": "none",
-      "why_weakens_submission": "Minor, but is exactly the shape a domain-modeling 10 would not have: the enum's own home module holds two independent interpretations of itself with no compiler-enforced link.",
-      "severity": "Cosmetic for contest",
-      "adr_conflicts": [],
-      "adr_reopen_justification": null,
-      "minimal_correction_path": "Fold both mappings into one table (a single static Dictionary<GamePlatform,(string XboxFolder,string SgdbId)> or a per-case record list) that both directions read from, so a missing platform in one direction becomes a missing table row rather than a second, independently-authored switch.",
-      "blast_radius": {
-        "change": ["SteamGridDB.Xbox/Models/GamePlatform.cs"],
-        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (call sites unchanged - same two static method signatures)"]
-      }
-    },
-    {
-      "loop_local_id": "F5",
       "stable_id": "F-011",
-      "id": "F5",
+      "id": "F4",
       "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
-      "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size, all before the widget shows anything.",
-      "what_is_wrong": "LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:455-679) awaits each manifest entry's SteamGridDB platform-ID lookup, then, when unmatched, a store name-fetch, then a SteamGridDB name search, in strict sequence - each entry's network calls fully complete before the next entry's loop iteration starts any of its own, even though the awaits are independent across entries.",
+      "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.",
+      "what_is_wrong": "LoadGameEntriesAsync's per-entry loop awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence, even though the awaits are independent across entries.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:455-679 (LoadGameEntriesAsync's sequential per-entry loop)"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:421-683"
       ],
       "test_failed": "n/a",
       "dependency_category": null,
-      "leverage_impact": "None currently actionable - see blocker below.",
-      "locality_impact": "Would be contained to PrimaryWidget.xaml.cs and StoreNameLookup.cs's cache-locking prerequisite (F-015), if unblocked.",
+      "leverage_impact": "None currently actionable - see blocker.",
+      "locality_impact": "Would be contained to PrimaryWidget.xaml.cs and F-015's cache-locking prerequisite, if unblocked.",
       "metric_signal": "none",
-      "why_weakens_submission": "A real, linearly-scaling latency cost on the primary library-load hot path, but blocked from action: the recorded standing user constraint (no behavioural oracle for per-game network-call ordering or concurrency changes against SteamGridDB/GOG/Epic/Ubisoft) means this loop cannot land a change that alters observable per-game network-call ordering, concurrency, or count against those services without a product decision this loop cannot make.",
+      "why_weakens_submission": "A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft) means this loop cannot land a change altering observable call ordering/concurrency/count against those services without a product decision this loop cannot make.",
       "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "BLOCKED by the recorded standing user constraint this loop; not actioned. Named here for continuity (Backlog Prioritization Pass criterion 0) rather than escalated to a user-decision halt, since this loop has three other actionable, unblocked items (F-014, F-013, F-015) filling its backlog.",
+      "minimal_correction_path": "BLOCKED this loop; named for continuity (Backlog Prioritization Pass criterion 0) rather than escalated to a user-decision halt, since two other unblocked items filled this loop's backlog.",
       "blast_radius": {
         "change": [],
-        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no change this loop - blocked)"]
+        "avoid": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no change while blocked)"]
       }
     }
   ],
-
   "simplification_check": {
-    "structurally_necessary": "Closing F-014's guard-scope gap by extending the existing TryBeginLibraryOperation/EndLibraryOperation guard to GridImage_Click's and RestoreBackup_Click's write paths - a state-ownership fix (mutual-exclusion claim), not a Deletion/Seam-category fix; matches this codebase's own established categorization for F-001/F-005 through F-009.",
+    "structurally_necessary": "Extracting UpdateSharedEntriesAsync - a Shallow-module fix (three near-identical Implementations collapsed to one Interface), not a Deletion/Seam-category fix.",
     "new_seam_justified": false,
     "new_seam_adapters": [],
-    "helpful_simplification": "none this loop beyond the fix itself - F-013 remains queued, not implemented.",
-    "should_not_be_done": "Do not build a dedicated single-game-operation guard/token distinct from isLibraryOperationRunning - the existing boolean already means exactly 'no other library-affecting write may proceed', and a second guard type would duplicate that authority rather than close the gap in it (fails SPT Q3, duplicate layer). Do not wrap ReplaceImageCoreAsync/DownloadAndReplaceImageCoreAsync themselves - they are shared with FixLibraryAsync's already-guarded bulk loop, and a second acquire there would self-reject the bulk path's own per-game writes against its own outer guard.",
-    "tests_after_fix": "None added or deleted - PrimaryWidget.xaml.cs is outside the test-linked Services/** surface and cannot be unit-tested in the current infra (WinUI Page, no desktop projection for Windows.UI.Xaml types), matching Findings F-001/F-005 through F-009's own fixes. Verification is: full build (exit 0) + full test suite (138/138 unchanged) both re-run after the change, an independent fresh-eyes implementation review (separate subagent, read-only, verdict approved, all three checks passed), plus a manual trace confirming both guards hold across their full write duration."
+    "helpful_simplification": "Removes the third duplicated instance of a pattern this codebase has already collapsed twice (F-002 at four copies, F-003 at three).",
+    "should_not_be_done": "A public/protected version of the helper, or a separate static utility class for it - neither adds Leverage since the only three callers are private methods in this same file; either would be ceremony without reducing ambiguity (fails Simplify Pressure Test Q2).",
+    "tests_after_fix": "None added or deleted - PrimaryWidget.xaml.cs is outside the test-linked Services/** surface (WinUI Page, no desktop projection for Windows.UI.Xaml types in this repo's xunit infra). Verification: full build (exit 0) + full test suite (138/138 unchanged) both re-run before and after the change, independent fresh-eyes implementation review, and a manual line-by-line diff confirming each of the three call sites preserves its exact pre-fix field-write and status-text behavior."
   },
-
   "backlog": [
     {
       "priority": 1,
-      "stable_id": "F-014",
-      "title": "Extend the library-operation guard to single-game writes (Finding F-014)",
-      "kind": "structural",
-      "rank": "needed for winning",
-      "why_it_matters": "Closes a live, reachable, silently-corrupting reentrancy gap in the same class as F-001/F-005-009 (all fixed) - the largest-severity, fully-actionable candidate available this loop.",
-      "score_impact": "state_management +1.0"
-    },
-    {
-      "priority": 2,
       "stable_id": "F-013",
       "title": "Extract a shared entry-update helper for ReplaceImageCoreAsync/RestoreAllChangesAsync/RestoreBackupCoreAsync (Finding F-013)",
       "kind": "simplification",
       "rank": "helpful",
-      "why_it_matters": "Removes a third instance of the leaf-module-duplication class F-002/F-003 already fixed, and removes the undocumented field-list asymmetry a future edit could get wrong.",
+      "why_it_matters": "Removes the third instance of the leaf-duplication class F-002/F-003 already fixed, and ends a three-loop deferral.",
       "score_impact": "simplicity +0.5"
     },
     {
-      "priority": 3,
+      "priority": 2,
       "stable_id": "F-015",
-      "title": "Gate StoreNameLookup's GOG/Epic caches the same way its own Ubisoft cache already is (Finding F-015)",
+      "title": "Gate StoreNameLookup's three hand-rolled caches the same way its own Ubisoft cache already is (Finding F-015)",
       "kind": "structural",
       "rank": "helpful",
-      "why_it_matters": "Closes a latent unsynchronized-write inconsistency before any future change (including a future unblocking of F-011) could turn it into a live race, and removes credibility's own queued residual.",
-      "score_impact": "concurrency +0.5"
+      "why_it_matters": "Closes a latent unsynchronized-write inconsistency now confirmed to span three fields, not two, and removes credibility's own queued residual.",
+      "score_impact": "concurrency +0.5; credibility +0.5"
+    },
+    {
+      "priority": 3,
+      "stable_id": "F-011",
+      "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution (Finding F-011)",
+      "kind": "structural",
+      "rank": "needed for winning",
+      "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency; named for continuity, not actionable this loop.",
+      "score_impact": "concurrency +1.0"
     }
   ],
   "unresolved_reason": null,
-
   "deepening_candidates": [],
-
   "builder_notes": [
     {
-      "pattern": "A mutual-exclusion guard's real coverage is defined by which call sites hold it, not by its own doc comment or by the check-only callers that read it.",
-      "how_to_recognize": "Grep every caller of a boolean 'IsXBlocking()'-style check function; for each one, confirm it also calls the paired 'TryBeginX()/EndX()' claim around its own work, not just the read-only check before starting.",
-      "smallest_coding_rule": "A guard-check function whose name is a present-participle predicate ('...Blocking', '...Running', '...Busy') is a signal to verify a matching Begin/End pair exists at every caller that performs the guarded work, not only the callers that look 'library-wide' at a glance.",
-      "stack_example": "C#: `if (IsBusy) return;` without a paired `IsBusy = true; try { ... } finally { IsBusy = false; }` around the actual work is a check without a claim - exactly what let F-014 (and originally F-005 through F-009) through several prior review passes."
+      "pattern": "A near-identical block appearing a third time in one file is this codebase's own established threshold for 'extract it' - and letting it sit past that threshold has a cost independent of the block itself.",
+      "how_to_recognize": "F-013 was correctly identified as the third instance of this shape at loop 9, and sat un-actioned for three loops because a higher-severity finding kept winning Priority 1 each time. Grep for repeated 6+ line blocks across sibling methods in the same file; if it's the third occurrence of the same shape, that's the threshold.",
+      "smallest_coding_rule": "A correctly-deferred item needs its own escalation rule (count consecutive open occurrences in the backlog), or 'correctly deferred' repeats until the higher-severity supply runs out on its own - which is not the same as the deferred item being handled.",
+      "stack_example": "C#: three private methods each with their own `foreach (X in Y) { ... }` block differing only in 1-2 field writes is the signal to extract a shared helper with nullable parameters for the differing fields, not to leave all three as-is because none alone looks urgent."
     },
     {
-      "pattern": "The same small primitive (a gated lazy cache) gets reinvented per-field instead of reused, and only the newest field gets the lock.",
-      "how_to_recognize": "Grep for `Dictionary<...>` fields marked `static` or otherwise process-lifetime, each paired with a `TryGetValue`-then-conditional-write method nearby. If a sibling field in the same file uses a proper gate (SemaphoreSlim, lock, or a shared cache type) and this one doesn't, that's the tell.",
-      "smallest_coding_rule": "When a file already has one correctly-locked cache, a second cache added later should reuse the same gate or cache type, not hand-roll its own check-then-populate.",
-      "stack_example": "C#: this codebase's own AsyncLazyCache<T> (Services/AsyncLazyCache.cs) already solves this; StoreNameLookup's Ubisoft cache uses it, its GOG/Epic caches (added earlier) don't."
+      "pattern": "Distinguish 'an item lost every priority contest so far' from 'an item isn't worth doing.' Both look identical from inside a single loop.",
+      "how_to_recognize": "Check the finding's occurrence history in findings_registry.json: three or more consecutive loops with status 'open' and never selected as Priority 1 is the deferral signal, not a single loop's read of severity.",
+      "smallest_coding_rule": "When a lower-severity item has been deferred three or more times and the higher-severity items that beat it are now resolved or blocked, break the tie toward the deferred item rather than re-running the same severity comparison that has deferred it every time.",
+      "stack_example": "Generic: a registry or changelog that records 'considered, not selected' across loops/sprints is what makes this pattern visible; without it, each cycle's judgment looks locally correct forever."
     },
     {
-      "pattern": "A near-identical block appearing a third time in one file is this codebase's own established threshold for 'extract it' - it collapsed F-002 at 4 copies and F-003 at 3.",
-      "how_to_recognize": "Two similar-looking blocks might be coincidence; a third, especially one that's already drifted in one field, means the shared shape needs one owner.",
-      "smallest_coding_rule": "On finding a third near-identical block, extract before writing a fourth - not after.",
-      "stack_example": "n/a - general pattern, already demonstrated twice in this same file's history (F-002, F-003); F-013 is a not-yet-collapsed third instance of the same shape."
-    },
-    {
-      "pattern": "Scorecard humility check",
-      "how_to_recognize": "n/a - this entry is a non-blocking self-audit (Q9), not a code pattern.",
-      "smallest_coding_rule": "n/a",
-      "stack_example": "Three claims this loop's critic is least confident about: (1) credibility at 9.5 rather than 9.0 - F-015 is Noticeable, not Cosmetic, and a stricter reading could cap any Noticeable-severity residual at 9.0; 9.5 was judged defensible because F-015 is genuinely local and subtractive-fixable, matching the 9-anchor's own language, but this is a judgment call rather than a bright line. (2) state_management held at 7.0 despite fixing F-014 this loop - this follows the project's own established convention (score reflects pre-fix source; credit lands next loop against this loop's commit sha) rather than crediting the fix immediately, which a reviewer could reasonably expect same-loop credit for. (3) F-015's severity at Noticeable rather than Serious - judged latent (no reachable concurrent caller found) rather than live, based on LoadGameEntriesAsync's single sequential per-entry loop being StoreNameLookup's sole caller; if some other code path reaches it concurrently that this loop's bounded read did not find, the severity should be higher."
+      "pattern": "When extending an existing finding's evidence, re-read the whole file, not just the lines the finding already cites.",
+      "how_to_recognize": "The prior evidence for F-015 named two of StoreNameLookup's four mutable-state fields; a full re-read this loop found a third field with the identical defect shape the original evidence simply hadn't looked at.",
+      "smallest_coding_rule": "Re-deriving a finding from source, not from its own prior evidence list, is how a scoped defect gets its true scope - grep the pattern (e.g. 'Dictionary<' + 'TryGetValue') across the whole file, not just the cited lines.",
+      "stack_example": "C#: grep `private static readonly Dictionary<` across a file once a first instance of an unsynchronized cache is found, rather than trusting the finding's original file:line citation to be exhaustive."
     }
   ],
-
-  "narrative": "Place, not win, yet. The codebase has real depth in its artwork pipeline and increasingly disciplined ownership in PrimaryWidget.xaml.cs, but this loop independently re-derived and closed the sixth-and-latest instance of a defect class (reentrancy gaps between per-game and library-wide operations) that nine prior loops of dedicated sweeps had not fully closed - runtime ownership is more trustworthy after this loop's fix than before it, but a well-reviewed guard's own doc comment being incomplete for this long is a caution against declaring the class closed. Concurrency remains trustworthy for what actually runs today (nothing executes off the UI thread), though this loop surfaced a latent inconsistency (F-015) worth closing before any future change makes cache access concurrent. Simplification helped this loop: the fix reused an existing primitive rather than inventing a new guard type. Tests do not, and structurally cannot, reduce regression risk on PrimaryWidget.xaml.cs itself - every finding in this file, including this loop's, was found and verified by direct reading and unchanged build/test evidence, not by a failing test turning green. Future work risks over-engineering if it tries to extract PrimaryWidget's orchestration into a testable Module wholesale, per this and prior loops' own Simplify Pressure Test analysis; the smaller F-013/F-015 fixes ahead carry no such risk.",
-
+  "narrative": "Place, not win, yet. This loop credited a real prior improvement (F-014, now visibly closed in source) and made one of its own (F-013), ending a three-loop deferral rather than adding a fourth. Runtime ownership is now trustworthy for every traced write path in PrimaryWidget.xaml.cs - a genuine, source-proven state_management gain, not a cosmetic one. Simplification helped this loop: the fix collapsed three drifting copies into one Interface with no new Seam and no ceremony, and preserved every field-level behavioral difference between the three original call sites. Concurrency remains trustworthy for what actually executes today (nothing runs off the UI thread), though F-015's re-derivation this loop shows the latent inconsistency is wider than previously scoped (three caches, not two) - worth closing before any future change (including an eventual F-011 fix, still blocked) makes cache access genuinely concurrent. Tests do not, and structurally cannot, reduce regression risk on PrimaryWidget.xaml.cs itself: this loop's own fix, like every fix in this file, was verified by direct reading, an independent implementation review, and unchanged build/test evidence - not by a failing test turning green. Future work still risks over-engineering if it tries to extract PrimaryWidget's orchestration into a testable Module wholesale; this loop re-examined that specific candidate independently and reached the same conclusion prior loops did, for a source-backed reason rather than by anchoring to the prior verdict.\n\nScorecard humility check. Three claims this loop's critic is least confident about: (1) state_management at 9.5 with CapsuleParseNotes as the accepted residual - a stricter reading could argue a public mutable collection with zero current external writers outside its own class is not yet a live enough concern to be the residual blocking 10, versus simply awarding 10 with no residual named; 9.5 was chosen because the encapsulation gap is real and source-backed even though unexploited. (2) data_flow held at 7.5 rather than moving down for finding a third unsynchronized cache (nameMatchCache) this loop - the count of ambient-state instances grew in the evidence but not in the codebase (it was already there, just uncited), so SAME was judged the honest delta per the Delta Derivation Guardrail, but a reviewer could reasonably read 'found a worse instance of a known class' as a DOWN signal. (3) test_strategy held at 6.5 rather than nudged up slightly for Services/*'s comprehensive coverage (per this loop's independent helper sweep, 12 of 13 files 'Comprehensive') - the score stays capped by the untested PrimaryWidget.xaml.cs surface per the rubric's own anti-anchor, but exactly how far below that ceiling 6.5 sits versus 7.0 is a judgment call.",
   "loop_result": {
-    "what_changed": "Extended the existing TryBeginLibraryOperation()/EndLibraryOperation() guard (already held for the duration of RefreshButton_Click and ConfirmAndRunAsync's bulk operations) to GridImage_Click's DownloadAndReplaceImageAsync call and RestoreBackup_Click's RestoreBackupAsync call - the two remaining call sites that started a single-game write without claiming the flag. Updated the isLibraryOperationRunning field comment and both methods' doc comments to describe the extended scope.",
-    "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never) exits 0 both before and after the change. Full test suite (run-tests.ps1) reports 138 passed / 0 failed / 0 skipped both before and after, unchanged - expected, since PrimaryWidget.xaml.cs is not part of the test-linked Services/** surface. Neither guard touches, reorders, or wraps any network/file-write call - no SteamGridDB/GOG/Epic/Ubisoft call count, ordering, or payload changes anywhere, satisfying the standing user constraint. Independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on the targeted finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed, explicitly verifying ReplaceImageCoreAsync/DownloadAndReplaceImageCoreAsync were correctly left unwrapped to avoid self-rejecting FixLibraryAsync's own already-guarded bulk writes, and that no third unguarded single-game write path exists.",
+    "what_changed": "Extracted a private UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText) helper in PrimaryWidget.xaml.cs (added after EntriesSharingImage, :337-365) and replaced the three independent UI-thread-dispatch/foreach/status-text blocks in RestoreAllChangesAsync, ReplaceImageCoreAsync and RestoreBackupCoreAsync with calls to it, preserving each call site's exact prior behavior via the bool? hasBackup (null = leave untouched) and string statusText (null = leave untouched) parameters: RestoreAllChangesAsync passes (null, null); ReplaceImageCoreAsync passes (backupExists, <conditional message or null>); RestoreBackupCoreAsync passes (false, <conditional message or null>).",
+    "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1, 138 passed / 0 failed / 0 skipped) both re-run after the change, unchanged from before - expected, since PrimaryWidget.xaml.cs is outside the test-linked Services/** surface. No network/file-write call, ordering, or payload changed anywhere; the diff is confined to how already-computed values are written to already-owned UI state. Independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on the targeted finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed, explicitly re-deriving that the exact HasBackup/StatusText behavior differences across the three call sites are preserved.",
     "risk_boundary_evidence": null,
     "targeted_finding_status": "resolved",
     "unintended_regression": null,
     "changed_paths": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"],
     "interface_test_coverage_path": null
   },
-
   "implementation_review": {
     "verdict": "approved",
-    "reason": "GridImage_Click and RestoreBackup_Click now hold isLibraryOperationRunning across their full single-game write via try/finally, closing F-014's gap with no remaining unguarded write path and no new same-or-higher-severity regression.",
+    "reason": "All three checks passed: only one foreach/EntriesSharingImage dispatch block remains (inside the new private UpdateSharedEntriesAsync), the three call sites reproduce their exact pre-fix HasBackup and StatusText behavior via the bool?/string? null-means-untouched parameters, and the changed hunks introduce no new ownership, concurrency, or seam-policy hazard.",
     "checks": {
       "reality": "passed",
       "honesty": "passed",
@@ -454,7 +348,7 @@
     "retry_count": 1,
     "retry_cause": null,
     "retry_attempts": [
-      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 166902}
+      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 61815}
     ]
   }
 }

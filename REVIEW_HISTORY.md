@@ -2619,3 +2619,145 @@ Verdict: **approved**. Reason: GridImage_Click and RestoreBackup_Click now hold 
 
 ## Retired Findings (this loop)
 None.
+
+--- Loop 2 (UTC 2026-08-05T19:46:42Z) ---
+
+### Discovery
+see Loop 1 Discovery
+
+### Loop Counter
+Loop 2 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+**Promising, but architecturally immature.**
+
+Runtime ownership took a real step forward this loop: F-014's guard-scope fix (landed loop 1, commit 9b2c4cb) is now visible in current source with no remaining unguarded single-game write path, and state management is credited for it this loop per this project's own established scoring convention. This loop's own refactor (F-013) collapsed the third instance of a duplicated UI-thread entry-update block. The artwork pipeline remains genuinely deep and well-tested. What keeps this short of contest-grade: `PrimaryWidget.xaml.cs` still spans five concerns in one Module, `StoreNameLookup`'s cache-locking inconsistency (F-015) is now confirmed to span all three of its hand-rolled caches (not just two), and the untestable-by-platform-constraint surface (`PrimaryWidget.xaml.cs`) is exactly where every Serious finding this run has lived.
+
+**Prior-audit adopt-or-falsify**: CODE-REVIEW.md, TESTING.md and ARTWORK-SELECTION.md were adopted/falsified against current source in loop 1 with no open claim dropped; this loop re-confirmed no new prior-audit claim changed status.
+
+## Scorecard (1-10)
+
+- Architecture quality: **7.5** | SAME | Direct re-read this loop of `PrimaryWidget.xaml.cs` in full (2051 lines pre-fix) plus two independently-briefed helper sweeps converge on the same picture as loop 1: `Services/*` remains deep, single-responsibility Modules. `PrimaryWidget.xaml.cs` still spans five concerns in one Module; this loop's own fix (F-013) added a private helper inside that same Module rather than reducing its scope.
+- State management and runtime ownership: **9.5** | UP | `accepted` | Structural proof: `git log 05d06a9..9b2c4cb` shows loop 1's own commit, which this loop's direct re-read confirms landed — `GridImage_Click` (:1504-1522) and `RestoreBackup_Click` (:1891-1911) now both wrap their single-game write in `TryBeginLibraryOperation()`/`EndLibraryOperation()`, closing F-014's gap; no other write path bypasses the guard. Residual blocking 10: `SteamGridDbClient.CapsuleParseNotes` (`SteamGridDbClient.cs:47`) is `public static readonly List<string>` — mutation is externally reachable, unlike every other cross-file mutable-state instance in this codebase.
+- Domain modeling: **9.5** | SAME | `accepted` | Adversarial Pass re-run: `GameEntry`'s parallel-fields case re-confirmed live; smallest candidate fix still fails Simplify Pressure Test Q5 on call-site blast radius for a Cosmetic-severity concern.
+- Data flow and dependency design: **7.5** | SAME | Direct re-read of `StoreNameLookup.cs` (all 306 lines): three static `Dictionary` caches remain process-lifetime ambient state — this loop's own re-read found `nameMatchCache` has the identical unsynchronized shape as the two caches F-015 already named. `SteamGridDbClient.CapsuleParseNotes` is a fourth instance.
+- Framework / platform best practices: **9.5** | SAME | `accepted` | `App.xaml.cs:120`'s dead template-scaffolding TODO re-confirmed unchanged; not touched by this loop's edits.
+- Concurrency and runtime safety: **6.5** | SAME | F-011 re-confirmed unchanged, still blocked by the standing user constraint. F-015 re-derived with broadened evidence (`nameMatchCache` added) — still latent, not live. Not fixed this loop (outranked by F-013 per the Backlog Prioritization Pass's item-deferral criterion).
+- Code simplicity and clarity: **8.0** | SAME | F-013 re-confirmed present at Step 1, at its pre-fix line ranges (`:1101-1114`, `:1169-1188`, `:1962-1981`) — score reflects source as read at Step 1, before this loop's own fix; credit lands in loop 3's Step-1 scorecard.
+- Test strategy and regression resistance: **6.5** | SAME | `PrimaryWidget.xaml.cs` carries zero test coverage — confirmed again (138/138 unchanged before/after). Mutation-test mental model re-applied on `GridImage_Click`'s guard. `Services/*` remains comprehensively covered (12 of 13 reviewed files "Comprehensive"). Permanent platform constraint (WinUI `Page`, no desktop projection), matching TESTING.md.
+- Overall implementation credibility: **9.5** | SAME | `queued` (F-015) | Adversarial Pass re-run: this loop's own re-read of `StoreNameLookup.cs` strengthened rather than weakened the residual's case — the same gate-reuse fix applies cleanly to all three unsynchronized caches. F-015's broadened scope is additional evidence for the existing queued residual, not a fresh leak.
+
+## Strengths That Matter
+- `ArtworkRanker`/`ArtworkDownloader`/`ArtworkSignature`/`TileImage` remain a genuinely deep, pure, well-tested pipeline with documented calibration history and real Leverage: `GetTitleBearingGridsAsync` serves both the auto-fixer and the manual picker from one Interface.
+- `AppliedArtworkStore` and `StoreNameLookup`'s own Ubisoft cache correctly gate concurrent access behind one `SemaphoreSlim`-backed `AsyncLazyCache<T>` — the exact primitive this loop's re-derivation of F-015 confirms the file's other three mutable-state instances still do not reuse.
+- This loop's own fix (`UpdateSharedEntriesAsync`) collapsed three independently-drifting UI-thread entry-update blocks into one Interface without adding a new Seam or ceremony layer — matching this codebase's own established "third instance triggers extraction" convention.
+
+## Findings
+
+### Finding #1: ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times
+
+**Why it matters** — A future edit to how a tile is refreshed after a write has three call sites to find and keep in sync, and the field-list differences between the three copies are not documented as intentional versus oversight.
+
+**What is wrong** — `ReplaceImageCoreAsync` (`PrimaryWidget.xaml.cs:1169-1188` pre-fix), `RestoreAllChangesAsync`'s per-entry block (`:1101-1114` pre-fix) and `RestoreBackupCoreAsync` (`:1962-1981` pre-fix) each independently dispatch to the UI thread and `foreach` over `EntriesSharingImage(game)`, with no shared helper.
+
+**Evidence** — `PrimaryWidget.xaml.cs:1101-1114`; `:1169-1188`; `:1962-1981` (all pre-fix).
+
+**Architectural test failed** — Shallow module.
+
+**Severity** — Noticeable weakness.
+
+**Minimal correction path** — Extract a private `UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText)` helper; delete the three independent blocks.
+
+**Blast radius** — Change: `PrimaryWidget.xaml.cs`. Avoid: `Services/**`, `PrimaryWidget.xaml`.
+
+---
+
+### Finding #2: StoreNameLookup's three hand-rolled caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below
+
+**Why it matters** — Only the Ubisoft cache actually protects shared state from a concurrent race; a future fix to F-011 would silently inherit an unsynchronized write.
+
+**What is wrong** — `gogNameCache`/`epicNameCache` (`StoreNameLookup.cs:29-30`) and, confirmed this loop, `nameMatchCache` (:34) all perform unsynchronized check-then-populate writes, unlike `ubisoftGameListCache` (:40-42) three lines below.
+
+**Evidence** — `StoreNameLookup.cs:29-30`; `:34`; `:89-104`; `:117-149`; `:203-222`; `:40-42`; `AsyncLazyCache.cs:19-60`.
+
+**Dependency category** — `in-process`.
+
+**Severity** — Noticeable weakness.
+
+**Minimal correction path** — Wrap all three check-then-populate bodies in the same `SemaphoreSlim` gate `ubisoftGameListCache` already uses.
+
+**Blast radius** — Change: `StoreNameLookup.cs`. Avoid: `PrimaryWidget.xaml.cs`, `EpicLibrary.cs`.
+
+---
+
+### Finding #3: GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth
+
+**Why it matters** — Adding or renaming a platform requires remembering to update both switches; nothing fails to compile if one is forgotten.
+
+**What is wrong** — `FromXboxDirectory` (`GamePlatform.cs:22-46`) and `GamePlatformToSGDBApiString` (:48-67) independently switch over the same platform cases with no shared table.
+
+**Evidence** — `GamePlatform.cs:22-46`; `:48-67`.
+
+**Severity** — Cosmetic for contest.
+
+**Minimal correction path** — Fold both mappings into one table keyed by `GamePlatform`, with a separate alias list for legacy folder names.
+
+**Blast radius** — Change: `GamePlatform.cs`. Avoid: `PrimaryWidget.xaml.cs`.
+
+---
+
+### Finding #4: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop awaits each entry's lookups in strict sequence, even though the awaits are independent across entries.
+
+**Evidence** — `PrimaryWidget.xaml.cs:421-683`.
+
+**Severity** — Noticeable weakness.
+
+**Minimal correction path** — BLOCKED this loop by the standing user constraint on per-game network-call ordering/concurrency; named for continuity.
+
+**Blast radius** — Change: none this loop.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| structurally_necessary | Extracting `UpdateSharedEntriesAsync` — a Shallow-module fix, not a Deletion/Seam-category fix. |
+| new_seam_justified | false |
+| helpful_simplification | Removes the third duplicated instance of a pattern already collapsed twice (F-002, F-003). |
+| should_not_be_done | A public/protected version of the helper, or a separate static utility class — neither adds Leverage since the only three callers are private methods in this same file. |
+| tests_after_fix | None added or deleted — `PrimaryWidget.xaml.cs` is outside the test-linked `Services/**` surface. Verification: full build + full test suite (138/138 unchanged), independent implementation review, manual line-by-line diff confirming exact behavior preservation. |
+
+## Improvement Backlog
+1. **[F-013]** Extract a shared entry-update helper — simplification, helpful. Ends a three-loop deferral. Score impact: `simplicity +0.5`.
+2. **[F-015]** Gate `StoreNameLookup`'s three hand-rolled caches — structural, helpful. Score impact: `concurrency +0.5; credibility +0.5`.
+3. **[F-011]** Parallelize `LoadGameEntriesAsync`'s per-entry network resolution — BLOCKED. Score impact: `concurrency +1.0`.
+
+**Priority-1 accounting**: F-013 has been open across loops 9, 10 and this run's loop 1 (three consecutive occurrences, `open`, each time outranked by a higher-severity Serious finding). Per the Backlog Prioritization Pass's item-deferral criterion, the tie is broken toward F-013 now that F-014 is resolved and no higher-severity unblocked candidate exists.
+
+## Deepening Candidates
+None this loop. `LoadGameEntriesAsync`'s manifest-parsing block was investigated and fails Simplify Pressure Test Q2 this loop: `CreateThumbnailAsync`'s `Dispatcher`-thread affinity and `GameEntry`'s WinRT-typed properties mean a clean extraction requires first splitting `GameEntry` into a pure DTO plus a UI-bound wrapper — a larger, simultaneous redesign.
+
+## Builder Notes
+1. **Pattern**: A near-identical block appearing a third time in one file is this codebase's own established threshold for "extract it" — and letting it sit past that threshold has a cost independent of the block itself. → REVIEW_HISTORY.json `loops[2].builder_notes` for full notes
+2. **Pattern**: Distinguish "an item lost every priority contest so far" from "an item isn't worth doing." → REVIEW_HISTORY.json `loops[2].builder_notes` for full notes
+3. **Pattern**: When extending an existing finding's evidence, re-read the whole file, not just the lines the finding already cites. → REVIEW_HISTORY.json `loops[2].builder_notes` for full notes
+
+## Final Judge Narrative
+Place, not win, yet. This loop credited a real prior improvement (F-014, now visibly closed in source) and made one of its own (F-013), ending a three-loop deferral rather than adding a fourth. Runtime ownership is now trustworthy for every traced write path in `PrimaryWidget.xaml.cs`. Simplification helped this loop: the fix collapsed three drifting copies into one Interface with no new Seam and no ceremony, and preserved every field-level behavioral difference between the three original call sites. Concurrency remains trustworthy for what actually executes today, though F-015's re-derivation shows the latent inconsistency is wider than previously scoped. Tests do not, and structurally cannot, reduce regression risk on `PrimaryWidget.xaml.cs` itself. Future work still risks over-engineering if it tries to extract `PrimaryWidget`'s orchestration into a testable Module wholesale; this loop re-examined that candidate independently and reached the same conclusion prior loops did, for a source-backed reason.
+
+## Loop 2 Result
+Extracted a private `UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText)` helper in `PrimaryWidget.xaml.cs` (added after `EntriesSharingImage`, :337-365) and replaced the three independent UI-thread-dispatch/foreach/status-text blocks in `RestoreAllChangesAsync`, `ReplaceImageCoreAsync` and `RestoreBackupCoreAsync` with calls to it, preserving each call site's exact prior behavior via the `bool? hasBackup` (null = leave untouched) and `string statusText` (null = leave untouched) parameters. Full build (exit 0) and full test suite (138/138 unchanged) both re-run after the change. No network/file-write call, ordering, or payload changed anywhere. Independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on the targeted finding and the diff only) returned verdict **approved** with all three checks (reality, honesty, regression) passed. Finding F-013 (stable_id F-013) is **resolved**. No unintended scorecard regression observed.
+
+## Loop 2 Implementation Review
+Verdict: **approved**. Reason: All three checks passed: only one foreach/EntriesSharingImage dispatch block remains (inside the new private UpdateSharedEntriesAsync), the three call sites reproduce their exact pre-fix HasBackup and StatusText behavior via the bool?/string? null-means-untouched parameters, and the changed hunks introduce no new ownership, concurrency, or seam-policy hazard. Checks: reality=passed, honesty=passed, regression=passed. Regressions: none. Conditions: none. Rounds: 1.
+
+## Retired Findings (this loop)
+None.

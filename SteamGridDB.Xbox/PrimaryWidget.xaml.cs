@@ -334,6 +334,40 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// Applies a written image to every row sharing it and reports the outcome, on the UI thread.
+        /// Shared by <see cref="ReplaceImageCoreAsync"/>, <see cref="RestoreAllChangesAsync"/> and
+        /// <see cref="RestoreBackupCoreAsync"/>, which previously each hand-built this same
+        /// dispatch/foreach/status-text block - the three had already drifted apart once on which
+        /// fields they touched, which is what three copies of the same shape cost.
+        /// </summary>
+        /// <param name="game">Game whose written image this is - looked up by shared image path via <see cref="EntriesSharingImage"/>.</param>
+        /// <param name="imageFileName">File name to stamp onto every shared entry.</param>
+        /// <param name="image">Decoded image to stamp onto every shared entry.</param>
+        /// <param name="hasBackup">New backup-exists value to stamp onto every shared entry, or null to leave it untouched (<see cref="RestoreAllChangesAsync"/> does not know this at this point in its flow).</param>
+        /// <param name="statusText">Status bar text to show, or null to leave the status bar as it is.</param>
+        private async Task UpdateSharedEntriesAsync(GameEntry game, string imageFileName, BitmapImage image, bool? hasBackup, string statusText)
+        {
+            await OnUiThreadAsync(() =>
+            {
+                foreach (GameEntry entry in EntriesSharingImage(game))
+                {
+                    entry.Image = image;
+                    entry.ImageFileName = imageFileName;
+
+                    if (hasBackup.HasValue)
+                    {
+                        entry.HasBackup = hasBackup.Value;
+                    }
+                }
+
+                if (statusText != null)
+                {
+                    StatusText.Text = statusText;
+                }
+            });
+        }
+
+        /// <summary>
         /// The games a bulk run should visit: those matching <paramref name="eligible"/>, one per image.
         /// </summary>
         /// <param name="eligible">Which entries the operation applies to.</param>
@@ -1101,14 +1135,9 @@ namespace SteamGridDB.Xbox
                         StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                         BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
-                        await OnUiThreadAsync(() =>
-                        {
-                            foreach (GameEntry entry in EntriesSharingImage(game))
-                            {
-                                entry.Image = restoredImage;
-                                entry.ImageFileName = imageFileName;
-                            }
-                        });
+                        // hasBackup left untouched: whether a backup exists doesn't change by restoring
+                        // a customisation, and this loop's own status line is set above via report.Step
+                        await UpdateSharedEntriesAsync(game, imageFileName, restoredImage, null, null);
 
                         successCount++;
                     }
@@ -1169,20 +1198,14 @@ namespace SteamGridDB.Xbox
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                 BitmapImage newImage = await CreateThumbnailAsync(imageFile);
 
-                await OnUiThreadAsync(() =>
-                {
-                    foreach (GameEntry entry in EntriesSharingImage(game))
-                    {
-                        entry.Image = newImage;
-                        entry.ImageFileName = imageFileName;
-                        entry.HasBackup = backupExists;
-                    }
-
-                    if (updateStatusText)
-                    {
-                        StatusText.Text = game.Name == unknownName ? $"Artwork {imageFileName} updated successfully" : $"Artwork for {game.Name} updated successfully";
-                    }
-                });
+                await UpdateSharedEntriesAsync(
+                    game,
+                    imageFileName,
+                    newImage,
+                    backupExists,
+                    updateStatusText
+                        ? (game.Name == unknownName ? $"Artwork {imageFileName} updated successfully" : $"Artwork for {game.Name} updated successfully")
+                        : null);
 
                 return true;
             }
@@ -1962,20 +1985,13 @@ namespace SteamGridDB.Xbox
                 StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
                 BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
 
-                await OnUiThreadAsync(() =>
-                {
-                    foreach (GameEntry entry in EntriesSharingImage(game))
-                    {
-                        entry.Image = restoredImage;
-                        entry.ImageFileName = imageFileName;
-                        entry.HasBackup = false; // Backup no longer exists
-                    }
-
-                    if (updateStatusText)
-                    {
-                        StatusText.Text = $"Backup restored for {backupGameName}";
-                    }
-                });
+                // hasBackup: false - the backup that would have been restored from no longer exists
+                await UpdateSharedEntriesAsync(
+                    game,
+                    imageFileName,
+                    restoredImage,
+                    false,
+                    updateStatusText ? $"Backup restored for {backupGameName}" : null);
 
                 return RestoreBackupResult.Restored;
             }
