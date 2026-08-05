@@ -147,6 +147,19 @@ namespace SteamGridDB.Xbox.Models
         /// </summary>
         public Visibility AppliedVisibility => IsApplied ? Visibility.Visible : Visibility.Collapsed;
 
+        /// <summary>
+        /// Which picker session this tile was created for. PrimaryWidget's GridImage_Click compares
+        /// this against the panel's current session before writing artwork, so a tile left over from a
+        /// superseded population (the picker was opened again, for the same game or a different one,
+        /// before this tile was clicked) is ignored instead of applying its artwork to whichever game
+        /// happens to be selected by the time the click is handled. Not bound to the UI, so it does not
+        /// raise PropertyChanged.
+        /// </summary>
+        public int SessionId
+        {
+            get; set;
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)

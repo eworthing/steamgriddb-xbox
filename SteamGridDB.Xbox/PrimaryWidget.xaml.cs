@@ -61,6 +61,16 @@ namespace SteamGridDB.Xbox
         // rebuild the same collection, so overlapping runs duplicate entries or race on disk.
         private bool isLibraryOperationRunning;
 
+        // Incremented every time the artwork picker is (re)populated - by EditGameImage_Click,
+        // SearchGameImage_Click or a search result choosing a game - and stamped onto every
+        // GridImageItem that population creates (see PopulateGridSelectionPanelAsync). Opening the
+        // picker for a different game does not wait for the previous one to finish: ShowGridPanelAsync
+        // alone takes ~250ms, during which the previous game's tiles are still on screen and clickable
+        // while CurrentSelectedGame may already point at the new game. Without this, clicking one of
+        // those stale tiles would write its artwork to the wrong game with no error. GridImage_Click
+        // compares a clicked tile's stamp against this field and ignores the click when they differ.
+        private int gridPanelSessionId;
+
         // Whitespace counts as missing, matching SteamGridDbClient's own validation - a key that fails
         // this test would otherwise sail past the guards and throw out of the client's constructor.
         private bool HasSteamGridDbApiKey => !string.IsNullOrWhiteSpace(steamGridDbApiKey);
@@ -1284,6 +1294,10 @@ namespace SteamGridDB.Xbox
         /// <param name="describeGame">Name to show while loading.</param>
         private async Task LoadGridSelectionAsync(ArtworkSource source, string header, string describeGame)
         {
+            // Claimed before any await, so even the earliest possible re-entry (another Edit/Search
+            // click landing while this population is still in flight) is stamped into a newer session.
+            int session = ++gridPanelSessionId;
+
             try
             {
                 GridPanelHeaderText = header;
@@ -1326,7 +1340,7 @@ namespace SteamGridDB.Xbox
                         return;
                     }
 
-                    await PopulateGridSelectionPanelAsync(grids, icons);
+                    await PopulateGridSelectionPanelAsync(grids, icons, session);
                 }
 
                 GridLoadingRing.IsActive = false;
@@ -1390,7 +1404,8 @@ namespace SteamGridDB.Xbox
         /// </summary>
         /// <param name="grids">Collection of grid artworks</param>
         /// <param name="icons">Collection of icon artworks</param>
-        private async Task PopulateGridSelectionPanelAsync(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons)
+        /// <param name="sessionId">The picker session these artworks were fetched for - see <see cref="gridPanelSessionId"/>.</param>
+        private async Task PopulateGridSelectionPanelAsync(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons, int sessionId)
         {
             // Which of these, if any, is already on the tile
             int? appliedArtworkId = await AppliedArtworkStore.GetAsync(CurrentSelectedGame?.ImageFilePath);
@@ -1427,7 +1442,8 @@ namespace SteamGridDB.Xbox
                     Style = artwork.Style ?? "default",
                     Width = artwork.Width,
                     Height = artwork.Height,
-                    IsApplied = artwork.Id == appliedArtworkId
+                    IsApplied = artwork.Id == appliedArtworkId,
+                    SessionId = sessionId
                 });
             }
 
@@ -1454,10 +1470,16 @@ namespace SteamGridDB.Xbox
 
         /// <summary>
         /// Handles grid image selection. Downloads and replaces the game's image.
+        ///
+        /// Ignores a tile whose <see cref="GridImageItem.SessionId"/> no longer matches
+        /// <see cref="gridPanelSessionId"/>: the picker was opened again since this tile was rendered,
+        /// so CurrentSelectedGame may no longer be the game this tile belongs to. Silently doing nothing
+        /// is correct here - the tile is already gone from the panel a moment later once the newer
+        /// session's population clears it, so there is no missed action to explain to the user.
         /// </summary>
         private async void GridImage_Click(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null)
+            if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanelSessionId)
             {
                 await DownloadAndReplaceImageAsync(gridItem);
             }

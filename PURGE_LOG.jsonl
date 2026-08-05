@@ -1,0 +1,1 @@
+{"event":"purge","ts":"2026-08-05T00:01:31Z","backup_path":".contest-refactor-backup-20260805-000130","files_moved":["CURRENT_REVIEW.json","CURRENT_REVIEW.md","REVIEW_HISTORY.json","REVIEW_HISTORY.md","findings_registry.json"],"files_failed":[],"prior_loop":15,"prior_state":"HALT_LOOP_CAP","prior_head_sha":"789a66625bb516a397d5b99c060857427ab21752"}
