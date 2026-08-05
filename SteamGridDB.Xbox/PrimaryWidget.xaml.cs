@@ -1530,6 +1530,17 @@ namespace SteamGridDB.Xbox
                 // Use the core download and replace logic
                 bool success = await DownloadAndReplaceImageCoreAsync(CurrentSelectedGame, gridItem.Url, true, gridItem.Id);
 
+                // A newer picker session has started while this download was in flight (its own
+                // GridImage_Click check only verified the session at click time, before this method's
+                // own await). The write above still lands on the right game - CurrentSelectedGame was
+                // read before any await, so it could not have changed out from under it - but the panel
+                // this method is about to touch below now belongs to a different, live session: writing
+                // its status text, then closing it, would interrupt whatever the live session is doing.
+                if (gridItem.SessionId != gridPanelSessionId)
+                {
+                    return;
+                }
+
                 if (success)
                 {
                     GridPanelStatus.Text = "Image updated successfully";
