@@ -71,6 +71,14 @@ namespace SteamGridDB.Xbox
         // compares a clicked tile's stamp against this field and ignores the click when they differ.
         private int gridPanelSessionId;
 
+        // Same shape as gridPanelSessionId, one screen upstream: PerformGameSearchAsync can be
+        // triggered again (Enter key or the Search button) before a prior search's network round trip
+        // has returned, and ShowSearchPanelAsync can be reopened for the same or a different game while
+        // one is still in flight - neither is blocked by anything but the bulk-operation gate. Bumped by
+        // both, so a stale search's completion is discarded whether it is superseded by a new search or
+        // by the panel being shown again. Checked in PerformGameSearchAsync before any result-list write.
+        private int searchPanelSessionId;
+
         // Whitespace counts as missing, matching SteamGridDbClient's own validation - a key that fails
         // this test would otherwise sail past the guards and throw out of the client's constructor.
         private bool HasSteamGridDbApiKey => !string.IsNullOrWhiteSpace(steamGridDbApiKey);
@@ -1645,6 +1653,10 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task PerformGameSearchAsync()
         {
+            // Claimed before any await, so a second search fired while this one is still in flight -
+            // or the panel being reopened, see ShowSearchPanelAsync - is stamped into a newer session.
+            int session = ++searchPanelSessionId;
+
             try
             {
                 string searchTerm = GameSearchBox.Text?.Trim();
@@ -1670,6 +1682,14 @@ namespace SteamGridDB.Xbox
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
                     List<SteamGridDbGame> results = await client.SearchGameByNameAsync(searchTerm);
+
+                    // A newer search (or a reopened panel) has superseded this one while the request was
+                    // in flight - it must not touch the results list now: doing so would mix a stale,
+                    // unrelated search's games into whatever the live search already showed.
+                    if (session != searchPanelSessionId)
+                    {
+                        return;
+                    }
 
                     if (results == null || results.Count == 0)
                     {
@@ -1719,6 +1739,10 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task ShowSearchPanelAsync()
         {
+            // Invalidates any search still in flight from a prior showing of this panel (same or a
+            // different game) - see searchPanelSessionId.
+            ++searchPanelSessionId;
+
             // Update header with game information
             if (CurrentSelectedGame != null)
             {
