@@ -18,7 +18,7 @@
           "loop": 1,
           "loop_local_id": "F1",
           "status": "resolved",
-          "sha": "<pending>",
+          "sha": "e72dc0b4f1dd7810e2e81eee831c4249ca4736b5",
           "fingerprint": {
             "claim_consequence_hash": "sha256:d1ec69556f662de2743b1a32b632657dd3c93a0c9647766a77d69f835d81ba0c",
             "evidence_paths_hash": "sha256:deae6910070bb92a1947047fb32b9bc8d1a5896b25e9a48f1afd8f8dbaf56698"
