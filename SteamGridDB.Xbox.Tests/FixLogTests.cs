@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading.Tasks;
 
 using SteamGridDB.Xbox.Services.Artwork;
@@ -93,6 +94,33 @@ namespace SteamGridDB.Xbox.Tests
                 await FixLog.SaveAsync();
 
                 Assert.True(temp.Exists("last-fix.log"));
+            }
+        }
+
+        [Fact]
+        public async Task Concurrent_writes_do_not_lose_or_corrupt_lines()
+        {
+            // Safe today only because a library-wide operation and a fix each run under
+            // PrimaryWidget's own library-operation guard, so no two callers reach FixLog at once -
+            // nothing about Start/Write/SaveAsync's own shape enforced that before this loop's fix.
+            // List<T>.Add is not safe for concurrent callers even individually, so without the lock
+            // this many concurrent writers can throw or silently drop lines.
+            using (var temp = new TempFolder())
+            {
+                FixLog.LogFolder = temp.Folder;
+                FixLog.Start("Concurrent run", "concurrent.log");
+
+                const int writerCount = 50;
+                var writers = Enumerable.Range(0, writerCount)
+                    .Select(i => Task.Run(() => FixLog.Write($"line {i}")));
+
+                await Task.WhenAll(writers);
+                await FixLog.SaveAsync();
+
+                string[] savedLines = await LinesAsync(temp, "concurrent.log");
+
+                // One header line plus exactly one line per writer - none lost, none corrupted.
+                Assert.Equal(writerCount + 1, savedLines.Length);
             }
         }
 

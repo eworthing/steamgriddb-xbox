@@ -21,6 +21,12 @@ namespace SteamGridDB.Xbox.Services.Artwork
     /// </summary>
     internal static class FixLog
     {
+        // Start/Write are synchronous and only ever mutate lines/fileName together, so a plain lock
+        // guards them - unlike StoreNameLookup's or SteamGridDbClient's gates, nothing here holds the
+        // lock across an await. SaveAsync takes a point-in-time copy under the same lock, then does
+        // its file I/O outside it: a lock statement cannot itself wrap an await.
+        private static readonly object syncRoot = new object();
+
         private static readonly List<string> lines = new List<string>();
 
         private static string fileName = "last-fix.log";
@@ -45,9 +51,12 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="file">File to write to, so a library load and a fix do not overwrite each other.</param>
         public static void Start(string what, string file = "last-fix.log")
         {
-            fileName = file;
-            lines.Clear();
-            lines.Add($"{what} - {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
+            lock (syncRoot)
+            {
+                fileName = file;
+                lines.Clear();
+                lines.Add($"{what} - {DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss}");
+            }
         }
 
         /// <summary>
@@ -55,7 +64,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         public static void Write(string line)
         {
-            lines.Add(line);
+            lock (syncRoot)
+            {
+                lines.Add(line);
+            }
         }
 
         /// <summary>
@@ -63,12 +75,21 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         public static async Task SaveAsync()
         {
+            string snapshotFileName;
+            List<string> snapshotLines;
+
+            lock (syncRoot)
+            {
+                snapshotFileName = fileName;
+                snapshotLines = new List<string>(lines);
+            }
+
             try
             {
                 StorageFile file = await LogFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
+                    snapshotFileName, CreationCollisionOption.ReplaceExisting);
 
-                await FileIO.WriteLinesAsync(file, lines);
+                await FileIO.WriteLinesAsync(file, snapshotLines);
             }
             catch (Exception ex)
             {

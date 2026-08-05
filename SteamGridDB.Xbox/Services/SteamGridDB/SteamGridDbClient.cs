@@ -43,14 +43,32 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// Where the first few capsule-URL parses gave up. The parse runs during the library load, long
         /// before any run log exists, and a null result is indistinguishable from a game Valve has no
         /// artwork for - which is how it went unnoticed that every game was failing.
+        ///
+        /// Exposed as a read-only view: the backing list is written only by
+        /// <see cref="NoteCapsuleParse"/> under <see cref="capsuleParseNotesGate"/>, so a caller that
+        /// held the mutable <see cref="List{T}"/> itself (the field's shape before this) could bypass
+        /// that gate and mutate or clear it from outside.
         /// </summary>
-        public static readonly List<string> CapsuleParseNotes = new List<string>();
+        public static IReadOnlyList<string> CapsuleParseNotes => capsuleParseNotes;
 
-        private static void NoteCapsuleParse(string note)
+        private static readonly List<string> capsuleParseNotes = new List<string>();
+        private static readonly object capsuleParseNotesGate = new object();
+
+        /// <summary>
+        /// Records a parse-failure note, capped at 5. Reachable only through
+        /// <see cref="ParseOfficialCapsuleUrl"/>'s single-threaded-per-load caller today, same as
+        /// every other cross-file mutable cache this codebase gates anyway (StoreNameLookup's three
+        /// caches, AppliedArtworkStore's Dictionary) - this one now matches them rather than being the
+        /// one unsynchronized check-then-populate write left in the codebase.
+        /// </summary>
+        internal static void NoteCapsuleParse(string note)
         {
-            if (CapsuleParseNotes.Count < 5)
+            lock (capsuleParseNotesGate)
             {
-                CapsuleParseNotes.Add(note);
+                if (capsuleParseNotes.Count < 5)
+                {
+                    capsuleParseNotes.Add(note);
+                }
             }
         }
 

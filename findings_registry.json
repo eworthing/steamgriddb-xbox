@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 4,
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 7,
@@ -664,6 +664,18 @@
             "evidence_paths_hash": "sha256:bda7d50e3555815a1a1082704aecd2f1d3f5519faeeba14cbdba33f78ad84e80"
           },
           "attempted_remedy_hash": "sha256:311ce6e5c37af9a25e511816bbcf76c17600094066ad7154313c6986518e2bdc"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:494-705, current line numbers post loop-4 extraction; unaffected by this loop's own F-017 edit, confined to SteamGridDbClient.cs/FixLog.cs/two test files). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop - a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it remains genuinely blocked. Outranked this loop by F-017 (Priority 1, unblocked); stays Priority 2 for continuity per Backlog Prioritization Pass criterion 0.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:1f6c90abf50cd91d53531023c230ccd7690aba6b106a866dd287779f6ab2f4ff",
+            "evidence_paths_hash": "sha256:0341354564ae003110ac7c894a70c194570bc99d67e18d7c660feaae5fc466b1"
+          },
+          "attempted_remedy_hash": "sha256:cdfc48277b13bc16bd3551749f7c74856e93c9f6e5419d57f151469b20f55e78"
         }
       ]
     },
@@ -677,7 +689,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 4,
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 8,
@@ -762,6 +774,18 @@
             "evidence_paths_hash": "sha256:9a7efc857f6803358386a2aa5ab4f4bea168e42e86a704e9c47971d43ca78d38"
           },
           "attempted_remedy_hash": "sha256:4ac12a06da8c9b9b583d6a257282cc4c983688e9a4ca351ef6476bdf065b8719"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (untouched by this loop's own F-017 edit, confined to SteamGridDbClient.cs/FixLog.cs/two test files) and an independent helper sweep. Still Cosmetic, still no live harm. Adversarial Pass re-run this loop (simplicity's own accepted residual): smallest fix still passes SPT Q1-Q4 but fails Q5 comparatively against F-017 (this loop's actual pick). With F-016 and F-017 both now resolved and F-011 blocked, nothing higher-severity remains actionable - promoted to Priority 1 for loop 6 (Backlog Prioritization Pass criterion 2, item deferral: the rotating cast of higher-severity findings this item lost to for many loops running has finally run out).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:b592e1001681ec510c93c0fd5814fb59ab649de16bcf433990a04b090a74d609",
+            "evidence_paths_hash": "sha256:bc422f042159eca8ffcbab76e0c7db5fab31fd6562eff988597e86440bbab947"
+          },
+          "attempted_remedy_hash": "sha256:cf518b77ca164c7cc3b8bf549954432a5c56cc37263b69c14d579a2893acee27"
         }
       ]
     },
@@ -924,15 +948,15 @@
       "test_failed": "Shallow module",
       "severity": "Serious deduction",
       "first_seen_loop": 4,
-      "first_seen_sha": "<pending>",
+      "first_seen_sha": "c6fcf6e0284a62d1fa380ca80d3dfd8879c88a98",
       "last_seen_loop": 4,
       "occurrences": [
         {
           "loop": 4,
           "loop_local_id": "F1",
           "status": "resolved",
-          "sha": "<pending>",
-          "note": "New finding this loop. Surfaced by independent investigation of the Stalled-Dimension Sweep (mandatory from loop 4 on) triggering on architecture_quality and test_strategy, both SAME for 3+ consecutive loops (test_strategy: all 13 loops of this project's recorded history). Fixed this loop: extracted isLibraryOperationRunning's begin/end/is-running rule into a new internal sealed class LibraryOperationGuard (Services/Library/LibraryOperationGuard.cs), following the Compute/Do split TESTING.md already documents for GameImages/OperationReport/ManifestEntryIdentity. PrimaryWidget's three wrapper methods (IsLibraryOperationBlocking/TryBeginLibraryOperation/EndLibraryOperation) now delegate to it, keeping their own UI side effects (StatusText.Text, SetHeaderButtonsEnabled) unchanged. Added LibraryOperationGuardTests.cs (5 tests) asserting the exact mutation named by the finding. Full build (exit 0) and full test suite (143 passed / 0 failed / 0 skipped, up from 138) both re-run before and after. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass.",
+          "sha": "c6fcf6e0284a62d1fa380ca80d3dfd8879c88a98",
+          "note": "sha backfilled loop 5 (was <pending> at loop-4 commit time; independently re-verified this loop's fix holds via direct re-read of LibraryOperationGuard.cs, LibraryOperationGuardTests.cs and all 7 PrimaryWidget.xaml.cs call sites - test_strategy credited UP at loop 5's Step 1). New finding this loop. Surfaced by independent investigation of the Stalled-Dimension Sweep (mandatory from loop 4 on) triggering on architecture_quality and test_strategy, both SAME for 3+ consecutive loops (test_strategy: all 13 loops of this project's recorded history). Fixed this loop: extracted isLibraryOperationRunning's begin/end/is-running rule into a new internal sealed class LibraryOperationGuard (Services/Library/LibraryOperationGuard.cs), following the Compute/Do split TESTING.md already documents for GameImages/OperationReport/ManifestEntryIdentity. PrimaryWidget's three wrapper methods (IsLibraryOperationBlocking/TryBeginLibraryOperation/EndLibraryOperation) now delegate to it, keeping their own UI side effects (StatusText.Text, SetHeaderButtonsEnabled) unchanged. Added LibraryOperationGuardTests.cs (5 tests) asserting the exact mutation named by the finding. Full build (exit 0) and full test suite (143 passed / 0 failed / 0 skipped, up from 138) both re-run before and after. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:590632107f68bb66dc3c893a6b6b83e764f0249e51294940f0aea55ea734a1a4",
             "evidence_paths_hash": "sha256:ab04613ed9e04c8b668a2318d956b4564a5cb04c0c8b1fabd335add92412239a"
@@ -950,20 +974,32 @@
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 4,
-      "first_seen_sha": "<pending>",
-      "last_seen_loop": 4,
+      "first_seen_sha": "c6fcf6e0284a62d1fa380ca80d3dfd8879c88a98",
+      "last_seen_loop": 5,
       "occurrences": [
         {
           "loop": 4,
           "loop_local_id": "F3",
           "status": "open",
-          "sha": "<pending>",
-          "note": "New finding this loop. Surfaced by direct re-read of SteamGridDbClient.cs (413 lines, in full) and FixLog.cs (in full) during this loop's own investigation, cross-checked against an independent helper sweep that independently flagged the same TOCTOU shape in NoteCapsuleParse. Same defect class as F-015 (unsynchronized check-then-populate on shared mutable state, safe today only by single-threaded-per-load convention), found in two more locations. Not implemented this loop (F-016 was this loop's one refactor, higher severity and breaks two stalled dimensions); queued Priority 2.",
+          "sha": "c6fcf6e0284a62d1fa380ca80d3dfd8879c88a98",
+          "note": "sha backfilled loop 5 (was <pending> at loop-4 commit time). New finding this loop. Surfaced by direct re-read of SteamGridDbClient.cs (413 lines, in full) and FixLog.cs (in full) during this loop's own investigation, cross-checked against an independent helper sweep that independently flagged the same TOCTOU shape in NoteCapsuleParse. Same defect class as F-015 (unsynchronized check-then-populate on shared mutable state, safe today only by single-threaded-per-load convention), found in two more locations. Not implemented this loop (F-016 was this loop's one refactor, higher severity and breaks two stalled dimensions); queued Priority 2.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:27231f3967afe8ba2c1e115c0ae5d28488a1ef3b60f76a812557bb647a738393",
             "evidence_paths_hash": "sha256:7df45d2013d8e627486a1dad0d8b3e129beadd7cac2f738984f86e8d4afdc72b"
           },
           "attempted_remedy_hash": "sha256:f253e0fadb859395c2f02216b7e378e1e3dbd4809b9b615ab493aa19bfcb78c5"
+        },
+        {
+          "loop": 5,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop (Priority 1): SteamGridDbClient.NoteCapsuleParse's check-then-populate body wrapped in a plain lock (capsuleParseNotesGate); CapsuleParseNotes changed from public static readonly List<string> to a private backing field exposed as public static IReadOnlyList<string> (also resolving state_management's standing residual as a side effect). FixLog's Start()/Write() wrapped in a plain lock (syncRoot); SaveAsync takes a point-in-time snapshot under the same lock before its file I/O. Added SteamGridDbClientTests.cs (1 test) and extended FixLogTests.cs (1 test), both asserting the exact concurrent-write mutation via 50 concurrent Task.Run writers. Full build (exit 0) and full test suite (145 passed / 0 failed / 0 skipped, up from 143) both re-run before and after. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:11cd5f6f9db0450a9e13583dcc363e5a21fa604a46df017568b83c0aa97d4c16",
+            "evidence_paths_hash": "sha256:610320451d5d0c60f5cddfd3826f5c44c23fee9abb3ab1d07dee7ba3a8bd6550"
+          },
+          "attempted_remedy_hash": "sha256:6ffa5e61d8da96c45a60604db3bdf1054e04d3956b43e7acde16914f09215aa6"
         }
       ]
     }
