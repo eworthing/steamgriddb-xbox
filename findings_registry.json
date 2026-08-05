@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 14,
+  "next_serial": 15,
   "entries": [
     {
       "stable_id": "F-001",
@@ -243,7 +243,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 1,
@@ -345,6 +345,18 @@
           "status": "open",
           "sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
           "note": "re-derived loop 9 (TileImage.cs/TileImageTests.cs unaffected by this loop's F-010 edit, confined to StoreNameLookup.cs; gap re-confirmed, evidence lines unchanged). Still the only test_strategy candidate; still Cosmetic/off-primary-flow. Re-examined via the mutation-test mental model with a fresh mutation site this loop (the ConfirmAndRunAsync guard's || -> && swap, a primary-flow gap) - confirmed this Cosmetic boundary gap is not, and never was, the actual blocker; implementing it would not move test_strategy's score.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:7d709390f9ea657341b76bfadfae44a88f04dd4be70e8d08996c6cae1b9e5178",
+            "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
+          },
+          "attempted_remedy_hash": "sha256:43c3b38344222a063daa8e26db7df4e634d9436f5d5f57fab537d291319e6e0e"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F5",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Re-derived loop 10 (TileImage.cs/TileImageTests.cs unaffected - no code changed this loop; HALT_LOOP_CAP fired at Step 1, skipping Step 2/3). Still the only test_strategy candidate on this specific boundary; still Cosmetic/off-primary-flow. Re-examined via the mutation-test mental model with a fresh, independently-briefed helper naming three new primary-flow mutation sites this loop (PrimaryWidget.xaml.cs:908, :1328, :852) - confirmed this Cosmetic boundary gap is still not, and never was, the actual blocker; implementing it would not move test_strategy's score.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:7d709390f9ea657341b76bfadfae44a88f04dd4be70e8d08996c6cae1b9e5178",
             "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
@@ -555,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 7,
@@ -592,6 +604,18 @@
             "evidence_paths_hash": "sha256:22d8cd1708dbd9bca8b75d61abd4ce3ecbbcb93af581a1353806712e4fc837c2"
           },
           "attempted_remedy_hash": "sha256:f4c2f86323473f695a8bf1ec1842abc0a2acea44605e8f79302f29d51ab26207"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (no code changed this loop; HALT_LOOP_CAP fired at Step 1, skipping Step 2/3). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop rather than just citing it - confirmed a pure extraction (no change to call count/ordering/payload/error handling) would NOT be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it remains genuinely blocked. Ranks above F-012 on merit (concurrency's distance-to-target and stall both exceed simplicity's) but named at Priority 3 per Backlog Prioritization Pass criterion 0, not silently demoted.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:eab669877beb1a680200efa428b0c49fcff68b9692a1b320fbb8b694a4cfc877",
+            "evidence_paths_hash": "sha256:22d8cd1708dbd9bca8b75d61abd4ce3ecbbcb93af581a1353806712e4fc837c2"
+          },
+          "attempted_remedy_hash": "sha256:f4c2f86323473f695a8bf1ec1842abc0a2acea44605e8f79302f29d51ab26207"
         }
       ]
     },
@@ -605,7 +629,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 8,
@@ -630,6 +654,18 @@
             "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
           },
           "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (no code changed this loop; HALT_LOOP_CAP fired at Step 1, skipping Step 2/3). Still Cosmetic, still no live harm. Outranked this loop by F-014 (Serious, new) and F-011 (Noticeable, larger merit despite being blocked) for the top-3 backlog slots; not in this loop's backlog but remains a tracked open finding.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:866a656ab22a714abf19948ee3f26b397858e2e0c0455c538a44fb8ddd6c2d78",
+            "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
+          },
+          "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
         }
       ]
     },
@@ -643,7 +679,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 9,
@@ -656,6 +692,44 @@
             "evidence_paths_hash": "sha256:8ed33150fe9d16ba98055d488f90587010b88053fb1fa89aa727ed4122c6e210"
           },
           "attempted_remedy_hash": "sha256:5707f29fb371b62ca13b519a90eb05ab2b3bc974357f7f5b1367bc55eb90132d"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read (PrimaryWidget.xaml.cs untouched - no code changed this loop, HALT_LOOP_CAP fired at Step 1, skipping Step 2/3). Claim/Consequence text CORRECTED this loop: tracing ArtworkFiles.ReapplyCustomisationAsync's own contract (Services/Artwork/ArtworkFiles.cs:193-219) shows RestoreAllChangesAsync's omission of the HasBackup write is correct behavior (ReapplyCustomisationAsync never touches the .bak file), not the 'observed drift already costing correctness attention' loop 9's text claimed. Severity and remedy unchanged (Noticeable weakness; same three-method extraction). claim_consequence_hash changes this loop to reflect the corrected why_it_matters/what_is_wrong/why_weakens_submission text; evidence_paths_hash and attempted_remedy_hash unchanged (same three file:line ranges, same remedy). Outranked this loop by the newly-found F-014 (Serious > Noticeable) for the Priority-1 slot; stays Priority 2.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:edc48fbe6d755117df149c461d5d09522a147afb11e6b558135c884c246e3faf",
+            "evidence_paths_hash": "sha256:f5c660fe7afd57e17ad79b8e42a7f9ad713b426713a64fc269ac0fdb63287393"
+          },
+          "attempted_remedy_hash": "sha256:2523ff942e999f1137cc12dd5fe048b3b35fbdef12bdc805c39b3de95ec22841"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-014",
+      "title": "Single-game artwork operations check IsLibraryOperationBlocking only at the click, never claim it, so a bulk operation can start and corrupt freshly-loaded entries mid-flight",
+      "category_hint": "state-ownership/reentrancy",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [191, 1950],
+      "test_failed": "n/a",
+      "severity": "Serious deduction",
+      "first_seen_loop": 10,
+      "first_seen_sha": "5769177a9abe1e531576c3d8a1ea04428880aea6",
+      "last_seen_loop": 10,
+      "occurrences": [
+        {
+          "loop": 10,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Surfaced by an independently-briefed cold PrimaryWidget.xaml.cs helper sweep this loop, told to trace every await-then-mutate method generically rather than checked against the known session-guard list (F-001, F-005 through F-009). Independently confirmed by this loop's own direct reads of IsLibraryOperationBlocking (:191-201), TryBeginLibraryOperation (:207-220), RestoreBackup_Click/RestoreBackupCoreAsync (:1857-1950), and LoadGameEntriesAsync's GameEntries.Clear/Add (:359, :699). Not implemented this loop: loop counter reached loop_cap (10), which per SKILL.md's own Step 1 Routing table forces state HALT_LOOP_CAP and skips Step 2 (Architect) + Step 3 (Execution) regardless of backlog contents - this loop is Critic-only. Queued Priority 1, fully actionable (not blocked by the STANDING USER CONSTRAINT), for whenever this run resumes.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:720c1bf91766963593645278325bfd5fd89ccd071e8d86bae68e7a5dd4ee38e6",
+            "evidence_paths_hash": "sha256:03711edf12afa823af8b58f0a32a47c0452f2e7c9a4c46348097f9c004681a4b"
+          },
+          "attempted_remedy_hash": "sha256:eb7a2ec5b74141cbc62fb4da1f377ad411c5a6e00c97b0937038406b5a738b75"
         }
       ]
     }

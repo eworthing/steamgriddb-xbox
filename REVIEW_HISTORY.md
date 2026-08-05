@@ -2052,3 +2052,102 @@ Changed `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs` only (4 insertions
 
 ## Loop 9 Implementation Review
 Verdict: **approved**. Reason: both methods now route entirely through `JsonRead.Object`/`JsonRead.String` with no raw `ContainsKey`/`GetNamedObject`/`GetNamedString` remaining, every failure path traced by hand converges to the same `null` return as before, only `StoreNameLookup.cs` changed, and the full suite still passes 138/0/0. Checks: reality passed, honesty passed, regression passed. Regressions: none. Conditions: none.
+
+--- Loop 10 (UTC 2026-08-05T05:36:31Z) ---
+
+### Loop Counter
+Loop 10 of 10 (cap)
+
+### System Flag
+[STATE: HALT_LOOP_CAP]
+
+---
+
+## Contest Verdict
+**Promising, but architecturally immature.**
+
+Terminal loop (10 of 10 cap): per `SKILL.md`'s own Step 1 Routing table, reaching `loop_cap` forces state `HALT_LOOP_CAP` regardless of backlog contents, which skips Step 2/Step 3 — this loop is Critic-only, no code changed (build green, 138/138 tests green, identical to loop 9's). Every score below was independently re-derived from fresh source reads per this run's own anti-anchoring directive, including a mandatory G6 re-check of `framework_idioms`' 10.0 and a mandatory Adversarial Pass on `domain_modeling`'s and `credibility`'s accepted residuals. Two cold, independently-briefed helper sweeps plus this loop's own direct reads found the codebase's 9 previously-resolved reentrancy/duplication fixes (F-001 through F-010) all still holding, but also found a genuinely new, real, Serious-severity finding nine loops into repeated scrutiny of the same file: F-014, a per-game-operation-vs-bulk-operation reentrancy gap in the exact class this review has fixed 6 times before (F-005 through F-009) yet never found from this specific angle.
+
+## Scorecard (1-10)
+
+- **Architecture quality**: 7.5 | SAME | No source changed this loop; re-confirmed by fresh direct reads plus a cold `Services`/`Models` sweep (clean). `PrimaryWidget.xaml.cs` still spans five concerns in one Module; this loop's own sweep additionally found `HideGridPanelAsync`/`HideSearchPanelAsync` as an unnamed near-identical sibling pair (not its own finding this loop; named for the next sweep). Stalled-Dimension Sweep: 10th consecutive non-UP loop, 9-anchor still not met for the `TESTING.md`-documented reason.
+- **State management and runtime ownership**: 7.0 | SAME | This loop's own cold full-file re-trace of every await-then-mutate method reconfirmed all 6 prior session-guard fixes hold, AND found a 7th, previously-uncaught instance: **Finding F-014**. Loop 9's "library-operation-gate-sufficient" verdict on this exact method did not survive this loop's own mechanism-level trace. Held SAME (one more instance of an already-known defect class, now with its own backlog trail), not moved DOWN.
+- **Domain modeling**: 9.5 | SAME | Adversarial Pass re-run against a candidate smaller than loop 8's and loop 9's: a `readonly struct` with factory methods mirroring `ManifestEntryIdentity.Result`'s own existing idiom. Does not force splitting `GameEntry`'s object-initializer construction. SPT-rejected on Q5: real blast radius (~7-8 call sites across 3-4 files) for a Cosmetic, zero-live-harm concern across 10 loops.
+- **Data flow and dependency design**: 7.5 | SAME | No source changed. F-010's fix re-confirmed correct. Five ambient static-mutable-state instances still exceed the 9-anchor's allowance, independently re-confirmed by a cold sweep reaching the identical list unprompted.
+- **Framework / platform best practices**: 9.5 | **DOWN** | G6 re-verification found a source-backed residual loops 8-9 did not name: `App.xaml.cs:120`'s unaddressed, dead suspend-state `TODO` on a documented fallback-only launch path (also a doc-vs-code leak). Rest of the platform-idiom claims re-confirmed unchanged.
+- **Concurrency and runtime safety**: 6.5 | SAME | F-011 unchanged, still blocked by the STANDING USER CONSTRAINT. F-014 filed under `state_management` (reentrancy via stale references, not a threading race), not double-counted here.
+- **Code simplicity and clarity**: 8.0 | SAME | F-013 re-confirmed present but its "observed drift" claim is **corrected**: `ArtworkFiles.ReapplyCustomisationAsync` never touches the backup file, so `RestoreAllChangesAsync`'s omission of the `HasBackup` write is correct, not a bug. Duplication itself still real and Noticeable. `HideGridPanelAsync`/`HideSearchPanelAsync` sibling duplication newly named (see architecture_quality).
+- **Test strategy and regression resistance**: 6.5 | SAME | 10th consecutive non-UP loop — the single most score-stalled dimension; its value has never changed since loop 1. Three fresh primary-flow mutation sites named (`:908`, `:1328`, `:852`), none caught by any test. F-014 itself is live, non-hypothetical proof of what this untested surface costs. Blocker remains the genuine platform constraint (`Windows.UI.Xaml` has no desktop projection).
+- **Overall implementation credibility**: 9.5 | SAME | Adversarial Pass re-run on loop 9's residual — no code-structural fix applies to a review-process residual; SPT Q2 rejects mandating full re-derivation as more ceremony. Residual sharpened with a concrete instance: loop 9's own "gate-sufficient" claim about `RestoreBackupCoreAsync`, taken at face value, did not survive this loop's own mechanism-level trace (now F-014). Held at 9.5: one new local leak, captured as its own Finding, found *by* deeper verification not missed by it.
+
+## Authority Map
+Re-emitted this loop (F-014 is a Priority-1 authority/reentrancy finding): 4 concerns covering `isLibraryOperationRunning` (Split and ambiguous — the root cause of F-014), `GameEntries` (Split and ambiguous), `gridPanelSessionId` and `searchPanelSessionId` (both Single and clear, re-verified holding). Full detail → `loops[9]` (loop 10) in `REVIEW_HISTORY.json`.
+
+## Strengths That Matter
+- F-014 was found the same way F-013 was found in loop 9 — a cold helper briefed on the general shape rather than the known list — the second time in two loops that technique surfaced a real, previously-missed defect in the same heavily-reviewed file.
+- This loop independently traced `IsLibraryOperationBlocking`'s own doc comment against its actual implementation mechanics rather than trusting the comment's claim.
+- All 9 previously-resolved findings were re-spot-checked against current source this loop and every one still holds, including catching and correcting one inaccurate claim (F-013's "observed drift") rather than carrying it forward unexamined.
+
+## Findings
+
+### Finding #1 (stable_id F-014): Single-game artwork operations check IsLibraryOperationBlocking only at the click, never claim it, so a bulk operation can start and corrupt freshly-loaded entries mid-flight
+**Why it matters** — A user can click Restore Backup (or pick artwork from the grid/search panel) on one row, then click Refresh/Fix Library/Restore Changes/Revert Defaults before the first click's file I/O completes; the second operation replaces the whole game list, and the first operation's resumed write lands on the freshly-loaded entries instead.
+**What is wrong** — `IsLibraryOperationBlocking` (`:191-201`) is checked but never claimed by `RestoreBackup_Click`/`EditGameImage_Click`/`SearchGameImage_Click`; `TryBeginLibraryOperation` (`:207-220`) has no awareness of an in-flight single-game operation, so it lets `LoadGameEntriesAsync` replace `GameEntries` (`:359`, `:699`) while, e.g., `RestoreBackupCoreAsync`'s await is pending; `EntriesSharingImage(game)` then writes onto the freshly-loaded entries.
+**Evidence** — `PrimaryWidget.xaml.cs:191-201`, `:207-220`, `:1857-1868`, `:1900-1950`, `:351-366,687-715`
+**Architectural test failed** — n/a — state-ownership/reentrancy
+**Severity** — Serious deduction
+**Minimal correction path** — Give `IsLibraryOperationBlocking`'s callers the same claim/release discipline `TryBeginLibraryOperation` already provides, sized for a single-game operation.
+**Blast radius** — Change: `PrimaryWidget.xaml.cs`. Avoid: XAML markup, `Services/**`.
+
+### Finding #2 (stable_id F-013): ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times
+**Why it matters** — A future field/state change has to be found and added in up to three places by hand; the copies already differ in field lists with no documented reason.
+**What is wrong** — All three dispatch-and-`foreach` over `EntriesSharingImage(game)`; `RestoreAllChangesAsync` correctly omits the `HasBackup` write (corrected this loop — `ArtworkFiles.ReapplyCustomisationAsync` never touches the backup file) but nothing documents why.
+**Evidence** — `PrimaryWidget.xaml.cs:1154-1192`, `:1067-1135`, `:1900-1950`
+**Architectural test failed** — Shallow module
+**Severity** — Noticeable weakness
+**Minimal correction path** — Extract a shared `UpdateEntriesSharingImage` helper.
+**Blast radius** — Change: `PrimaryWidget.xaml.cs`. Avoid: XAML markup, `Services/**`.
+
+### Finding #3 (stable_id F-011): LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time
+**Why it matters** — Linear per-game network latency on every widget open for unmatched games.
+**What is wrong** — Sequential awaits per manifest entry (`:455-679`), independent across entries (efficiency lens D2).
+**Severity** — Noticeable weakness
+**Minimal correction path** — Not implemented this run — blocked by the STANDING USER CONSTRAINT and unlocked static caches.
+**Blast radius** — Not attempted.
+
+### Finding #4 (stable_id F-012): GamePlatformHelper's two independent switch statements have no shared source of truth
+**Severity** — Cosmetic for contest
+**Minimal correction path** — A single static metadata table.
+
+### Finding #5 (stable_id F-004): TileImage.FillsTileAsync's thresholds are untested at their exact boundary values
+**Severity** — Cosmetic for contest
+**Minimal correction path** — Two boundary-value test cases.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | No fix attempted this loop; F-014's proposed remedy checked against SPT and would pass if implemented (real ambiguity, smallest honest fix, no duplicate layers, honest runtime, product improves). |
+| New seam justified | No |
+| Helpful simplification | F-013's own text corrected without changing severity/remedy |
+| Should NOT be done | Widen `isLibraryOperationRunning` without auditing every reader; re-open `domain_modeling`'s residual without a smaller candidate; attempt F-011 without locking + a user decision |
+| Tests after fix | n/a this loop — no fix landed |
+
+## Improvement Backlog
+1. Add a claim/release guard to single-game artwork operations (F-014) — structural, needed for winning. `state_management +1.0`
+2. Extract a shared entry-update helper (F-013) — simplification, helpful. `simplicity +0.5`
+3. Add bounded concurrency to LoadGameEntriesAsync, after locking static caches (F-011, blocked by the STANDING USER CONSTRAINT) — structural, helpful. `concurrency +0.5`
+
+## Deepening Candidates
+- `LoadGameEntriesAsync`'s per-entry name/match resolution (Finding F-011) — see `REVIEW_HISTORY.json` loop 10 entry for full detail.
+
+## Builder Notes → `loops[9]` (loop 10) in `REVIEW_HISTORY.json` for full notes.
+- Briefing a cold sweep on a defect class's general shape (not the known-instance list) surfaces genuinely new instances — now confirmed twice in the same file, one loop apart (F-013, then F-014).
+- A guard's own doc comment claiming a protection is not evidence the protection holds in both directions — trace the implementation's mechanics.
+- A prior loop's "bug"/"drift" characterization needs its own evidence chain re-walked, not just its citation trusted — the callee's actual contract can make an apparent inconsistency correct.
+
+## Final Judge Narrative
+Place, not win, and the run ends with its most consequential discovery still unfixed. This terminal loop ran Critic-only — no code changed. Every score was independently re-derived from fresh source: `framework_idioms`' 10.0 did not survive G6 re-verification; `domain_modeling`'s/`credibility`'s 9.5-accepted residuals both survived a fresh Adversarial Pass against smaller counter-proposals than any prior loop tested. The headline result is Finding F-014: a genuinely new, Serious-severity reentrancy gap in the same defect class as six already-fixed findings, missed by nine prior loops because every one traced only the per-game-session direction, never the per-game-operation-vs-bulk-operation direction. It is fully actionable and is Priority 1 for whenever this run resumes, but this loop cannot fix it — the cap was reached before Step 2/3 could run. Tests still cannot, and structurally cannot, reduce regression risk on `PrimaryWidget.xaml.cs`; `test_strategy`'s 10-loop stall is now doubly confirmed as a genuine platform ceiling, and F-014 is itself live proof of what that ceiling costs.
+
+## Retired Findings (this loop)
+None.
