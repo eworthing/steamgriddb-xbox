@@ -6904,6 +6904,453 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 6,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": {
+        "source_roots": [
+          "SteamGridDB.Xbox/",
+          "SteamGridDB.Xbox.Tests/"
+        ],
+        "test_command": "powershell -NoProfile -File ./run-tests.ps1",
+        "build_command": "msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo (msbuild at 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe', resolvable via vswhere.exe)",
+        "lens": "Generic",
+        "lenses_loaded": [
+          "lens-generic.md",
+          "lens-security.md",
+          "lens-efficiency.md"
+        ],
+        "adrs": [],
+        "domain_terms": [],
+        "prior_audit_docs": [
+          {
+            "path": "ARTWORK-SELECTION.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "CODE-REVIEW.md",
+            "date": "2026-08-03"
+          },
+          {
+            "path": "TESTING.md",
+            "date": "2026-08-03"
+          }
+        ],
+        "churn_top20": [
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+            "edits": 38
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+            "edits": 8
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+            "edits": 5
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GridImageItem.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GameEntry.cs",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/PrimaryWidget.xaml",
+            "edits": 4
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TestImages.cs",
+            "edits": 3
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/TileImageTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Models/GamePlatform.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Artwork/ArtworkSignature.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGrid.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/JsonReadTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs",
+            "edits": 2
+          },
+          {
+            "path": "SteamGridDB.Xbox/Services/Library/OperationReport.cs",
+            "edits": 1
+          }
+        ],
+        "test_scope": "full",
+        "test_filter": null,
+        "working_tree_dirty_paths": []
+      },
+      "verdict": "Promising, but architecturally immature",
+      "verdict_explanation": "This loop's own independent re-derivation (helper sweep of PrimaryWidget.xaml.cs plus my own direct verification of the call graph) surfaced a fresh, real, reachable Serious finding (F-018): HideGridPanelAsync and HideSearchPanelAsync had no guard against running twice concurrently for the same session - the panel's own Close button and DownloadAndReplaceImageAsync's own post-download auto-close both call the same method, and CloseGridPanel_Click never checks IsLibraryOperationBlocking(), so a user clicking Close while their own tile's download is still in flight is an ordinary, reachable interaction. This outranked the carried-forward F-012 (Cosmetic) on severity per the Backlog Prioritization Pass and became this loop's Priority 1; fixed by reusing the existing, already-tested LibraryOperationGuard class rather than hand-rolling new untested bool flags. Separately, concurrency credits loop 5's own F-017 fix (now independently re-verified: SteamGridDbClient's and FixLog's locks hold, both new concurrent-writer tests pass). What keeps this short of contest-grade: architecture_quality and data_flow remain flat, and F-011 remains genuinely blocked by the standing user constraint.",
+      "scorecard": {
+        "architecture_quality": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Independent helper sweep this loop read PrimaryWidget.xaml.cs (2069 lines pre-fix) in full and named 13 distinct concerns still living in one file (UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, library-operation guarding). No single extraction candidate beyond what has already landed (F-002/F-003/F-013's shared helpers) passes SPT without a multi-file redesign disproportionate to one loop's blast radius. Stalled-Dimension Sweep: explicit clean, same conclusion as loops 1-5 of this run.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "state_management": {
+          "score": 7.5,
+          "delta": "DOWN",
+          "proof": "Independently re-derived this loop via a helper sweep plus my own direct reads of CloseGridPanel_Click (PrimaryWidget.xaml.cs:1704-1707, pre-fix) and HideGridPanelAsync/HideSearchPanelAsync (pre-fix): CloseGridPanel_Click never calls IsLibraryOperationBlocking() before invoking HideGridPanelAsync(), and DownloadAndReplaceImageAsync's own success path (line 1580, pre-fix) calls HideGridPanelAsync() a second time after a successful download. Neither call increments gridPanelSessionId, so the existing post-animation session recheck (F-009's own fix) does not distinguish two concurrent calls for the SAME session - both would run the slide-down animation and the Visibility/Items.Clear/CurrentSelectedGame teardown redundantly. This is a real, contained ownership gap on a primary-flow interaction (clicking a tile, then clicking Close before the download finishes) - the codebase's own established mutual-exclusion idiom (LibraryOperationGuard, extracted specifically to make this class of guarantee provable) was not applied to this exact shape even though it is structurally identical to the hazard it already solved for library-wide-vs-single-game writes. The 7 TryBeginLibraryOperation/EndLibraryOperation/IsLibraryOperationBlocking call sites and the two session counters remain single-owner and clean (re-confirmed); this is a narrower, contained gap on one specific lifecycle authority (panel-close teardown), not a broad pattern.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "domain_modeling": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Direct full re-read this loop of GameEntry.cs (196 lines) re-confirms the parallel-fields case (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId, lines 113-145) unchanged.",
+          "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties ~113-145), sole construction site PrimaryWidget.xaml.cs.",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "readonly-struct-with-factories still fails SPT Q2 - GameEntry implements INotifyPropertyChanged and is two-way XAML-data-bound; a readonly struct cannot back that binding shape without a separate wrapper layer, a larger redesign not the smallest honest fix. Genuine framework constraint, re-confirmed this loop.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "data_flow": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "Ambient-state census re-confirmed this loop: StoreNameLookup's three caches + SteamGridDbClient.CapsuleParseNotes + FixLog's three fields = 7 process-lifetime (static) instances, unchanged in count. The two new gridPanelCloseGuard/searchPanelCloseGuard fields added this loop are instance-level (per-PrimaryWidget), same category as the existing gridPanelSessionId/searchPanelSessionId session fields, not counted in the 7-instance ambient-static-state figure this dimension measures. No consolidation candidate passes SPT Q2 - single-instance widget, no multi-instance/test-injection need proven.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "framework_idioms": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "App.xaml.cs:120's //TODO: Load state from previously suspended application re-read in full this loop, unchanged.",
+          "residual_blocking_10": "App.xaml.cs:120's unaddressed //TODO: Load state from previously suspended application, on the OnLaunched fallback path (debug/Start-menu launch only).",
+          "residual_disposition": "accepted",
+          "residual_rationale_or_backlog_ref": "Deleting the dead comment passes SPT Q1-Q4 as a free, zero-risk subtractive change but fails Q5 comparatively against F-018 (this loop's actual, higher-severity pick); bundling it would cross into a fourth unrelated file, breaking F-018's own bounded blast radius. SPT-rejected on Q5, re-confirmed this loop.",
+          "unverifiable_due_to_build_failure": false
+        },
+        "concurrency": {
+          "score": 8.0,
+          "delta": "UP",
+          "proof": "Structural proof: loop 5's own commit (ce57ca7) is independently re-verified this loop by direct full reads of SteamGridDbClient.cs and FixLog.cs - NoteCapsuleParse's check-then-populate body is gated by capsuleParseNotesGate (SteamGridDbClient.cs:64-73), and FixLog's Start/Write/SaveAsync are gated by syncRoot (FixLog.cs:52-98) with SaveAsync taking a point-in-time snapshot before its file I/O. Both new concurrent-writer tests (SteamGridDbClientTests.Concurrent_notes_are_capped_at_five_with_no_corruption, FixLogTests.Concurrent_writes_do_not_lose_or_corrupt_lines) re-read in full and re-confirmed passing (145/145 total). This closes the anchor's 'no unstructured Task without documented ownership' for that specific case, the honest UP re-derivation this loop's own Step 1 evaluation supports (source loop 5's own Step 1 did not have this proof - the fix did not exist until loop 5's own Step 2/3). Held below 9.5: this loop's own Step 1 evaluation (pre-this-loop's-own-fix) shows HideGridPanelAsync/HideSearchPanelAsync's reentrancy gap (F-018) still open in source as read at Step 1 - an unstructured, undocumented-ownership async re-entry on the exact same anchor language. F-011 remains blocked, re-derived fresh: its own remedy (bounded concurrency) necessarily changes network-call ordering, which the standing user constraint forbids without a product decision.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "simplicity": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Mandatory leaf-module duplication sweep this loop (three parts): (a) leaf modules read directly by a helper - GameEntry.cs, GamePlatform.cs, GridImageItem.cs, OperationReport.cs, LibraryOperationGuard.cs, AppliedArtworkStore.cs, ArtworkDownloader.cs, ArtworkRanker.cs, ArtworkSignature.cs, TileImage.cs, FixLog.cs, EpicLibrary.cs, StoreNameLookup.cs, AsyncLazyCache.cs, App.xaml.cs, MainPage.xaml.cs, plus my own direct reads of StoreNameLookup.cs, LibraryOperationGuard.cs, AsyncLazyCache.cs; (b) four-angle results all clean except the already-tracked GamePlatform.cs dual-switch (F-012); (c) no audit_clones.py/audit-enum-interpretation.sh available in this repo checkout - manual four-angle pass substituted, noted as scope limit (unchanged from prior loops). This loop's own fix (F-018) is itself a simplicity-positive: it reused an existing, already-tested class rather than adding a third hand-rolled bool-flag guard shape to the file.",
+          "residual_blocking_10": "GamePlatform.cs's two independent switch statements over GamePlatform with no shared source of truth (Finding F-012, Cosmetic).",
+          "residual_disposition": "queued",
+          "residual_rationale_or_backlog_ref": "F-012",
+          "unverifiable_due_to_build_failure": false
+        },
+        "test_strategy": {
+          "score": 8.0,
+          "delta": "SAME",
+          "proof": "Re-derived fresh this loop: GridImage_Click's stale-session guard (PrimaryWidget.xaml.cs:1531-ish) remains untested, confirmed by grep across SteamGridDB.Xbox.Tests\\ for 'SessionId'/'gridPanelSessionId'/'searchPanelSessionId' - zero hits, same platform-binding carve-out TESTING.md documents. This loop's own F-018 fix reuses LibraryOperationGuard rather than hand-rolling a new untested guard shape - the guard's own TryBegin/IsRunning/End contract remains fully covered by LibraryOperationGuardTests.cs's existing 5 tests (unmodified, still passing), so the new call sites inherit that already-proven guarantee rather than adding a fresh untested surface. This is qualitatively better than a hand-rolled fix would have been, but does not change the Authority Map cross-check's pass/fail count (still the same single named primary-flow gap - GridImage_Click's own guard - excluded by the same carve-out as the rest of PrimaryWidget's UI-orchestration surface). Held at 8.0 rather than moved, since no new test file was added and the named gap is unchanged.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "credibility": {
+          "score": 9.5,
+          "delta": "SAME",
+          "proof": "Scored pre-fix (Step 1 convention): F-018's gap is still present in the source this Step 1 evaluates (the codebase's own established mutual-exclusion idiom was not applied to a structurally identical hazard), so the residual stays queued rather than accepted.",
+          "residual_blocking_10": "HideGridPanelAsync and HideSearchPanelAsync (pre-fix) had no guard against concurrent invocation from two independent call paths for the same session (Finding F-018, queued).",
+          "residual_disposition": "queued",
+          "residual_rationale_or_backlog_ref": "F-018",
+          "unverifiable_due_to_build_failure": false
+        }
+      },
+      "authority_map": [
+        {
+          "concern": "Library-wide operation vs. single-game write mutual exclusion",
+          "owner": "PrimaryWidget.libraryOperationGuard (LibraryOperationGuard instance)",
+          "allowed_writers": [
+            "TryBeginLibraryOperation/EndLibraryOperation (all 7 call sites: PrimaryWidget_Loaded:151, RefreshButton_Click:764, ConfirmAndRunAsync:826, GridImage_Click:1533/1544, RestoreBackup_Click:1918/1934)"
+          ],
+          "readers": [
+            "IsLibraryOperationBlocking (EditGameImage_Click:1261-ish, SearchGameImage_Click:1687-ish)"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "Every TryBeginLibraryOperation call site listed above"
+          ],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Grid-picker and search-panel close-and-teardown mutual exclusion (the concern F-018 addresses)",
+          "owner": "PrimaryWidget.gridPanelCloseGuard / searchPanelCloseGuard (new LibraryOperationGuard instances, this loop)",
+          "allowed_writers": [
+            "HideGridPanelAsync (via gridPanelCloseGuard.TryBegin/End)",
+            "HideSearchPanelAsync (via searchPanelCloseGuard.TryBegin/End)"
+          ],
+          "readers": [],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "CloseGridPanel_Click (no IsLibraryOperationBlocking check)",
+            "DownloadAndReplaceImageAsync's own post-download auto-close call",
+            "CloseSearchPanel_Click",
+            "SearchResult_Click"
+          ],
+          "verdict": "Single and clear"
+        }
+      ],
+      "strengths": [
+        "ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline - re-confirmed this loop's own leaf-module duplication sweep with no structural issues and no domain-policy leakage.",
+        "StoreNameLookup's three per-store gates (gogNameGate/epicNameGate/nameMatchGate) plus its reuse of AsyncLazyCache<T> for the Ubisoft case, re-verified this loop by my own direct full read of StoreNameLookup.cs, remain correct double-checked locking - the exact discipline this loop's own fix extends by reusing LibraryOperationGuard rather than adding a fourth hand-rolled guard shape.",
+        "This loop's own fix required zero new test infrastructure and zero new architectural ceremony: it reused an existing, already-tested class (LibraryOperationGuard, extracted in an earlier loop specifically to make this class of mutual-exclusion guarantee provable) for a third and fourth purpose, inheriting its existing proof rather than adding new untested surface."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-018",
+          "id": "F1",
+          "title": "HideGridPanelAsync and HideSearchPanelAsync had no guard against running twice concurrently for the same session",
+          "why_it_matters": "Reachable by an ordinary user interaction (click a grid tile, then click the panel's Close button while the download is still in flight; when the download later succeeds, its own auto-close call arrives a moment later). The codebase's own established mutual-exclusion idiom (LibraryOperationGuard, extracted specifically so this class of guarantee is provable) was not applied to this structurally identical hazard.",
+          "what_is_wrong": "CloseGridPanel_Click (PrimaryWidget.xaml.cs, pre-fix) called HideGridPanelAsync() with no IsLibraryOperationBlocking() check, and DownloadAndReplaceImageAsync's own success path also called HideGridPanelAsync() a second time after a successful download. Neither call increments gridPanelSessionId (only opening a NEW picker session does that), so the existing post-animation session recheck (F-009's own fix) does not distinguish two concurrent calls for the SAME session - both proceed to run the slide-down animation and the Visibility/Items.Clear/CurrentSelectedGame teardown redundantly. HideSearchPanelAsync has the identical shape (CloseSearchPanel_Click and SearchResult_Click both call it with no guard).",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1644-1672 (HideGridPanelAsync, pre-fix)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1704-1707 (CloseGridPanel_Click, no IsLibraryOperationBlocking check, pre-fix)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1578-1580 (DownloadAndReplaceImageAsync's own auto-close call, pre-fix)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1869-1894 (HideSearchPanelAsync, pre-fix)",
+            "SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs (existing tested mutual-exclusion primitive, reused by this loop's fix)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": "in-process",
+          "leverage_impact": "Before the fix, callers (CloseGridPanel_Click, DownloadAndReplaceImageAsync, CloseSearchPanel_Click, SearchResult_Click) got no concurrent-invocation guarantee from HideGridPanelAsync/HideSearchPanelAsync's own Interface; each caller had to happen to be the only one in flight.",
+          "locality_impact": "Contained to PrimaryWidget.xaml.cs's two Hide*Async methods plus two new field declarations reusing an existing class; zero change to LibraryOperationGuard's own public contract.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A real, reachable concurrency/reentrancy hazard on a primary user flow (the grid-artwork picker), matching the severity this project's own history assigns to every prior reentrancy finding in this exact file (F-001, F-005 through F-009, F-014) - contained to redundant idempotent teardown and a possible duplicate slide-down animation, not proven data corruption, so rated Serious rather than a disqualifier.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Reuse the existing, already-tested LibraryOperationGuard class (TryBegin/IsRunning/End) as two new private instance fields (gridPanelCloseGuard, searchPanelCloseGuard) rather than hand-rolling two new bool flags; wrap HideGridPanelAsync's and HideSearchPanelAsync's bodies in `if (!guard.TryBegin()) return; try { ... } finally { guard.End(); }`.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+              "SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs (doc comment only)"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+              "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
+              "SteamGridDB.Xbox/Services/Artwork/FixLog.cs",
+              "SteamGridDB.Xbox.Tests/LibraryOperationGuardTests.cs (unmodified - its existing generic tests already cover the reused class's contract)"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-012",
+          "id": "F2",
+          "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
+          "why_it_matters": "Adding or renaming a platform requires remembering to update both switches; nothing fails to compile if one is forgotten (both silently default to Unknown/null).",
+          "what_is_wrong": "FromXboxDirectory (GamePlatform.cs:22-46) and GamePlatformToSGDBApiString (GamePlatform.cs:48-67) independently switch over the same platform cases with no shared table; FromXboxDirectory additionally handles legacy folder-name aliases with no analogue in the reverse mapping. Re-confirmed unchanged this loop via direct full read and an independent helper sweep, which also independently concluded the two switches are 'correct by design' for serving distinct directions - a shape judgment the loop does not adopt uncritically (compliance/design-intent is not clearance): the lack of a compiler-enforced link between the two remains the real, if minor, finding.",
+          "evidence": [
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:22-46",
+            "SteamGridDB.Xbox/Models/GamePlatform.cs:48-67"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "Each new platform pays this asserted-twice tax; small today, compounds at scale.",
+          "locality_impact": "Contained to GamePlatform.cs.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Minor, but the enum's own home module holds two independent interpretations of itself with no compiler-enforced link. Outranked this loop by F-018 (Serious, newly found and fixed); promoted again to Priority 1 for loop 7 since nothing higher-severity remains actionable.",
+          "severity": "Cosmetic for contest",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Fold both mappings into one table keyed by GamePlatform, with a separate small alias list for FromXboxDirectory's legacy folder names.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Models/GamePlatform.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (call sites unchanged)"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-011",
+          "id": "F3",
+          "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
+          "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.",
+          "what_is_wrong": "LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:494-705, unaffected by this loop's edit) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence, even though the awaits are independent across entries.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:494-705"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None currently actionable - see blocker.",
+          "locality_impact": "Would be contained to PrimaryWidget.xaml.cs if unblocked.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft) means this loop cannot land a change altering observable call ordering/concurrency/count against those services without a product decision this loop cannot make. Re-derived fresh this loop: a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it stays genuinely blocked.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "BLOCKED this loop; named for continuity (Backlog Prioritization Pass criterion 0) rather than escalated to a user-decision halt, since F-018 filled this loop's actionable Priority-1 slot.",
+          "blast_radius": {
+            "change": [],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (no change while blocked)"
+            ]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Guarding HideGridPanelAsync's and HideSearchPanelAsync's bodies against concurrent invocation - removes a real reentrancy hazard current source could not otherwise prove absent; matches the same mutual-exclusion idiom this project already established for library-wide-vs-single-game writes.",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "LibraryOperationGuard's doc comment was generalized to describe it as a reusable mutual-exclusion primitive (it now backs three distinct concerns: library-wide-vs-single-game writes, grid-panel-close, search-panel-close), documenting the reuse honestly rather than leaving a misleadingly library-specific comment on a now-generic type.",
+        "should_not_be_done": "Hand-rolling two new private bool fields (gridPanelClosing/searchPanelClosing) instead of reusing LibraryOperationGuard - would reintroduce the exact untested hand-rolled-flag pattern F-016 specifically eliminated for the library-operation case, now in two more places. Renaming LibraryOperationGuard to a fully generic type name (e.g. OperationGuard) and updating its filename/csproj entry - a more honest long-term name, but touches a 4th file (the .csproj's explicit Compile Include list) for zero behavior gain; deferred as unwarranted ceremony beyond this loop's actual defect, with the doc-comment update carrying the honesty concern instead.",
+        "tests_after_fix": "No existing tests were deleted or need to be: LibraryOperationGuardTests.cs's existing 5 tests (Starts_not_running, TryBegin_succeeds_and_marks_running_when_nothing_else_is_running, TryBegin_fails_and_leaves_the_guard_running_when_already_running, End_releases_the_guard_so_a_new_operation_can_begin, End_is_safe_to_call_when_nothing_is_running) already prove the exact TryBegin/IsRunning/End contract both new call sites now depend on - unmodified, still passing. No new test file was added; PrimaryWidget.xaml.cs's own call sites remain within the same established no-desktop-test-projection carve-out every other guard call site in that file already has (verified this loop: no other PrimaryWidget.xaml.cs UI-orchestration method has a direct unit test). Verification: full build (msbuild, exit 0, both before and after) and full test suite (run-tests.ps1, 145 passed / 0 failed / 0 skipped, both before and after - unchanged pass count, confirming no regression and no new testable surface was introduced) both re-run; independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "stable_id": "F-012",
+          "title": "Fold GamePlatformHelper's two independent switch statements into one shared table (Finding F-012)",
+          "kind": "simplification",
+          "rank": "minor",
+          "why_it_matters": "With F-018 resolved this loop and F-011 blocked, nothing higher-severity remains actionable; F-012 has been deferred many loops running behind a rotating cast of higher-priority picks and is promoted to Priority 1 for loop 7.",
+          "score_impact": "simplicity +0.5"
+        },
+        {
+          "priority": 2,
+          "stable_id": "F-011",
+          "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution (Finding F-011)",
+          "kind": "structural",
+          "rank": "needed for winning",
+          "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency; named for continuity, not actionable this loop.",
+          "score_impact": "concurrency +1.0"
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [],
+      "builder_notes": [
+        {
+          "pattern": "A guard class extracted for one concern is often the correct fix for a structurally identical concern found later, even in an unrelated part of the same file.",
+          "how_to_recognize": "LibraryOperationGuard was extracted in an earlier loop (F-016) specifically for library-wide-vs-single-game write mutual exclusion. This loop found the identical shape (two call paths that can both invoke the same close-and-teardown method) in HideGridPanelAsync/HideSearchPanelAsync, with no relationship to library operations at all - yet the same class's TryBegin/IsRunning/End contract was exactly what both needed.",
+          "smallest_coding_rule": "Before adding a new bool flag or hand-rolled guard, check whether an existing tested mutual-exclusion primitive in the codebase already has the right shape (check-then-claim, release-when-done). If it does, reuse it and document the reuse in a comment; do not re-derive the same five lines a third time.",
+          "stack_example": "C#: gridPanelCloseGuard and searchPanelCloseGuard are both `new LibraryOperationGuard()` - zero new class, zero new tests, inheriting LibraryOperationGuardTests.cs's existing proof for free."
+        },
+        {
+          "pattern": "Reusing a narrowly-named class for a broader purpose without updating its doc comment leaves a misleading name in place even though the behavior is correct.",
+          "how_to_recognize": "LibraryOperationGuard.cs's original doc comment described it as specifically for 'library-wide operations and the single-game writes that race them.' After this loop, it backs three unrelated concerns. Leaving the old doc comment unchanged would read as an unexplained mismatch to the next reader.",
+          "smallest_coding_rule": "When reusing an existing type for a new, unrelated purpose, update its doc comment to describe the general contract it actually provides, not just its first use case - a one-paragraph edit, not a rename.",
+          "stack_example": "C#: LibraryOperationGuard's doc comment now explicitly says it is 'generic on purpose' and lists all three current use sites, rather than staying scoped to its original library-operation framing."
+        },
+        {
+          "pattern": "A missing guard on a Close/dismiss button that races an async operation's own auto-close is a distinct hazard from the missing-session-recheck hazard the same file's history already fixed several times.",
+          "how_to_recognize": "F-005 through F-009 were all about a stale SESSION's own close finishing late and corrupting a NEWER session's state - fixed by session recheck. F-018 is different: it is the SAME session's close being triggered from two independent call paths, which the session recheck does not distinguish because nothing bumps the session between them.",
+          "smallest_coding_rule": "When a method can be reached by both a direct user action (a Close button) and an indirect one (another method's own success-path cleanup call), check whether anything prevents both from running at once - a session check alone only guards against a DIFFERENT session, not a concurrent SAME one.",
+          "stack_example": "C#: CloseGridPanel_Click and DownloadAndReplaceImageAsync's own trailing `await HideGridPanelAsync();` call are two independent paths into the same method with the same gridPanelSessionId value - the session recheck at line ~1682 (pre-fix) could not tell them apart."
+        }
+      ],
+      "narrative": "A clean loop that found real, new ground rather than re-executing the carried-forward backlog on autopilot. Independent re-derivation (a helper sweep plus this loop's own direct verification of the call graph) surfaced F-018 - a genuine, reachable Serious reentrancy gap in HideGridPanelAsync/HideSearchPanelAsync that the carried-forward backlog (F-012, Cosmetic) did not name - and it correctly outranked F-012 on severity per the Backlog Prioritization Pass. The fix is the smallest honest one available: reuse the existing, already-tested LibraryOperationGuard class rather than hand-roll a third guard shape, inheriting its existing test proof for free and adding zero new architecture. Separately, concurrency credits loop 5's own F-017 fix on independently re-verified structural proof (locks confirmed present and holding, both new concurrent-writer tests re-read and re-confirmed passing). Runtime ownership for the traced library-operation guard remains trustworthy (all 7 call sites re-confirmed); the newly-found gap was narrow and contained, not systemic. Simplification did not hurt this loop: zero new Seams, zero new test debt, one doc-comment update for honesty. Future work still risks over-engineering if it renames LibraryOperationGuard to a fully generic type purely for naming purity before a fourth use site justifies the extra blast radius, or tries to unify StoreNameLookup's, SteamGridDbClient's, FixLog's and now LibraryOperationGuard's differently-shaped gates into one abstraction they don't share enough behavior to earn.",
+      "loop_result": {
+        "what_changed": "Wrapped HideGridPanelAsync's and HideSearchPanelAsync's bodies (SteamGridDB.Xbox/PrimaryWidget.xaml.cs) in a TryBegin()/finally-End() reentrancy guard, using two new private instance fields (gridPanelCloseGuard, searchPanelCloseGuard) that reuse the existing LibraryOperationGuard class rather than adding new hand-rolled bool flags. Updated LibraryOperationGuard.cs's doc comment (SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs) to describe it as a generic, reusable mutual-exclusion primitive now backing three separate concerns, rather than leaving its original library-operation-specific framing in place. No test files changed.",
+        "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1) both re-run before and after the change: before, 145 passed / 0 failed / 0 skipped; after, 145 passed / 0 failed / 0 skipped (unchanged - no new tests were added, since the fix reuses an already-fully-tested class rather than introducing new testable surface). git diff review confirms the only touch points are the two Hide*Async method bodies (wrapped in try/finally, existing logic byte-for-byte otherwise) and two new field declarations; no network call, UI side effect beyond the intended de-duplication, ordering, or count changed anywhere. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass, explicitly confirming the try/finally placement correctly releases the guard on every exit path including the early-return session-stale branches.",
+        "risk_boundary_evidence": null,
+        "targeted_finding_status": "resolved",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+          "SteamGridDB.Xbox/Services/Library/LibraryOperationGuard.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "The diff genuinely closes the concurrent double-teardown gap by gating both HideGridPanelAsync and HideSearchPanelAsync with a TryBegin/finally-End guard around the entire await-spanning body, reuses the already-tested LibraryOperationGuard rather than hand-rolling new bool flags, and the no-desktop-test-projection carve-out for PrimaryWidget.xaml.cs is genuine (no other UI-orchestration method in that file has a direct unit test), with no new same-or-higher-severity regression found in the changed hunks.",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {
+            "attempt": 1,
+            "outcome": "ok",
+            "error": null,
+            "duration_ms": 171568
+          }
+        ]
+      }
     }
   ]
 }

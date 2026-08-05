@@ -86,6 +86,18 @@ namespace SteamGridDB.Xbox
         // by the panel being shown again. Checked in PerformGameSearchAsync before any result-list write.
         private int searchPanelSessionId;
 
+        // Guards HideGridPanelAsync/HideSearchPanelAsync against running twice at once for the same
+        // session: each panel's own Close button and its own successful-download auto-close
+        // (DownloadAndReplaceImageAsync's call at the end of a successful download) both call the same
+        // Hide method, and nothing stops a user closing the panel by hand while their own click's
+        // download is still in flight from the auto-close arriving a moment later. The session field
+        // above already guards against a *different* session's stale close finishing late; it does
+        // nothing for two closes of the *same* session overlapping, which would run the slide-down
+        // animation and the visibility/selection teardown twice. Reuses LibraryOperationGuard's own
+        // TryBegin/End shape rather than a fourth hand-rolled bool flag - see its own doc comment.
+        private readonly LibraryOperationGuard gridPanelCloseGuard = new LibraryOperationGuard();
+        private readonly LibraryOperationGuard searchPanelCloseGuard = new LibraryOperationGuard();
+
         // Whitespace counts as missing, matching SteamGridDbClient's own validation - a key that fails
         // this test would otherwise sail past the guards and throw out of the client's constructor.
         private bool HasSteamGridDbApiKey => !string.IsNullOrWhiteSpace(steamGridDbApiKey);
@@ -1643,32 +1655,47 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task HideGridPanelAsync()
         {
-            // Claimed before the animation's own await, matching LoadGridSelectionAsync's and
-            // DownloadAndReplaceImageAsync's own session captures - see the check below.
-            int session = gridPanelSessionId;
-
-            // Slide down animation (reverse)
-            await SlidePanelAsync(GridPanelTransform, 0, 800, 200, EasingMode.EaseIn);
-
-            // A newer picker session has started while this close animation was in flight (the panel
-            // is only partially covering the screen during the slide, so the list underneath - and a
-            // different game's Edit button - is reachable before the panel fully collapses). That
-            // newer session's own Show/Populate calls already put its tiles on screen and its game in
-            // CurrentSelectedGame; this stale close finishing now would collapse that live panel,
-            // clear its tiles and null its selected game instead of just finishing what this call
-            // actually closed.
-            if (session != gridPanelSessionId)
+            // A second, overlapping close (the Close button firing while the download-success
+            // auto-close from a moment ago - or vice versa - is still mid-animation) is a no-op: the
+            // in-flight call owns finishing this close, and it checks the same session below.
+            if (!gridPanelCloseGuard.TryBegin())
             {
                 return;
             }
 
-            GridSelectionPanel.Visibility = Visibility.Collapsed;
-            GridImagesView.Items.Clear();
-            CurrentSelectedGame = null;
+            try
+            {
+                // Claimed before the animation's own await, matching LoadGridSelectionAsync's and
+                // DownloadAndReplaceImageAsync's own session captures - see the check below.
+                int session = gridPanelSessionId;
 
-            // Restore focus to the button that opened this panel
-            lastFocusedButton?.Focus(FocusState.Programmatic);
-            lastFocusedButton = null;
+                // Slide down animation (reverse)
+                await SlidePanelAsync(GridPanelTransform, 0, 800, 200, EasingMode.EaseIn);
+
+                // A newer picker session has started while this close animation was in flight (the panel
+                // is only partially covering the screen during the slide, so the list underneath - and a
+                // different game's Edit button - is reachable before the panel fully collapses). That
+                // newer session's own Show/Populate calls already put its tiles on screen and its game in
+                // CurrentSelectedGame; this stale close finishing now would collapse that live panel,
+                // clear its tiles and null its selected game instead of just finishing what this call
+                // actually closed.
+                if (session != gridPanelSessionId)
+                {
+                    return;
+                }
+
+                GridSelectionPanel.Visibility = Visibility.Collapsed;
+                GridImagesView.Items.Clear();
+                CurrentSelectedGame = null;
+
+                // Restore focus to the button that opened this panel
+                lastFocusedButton?.Focus(FocusState.Programmatic);
+                lastFocusedButton = null;
+            }
+            finally
+            {
+                gridPanelCloseGuard.End();
+            }
         }
 
         /// <summary>
@@ -1868,28 +1895,41 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task HideSearchPanelAsync(bool restoreFocus = true)
         {
-            // Same shape as HideGridPanelAsync's own capture, one screen upstream - see its comment.
-            int session = searchPanelSessionId;
-
-            // Slide down animation
-            await SlidePanelAsync(SearchPanelTransform, 0, 800, 200, EasingMode.EaseIn);
-
-            // A newer search session has started while this close animation was in flight - see
-            // HideGridPanelAsync's own comment for why finishing this stale close now would corrupt
-            // the live session's already-showing results instead of just finishing this one's close.
-            if (session != searchPanelSessionId)
+            // Same shape as HideGridPanelAsync's own guard, one screen upstream - see its comment.
+            if (!searchPanelCloseGuard.TryBegin())
             {
                 return;
             }
 
-            GameSearchPanel.Visibility = Visibility.Collapsed;
-            SearchResultsListView.Items.Clear();
-
-            // Restore focus to the button that opened this panel
-            if (restoreFocus && lastFocusedButton != null)
+            try
             {
-                lastFocusedButton.Focus(FocusState.Programmatic);
-                lastFocusedButton = null;
+                // Same shape as HideGridPanelAsync's own capture, one screen upstream - see its comment.
+                int session = searchPanelSessionId;
+
+                // Slide down animation
+                await SlidePanelAsync(SearchPanelTransform, 0, 800, 200, EasingMode.EaseIn);
+
+                // A newer search session has started while this close animation was in flight - see
+                // HideGridPanelAsync's own comment for why finishing this stale close now would corrupt
+                // the live session's already-showing results instead of just finishing this one's close.
+                if (session != searchPanelSessionId)
+                {
+                    return;
+                }
+
+                GameSearchPanel.Visibility = Visibility.Collapsed;
+                SearchResultsListView.Items.Clear();
+
+                // Restore focus to the button that opened this panel
+                if (restoreFocus && lastFocusedButton != null)
+                {
+                    lastFocusedButton.Focus(FocusState.Programmatic);
+                    lastFocusedButton = null;
+                }
+            }
+            finally
+            {
+                searchPanelCloseGuard.End();
             }
         }
 
