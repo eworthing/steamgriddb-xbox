@@ -1596,6 +1596,10 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task HideGridPanelAsync()
         {
+            // Claimed before the animation's own await, matching LoadGridSelectionAsync's and
+            // DownloadAndReplaceImageAsync's own session captures - see the check below.
+            int session = gridPanelSessionId;
+
             // Slide down animation (reverse)
             DoubleAnimation animation = new DoubleAnimation
             {
@@ -1613,6 +1617,18 @@ namespace SteamGridDB.Xbox
             storyboard.Begin();
 
             await Task.Delay(200);
+
+            // A newer picker session has started while this close animation was in flight (the panel
+            // is only partially covering the screen during the slide, so the list underneath - and a
+            // different game's Edit button - is reachable before the panel fully collapses). That
+            // newer session's own Show/Populate calls already put its tiles on screen and its game in
+            // CurrentSelectedGame; this stale close finishing now would collapse that live panel,
+            // clear its tiles and null its selected game instead of just finishing what this call
+            // actually closed.
+            if (session != gridPanelSessionId)
+            {
+                return;
+            }
 
             GridSelectionPanel.Visibility = Visibility.Collapsed;
             GridImagesView.Items.Clear();
@@ -1835,6 +1851,9 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task HideSearchPanelAsync(bool restoreFocus = true)
         {
+            // Same shape as HideGridPanelAsync's own capture, one screen upstream - see its comment.
+            int session = searchPanelSessionId;
+
             // Slide down animation
             DoubleAnimation animation = new DoubleAnimation
             {
@@ -1852,6 +1871,14 @@ namespace SteamGridDB.Xbox
             storyboard.Begin();
 
             await Task.Delay(200);
+
+            // A newer search session has started while this close animation was in flight - see
+            // HideGridPanelAsync's own comment for why finishing this stale close now would corrupt
+            // the live session's already-showing results instead of just finishing this one's close.
+            if (session != searchPanelSessionId)
+            {
+                return;
+            }
 
             GameSearchPanel.Visibility = Visibility.Collapsed;
             SearchResultsListView.Items.Clear();

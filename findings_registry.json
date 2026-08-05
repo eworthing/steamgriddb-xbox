@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 9,
+  "next_serial": 11,
   "entries": [
     {
       "stable_id": "F-001",
@@ -90,13 +90,25 @@
           "loop": 5,
           "loop_local_id": "F2",
           "status": "open",
-          "sha": "<pending>",
-          "note": "evidence line numbers corrected against current source this loop (this loop's own DownloadAndReplaceImageAsync guard clause shifted the file by +11 lines below the insertion point, which lands above all four animation bodies; embedded line numbers in what_is_wrong prose also refreshed to match, which is why claim_consequence_hash moves too - Remedy text unchanged verbatim from loops 2-4). Outranked again this loop by F-008 (Serious) on severity; this is the fourth consecutive loop this has happened.",
+          "sha": "b86b73983760e1706760627f2880a51d840bea72",
+          "note": "sha backfilled loop 6 (was <pending> at loop-5 commit time). evidence line numbers corrected against current source this loop (this loop's own DownloadAndReplaceImageAsync guard clause shifted the file by +11 lines below the insertion point, which lands above all four animation bodies; embedded line numbers in what_is_wrong prose also refreshed to match, which is why claim_consequence_hash moves too - Remedy text unchanged verbatim from loops 2-4). Outranked again this loop by F-008 (Serious) on severity; this is the fourth consecutive loop this has happened.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:ef91063738b959eddf3cad6825e2d92c26f9710fdeb39059a220a7be9b42df01",
             "evidence_paths_hash": "sha256:415c6548156f3143c16ce88cc1a55439b897c8c6d11aa1bb3d5479cc56272239"
           },
           "attempted_remedy_hash": "sha256:8a1908727f0ea2bf20017bf4ea445b260fe801430027c6cf29166fc664cf1a06"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "evidence line numbers corrected against current source this loop (this loop's own F-009 fix added 27 lines split across HideGridPanelAsync (+16) and HideSearchPanelAsync (+11), shifting ShowSearchPanelAsync/HideSearchPanelAsync below it; embedded line numbers in what_is_wrong prose also refreshed to match, which is why claim_consequence_hash moves too - Remedy text unchanged verbatim from loops 2-5). Outranked again this loop by F-009 (Serious) on severity; this is the fifth consecutive loop this has happened.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:c50f0479b1c57bcd6aa501860fa863067b7f6747de6a19d6dab5965753348256",
+            "evidence_paths_hash": "sha256:86989d92551e487ca8e87c962156114e5df15c6a5e5e8dde3bd1f75a5177a608"
+          },
+          "attempted_remedy_hash": "sha256:30417a0e14f114a4aee35327295cf023fb695c460c906b6b691ab7139674e7b3"
         }
       ]
     },
@@ -110,7 +122,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 5,
+      "last_seen_loop": 6,
       "occurrences": [
         {
           "loop": 1,
@@ -163,10 +175,22 @@
           "loop": 5,
           "loop_local_id": "F3",
           "status": "open",
-          "sha": "<pending>",
-          "note": "re-confirmed unchanged this loop; these three methods sit above this loop's own insertion point (line 1530), so line numbers did not shift. what_is_wrong prose gained one clarifying clause, which is why claim_consequence_hash moves despite evidence lines being identical - Remedy text unchanged verbatim from loops 2-4. Outranked again this loop by F-008 (Serious) on severity; this is the fourth consecutive loop this has happened.",
+          "sha": "b86b73983760e1706760627f2880a51d840bea72",
+          "note": "sha backfilled loop 6 (was <pending> at loop-5 commit time). re-confirmed unchanged this loop; these three methods sit above this loop's own insertion point (line 1530), so line numbers did not shift. what_is_wrong prose gained one clarifying clause, which is why claim_consequence_hash moves despite evidence lines being identical - Remedy text unchanged verbatim from loops 2-4. Outranked again this loop by F-008 (Serious) on severity; this is the fourth consecutive loop this has happened.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:c706eaa0ea51936c14a16594b7776a73688130f5ddb3225afb67b68940d7de5a",
+            "evidence_paths_hash": "sha256:aaaaca6cdec41e784d0c16b7a8829d80899d99711696df47eb778f51fde0d445"
+          },
+          "attempted_remedy_hash": "sha256:67296fc9af008c0b46eaf44cf2d68133d1de332cfe11fc33361be40c075a244a"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "re-confirmed unchanged this loop; these three methods sit above this loop's own F-009 insertion point (line 1597+), so line numbers did not shift. Outranked again this loop by F-009 (Serious) on severity; this is the fifth consecutive loop this has happened.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2de829980ac388f92627a08cc457c21b443c3e6a7f08db833c7907e6c0799a00",
             "evidence_paths_hash": "sha256:aaaaca6cdec41e784d0c16b7a8829d80899d99711696df47eb778f51fde0d445"
           },
           "attempted_remedy_hash": "sha256:67296fc9af008c0b46eaf44cf2d68133d1de332cfe11fc33361be40c075a244a"
@@ -183,7 +207,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 5,
+      "last_seen_loop": 6,
       "occurrences": [
         {
           "loop": 1,
@@ -235,13 +259,25 @@
           "loop": 5,
           "loop_local_id": "F4",
           "status": "open",
-          "sha": "<pending>",
-          "note": "re-derived loop 5 (TileImage.cs/TileImageTests.cs unaffected by this loop's edit; gap re-confirmed). what_is_wrong prose reworded slightly, which is why claim_consequence_hash moves despite evidence lines and Remedy text being identical to loop 4. Still the only test_strategy candidate; still Cosmetic/off-primary-flow; does not win Priority 1.",
+          "sha": "b86b73983760e1706760627f2880a51d840bea72",
+          "note": "sha backfilled loop 6 (was <pending> at loop-5 commit time). re-derived loop 5 (TileImage.cs/TileImageTests.cs unaffected by this loop's edit; gap re-confirmed). what_is_wrong prose reworded slightly, which is why claim_consequence_hash moves despite evidence lines and Remedy text being identical to loop 4. Still the only test_strategy candidate; still Cosmetic/off-primary-flow; does not win Priority 1.",
           "fingerprint": {
             "claim_consequence_hash": "sha256:90d50c3fff88f88969414b6ec53c81099b7d24105f9b1b6bdab0df2ebc52a6bc",
             "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
           },
           "attempted_remedy_hash": "sha256:3b0af26c79eda08ae1ff5d4234cc7411e99d388975caef1a1dc9f9eab254fd71"
+        },
+        {
+          "loop": 6,
+          "loop_local_id": "F5",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "re-derived loop 6 (TileImage.cs/TileImageTests.cs unaffected by this loop's edit; gap re-confirmed). Remedy text lost the trailing parenthetical ('< 64 transparent, < 2 corners passes') present in loops 1-5 - condensed, not a behavior change to the finding - which is why attempted_remedy_hash moves this loop unlike the prior four. Still the only test_strategy candidate; still Cosmetic/off-primary-flow; does not win Priority 1.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:578bef996c2b73931b19c91037f0c97c69f5808a269a13a2c1931e1cc5e6af4a",
+            "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
+          },
+          "attempted_remedy_hash": "sha256:e0275c984711e09a76ee9c1669d65a12393f85086e57ecc4eb64c4c599abf182"
         }
       ]
     },
@@ -339,12 +375,65 @@
           "loop": 5,
           "loop_local_id": "F1",
           "status": "resolved",
-          "sha": "<pending>",
+          "sha": "b86b73983760e1706760627f2880a51d840bea72",
+          "note": "sha backfilled loop 6 (was <pending> at loop-5 commit time); resolution independently re-verified fixed and holding as of loop 6's own investigation (fresh full-file read confirms the guard sits after DownloadAndReplaceImageCoreAsync's await and before every subsequent mutation).",
           "fingerprint": {
             "claim_consequence_hash": "sha256:df0a6d0e6c307b6c7139ae4666963a3dc0b8f5e95b45c4ffd3131fc4105ec68f",
             "evidence_paths_hash": "sha256:13d33dc97400729e265a6205a0cd87edf2e3aedbe50e42b9462837f9327690c3"
           },
           "attempted_remedy_hash": "sha256:32a7b798953502ea63c18c3c210379e1146d734cb82e4cf2861055374c50fa8f"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-009",
+      "title": "HideGridPanelAsync and HideSearchPanelAsync unconditionally mutated shared panel state after their own await, with no session recheck, reachable from ungated Close-button clicks",
+      "category_hint": "state-ownership/reentrancy",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [1597, 1891],
+      "test_failed": "n/a",
+      "severity": "Serious deduction",
+      "first_seen_loop": 6,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 6,
+      "occurrences": [
+        {
+          "loop": 6,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Two sub-instances (HideGridPanelAsync, HideSearchPanelAsync) fixed together in one finding/commit - same defect class, same mechanical guard idiom, discovered together by one helper sweep. Near-miss M2 fuzzy-match collision against F-006 considered and rejected as a false positive (line-proximity only; Title/Claim (M1) does not match, and the two findings describe different methods with independently-verified-holding fixes) - see loop 6's Scorecard humility check for the full reasoning; recorded here for the registry's own audit trail.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:37dfa81ea9298a2d70ecc4c80add9e352a30545e276bf1a92687fd9f1eeb1d24",
+            "evidence_paths_hash": "sha256:e942b1f7029c06c0ca9243314433f3eb8c5341829e80fe289036551d0ee7df9d"
+          },
+          "attempted_remedy_hash": "sha256:8343437d9aa8b7ca6afcabd38e3a0d4d5608c139955b9dc657e6af4b8a1b5e94"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-010",
+      "title": "StoreNameLookup's GOG and Epic name-fetch methods bypass the JsonRead helper that exists to prevent a documented JSON null-vs-missing bug",
+      "category_hint": "reuse/data-correctness",
+      "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+      "primary_evidence_lines": [67, 190],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 6,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 6,
+      "occurrences": [
+        {
+          "loop": 6,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Surfaced by an independent Services/Models helper sweep briefed cold on the codebase's history. Queued to Improvement Backlog priority 2, not implemented this loop (lower severity than F-009).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8cc865be438006c3686670229bc6abf854e4c91eb7286da9b55efc293672349f",
+            "evidence_paths_hash": "sha256:f6c55adbe3bb8f0ab5cf38bee8743c4bbba8fef3b992a639cbbb4e0a81e8ae65"
+          },
+          "attempted_remedy_hash": "sha256:205c2d2af9ca383dcf8450be9660d76a885ff6d9f56997c58f304b981ad6bee8"
         }
       ]
     }

@@ -2288,6 +2288,516 @@
           }
         ]
       }
+    },
+    {
+      "schema_version": 4,
+      "loop": 6,
+      "loop_cap": 10,
+      "state": "CONTINUE",
+      "halt_subtype": null,
+      "halt_handoff_text": null,
+      "halt_handoff": null,
+      "re_validated_at_sha": null,
+      "re_validation_context": null,
+      "dry_run": false,
+      "strictness": "standard",
+      "loop_metrics": null,
+      "run_id": null,
+      "source_rev": null,
+      "candidate_fingerprint": null,
+      "halt_success_challenge": null,
+      "provider": "claude_code",
+      "loop_model": "claude-sonnet-5",
+      "loop_model_source": "default",
+      "reviewer_model": "claude-sonnet-5",
+      "reviewer_model_source": "default",
+      "spawn_isolation": "subagent",
+      "premium_dry_run": null,
+      "premium_loop_override": false,
+      "findings_registry_path": "./findings_registry.json",
+      "discovery": null,
+      "verdict": "Functionally solid, but structurally compromised",
+      "verdict_explanation": "This loop ran an independent re-derivation from source (full re-read of PrimaryWidget.xaml.cs plus fresh reads of ArtworkDownloader.cs, ArtworkRanker.cs, SteamGridDbClient.cs, ArtworkFiles.cs, AppliedArtworkStore.cs, FixLog.cs, TileImage.cs, StoreNameLookup.cs, AsyncLazyCache.cs, JsonRead.cs, GameEntry.cs, GamePlatform.cs, GridImageItem.cs, TESTING.md), plus two fresh-eyes helper sweeps briefed on the codebase's history but not its prior conclusions - one explicitly tasked with re-testing whether the 'stale async completion mutates shared picker UI state' defect class (five prior instances: F-001, F-005, F-006, F-007, F-008) had a sixth instance, the other sweeping Services/ and Models/ cold. The first sweep found a sixth and seventh instance - HideGridPanelAsync and HideSearchPanelAsync - in the panel-close path rather than the already-fixed open/populate/download paths, reachable from the ungated CloseGridPanel_Click/CloseSearchPanel_Click buttons. This loop closes that gap (both methods, one finding, one fix) and independently re-confirmed all five prior fixes still hold. The second sweep found a genuine, if minor, new finding: two of StoreNameLookup's three network-backed name lookups bypass the JsonRead helper that exists specifically to prevent the JSON null-vs-missing bug class documented in this same codebase's history.",
+      "scorecard": {
+        "architecture_quality": {
+          "score": 7.5,
+          "delta": "SAME",
+          "proof": "PrimaryWidget.xaml.cs is now 2058 lines (2031 pre-fix; +27 from this loop's own two guard clauses), still carrying Findings F-002/F-003's duplicated ceremony. Considered moving this DOWN again, mirroring loop 5's move for the same reasoning (the session-check idiom is now duplicated across 7 sites, not 5) - held the line at SAME instead: loop 5's own Scorecard humility check already flagged the DOWN move as an arguable double-count against state_management/concurrency, where the actual runtime hazard lives; a second confirmatory instance of the same already-acknowledged pattern is priced into those two dimensions below rather than compounded here a second time.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "state_management": {
+          "score": 6.0,
+          "delta": "DOWN",
+          "proof": "F-001/F-005/F-006/F-007/F-008's own fixes independently re-verified this loop as still holding (re-read PrimaryWidget.xaml.cs in full; unchanged). But an independently-briefed helper sweep - tasked specifically with re-testing whether a sixth instance existed - found two more: HideGridPanelAsync (pre-fix PrimaryWidget.xaml.cs:1597-1624) and HideSearchPanelAsync (pre-fix :1836-1865) both mutated shared panel state after their own await Task.Delay(...) with no session recheck, reachable from the ungated CloseGridPanel_Click/CloseSearchPanel_Click handlers. Moved DOWN, mirroring loop 5's own precedent: a sixth/seventh confirmed instance found via a sweep explicitly designed to falsify the 'no more instances' assumption is evidence the guard convention still is not self-auditing, three loops running (4->5->6). Fixed this loop; see Loop 6 Result.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "domain_modeling": {
+          "score": 8.5,
+          "delta": "SAME",
+          "proof": "GameEntry.cs and GamePlatform.cs re-read in full this loop (directly, and independently by a helper); GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch three-independently-settable-properties case (sole construction site PrimaryWidget.xaml.cs:650-664, unaffected by this loop's edits) remains the only known concern, still no live harm. Stalled-Dimension Sweep (loop 6, 5th consecutive SAME): explicit clean - re-read GameEntry.cs in full and independently via helper; only known concern unchanged, not promotable.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "data_flow": {
+          "score": 7.0,
+          "delta": "DOWN",
+          "proof": "Services/* re-confirmed zero Windows.UI.Xaml imports. New finding this loop (F-010): StoreNameLookup.GetGogGameNameAsync (StoreNameLookup.cs:67-74) and GetEpicGameNameAsync (:188-190) use raw Windows.Data.Json ContainsKey/GetNamedObject/GetNamedString calls instead of the JsonRead helper (Services/JsonRead.cs) that exists specifically to prevent a documented bug class (GetNamedString/GetNamedObject throw InvalidOperationException on a present-but-JSON-null member; ContainsKey alone cannot distinguish that from missing) - the exact defect PrimaryWidget.xaml.cs:470-478's own comment cites as having shipped once already. SteamGridDbClient.cs:155-181 and EpicLibrary.cs both correctly route through JsonRead; two of StoreNameLookup's three name-fetch methods do not. Moved DOWN from SAME: a fresh, source-backed inconsistency independently surfaced this loop by a helper sweep cold on the codebase's history.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "framework_idioms": {
+          "score": 8.0,
+          "delta": "SAME",
+          "proof": "SteamGridDbClient.cs:273-301's BuildUrl helper (consolidating CODE-REVIEW.md's documented six-times-duplicated URL builder) re-verified fixed and holding. SteamGridDbClient.cs:136-142's DataContractJsonSerializer/Windows.Data.Json split unchanged. Deduction unchanged: Finding F-002's four-times duplicated DoubleAnimation/Storyboard ceremony, still open. Stalled-Dimension Sweep (loop 6, 5th consecutive SAME): F-002 remains the named candidate; outranked again this loop by F-009's higher severity - fifth loop running.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "concurrency": {
+          "score": 5.5,
+          "delta": "DOWN",
+          "proof": "Same evidence as state_management. F-009 (Serious deduction, same tier as F-001/F-005/F-006/F-007/F-008) is this loop's sixth-and-seventh discovery of the identical async-population-without-a-recheck shape, this time in the teardown path rather than the populate path. Moved DOWN: two new scattered-guard sites found via a targeted re-test sweep, on top of the five already known, means verifying completeness now requires reading eight call sites across the file - matching the anchor's 5-6 range language ('async flows work by convention... reentrancy behavior requires reading scattered code') more closely than the 7-anchor. Fixed this loop, verified by build + full test suite + independent implementation review (verdict approved).",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "simplicity": {
+          "score": 7.0,
+          "delta": "SAME",
+          "proof": "PrimaryWidget.xaml.cs:742-858 (F-003) and the four animation bodies (F-002, now at :1571-1592/:1597-1640/:1779-1847/:1852-1891, evidence lines refreshed for this loop's +27-line insertion) remain open, unchanged in substance. Stalled-Dimension Sweep (loop 6, 5th consecutive SAME): a helper sub-agent swept Services/Artwork, Services/Library, Services/SteamGridDB, Services/Stores, Services/AsyncLazyCache.cs, Services/JsonRead.cs and Models/ this loop across Reuse/Simplification/Altitude/Efficiency angles; nothing beyond the already-tracked F-002/F-003 and the new F-010 (priced under data_flow, not double-counted here) - every other file reported an explicit clean.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "test_strategy": {
+          "score": 6.5,
+          "delta": "SAME",
+          "proof": "PrimaryWidget.xaml.cs remains untestable outside an app container - re-confirmed via both .csproj target frameworks (UAP vs net8.0-windows10.0.19041.0 desktop projection), matching TESTING.md:49-56's own documented reasoning, re-read in full this loop and still accurate. This loop's own investigation found a sixth/seventh independent concurrency/state-ownership defect (F-009) on that exact untestable surface. Stalled-Dimension Sweep (loop 6, 5th consecutive SAME, lowest-scored dimension on the board): TileImageTests.cs re-checked (Finding F-004, still no boundary case, TileImage.cs:250/:263 re-read unchanged) - Cosmetic severity, off-primary-flow, does not win Priority 1: the dimension's ceiling is set by PrimaryWidget.xaml.cs's structural untestability, not by what TileImage.cs's test file contains.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        },
+        "credibility": {
+          "score": 8.0,
+          "delta": "UP",
+          "proof": "gridPanelSessionId/searchPanelSessionId field comments continue the codebase's documented-rationale discipline; this loop's own HideGridPanelAsync/HideSearchPanelAsync fix follows the identical idiom and comment style as the five prior fixes. Moved UP: sixth consecutive loop in which every one of a growing set of prior fixes (now 7 guarded call sites across 6 loops) independently re-verified as still holding under fresh inspection, and the methodology that keeps finding the remaining gaps - an independently-briefed helper explicitly tasked with falsifying the prior loop's 'no further instance' assumption - is now validated a second time in a row (loop 5 found F-008 this way; loop 6 found F-009 the same way). Structural proof: this loop's own commit (F-009's fix, PrimaryWidget.xaml.cs), independently reviewed and returning approved with all three checks passed - a structural change loop 5 did not have.",
+          "residual_blocking_10": null,
+          "residual_disposition": null,
+          "residual_rationale_or_backlog_ref": null,
+          "unverifiable_due_to_build_failure": false
+        }
+      },
+      "authority_map": [
+        {
+          "concern": "Selected game for the artwork picker (CurrentSelectedGame) - write path",
+          "owner": "PrimaryWidget",
+          "allowed_writers": [
+            "EditGameImage_Click",
+            "SearchGameImage_Click",
+            "HideGridPanelAsync (nulls on close, now session-guarded)"
+          ],
+          "readers": [
+            "LoadGridSelectionPanelAsync",
+            "PopulateGridSelectionPanelAsync",
+            "GridImage_Click",
+            "DownloadAndReplaceImageAsync (reads once, by value, before its own await)",
+            "ShowSearchPanelAsync"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "EditGameImage_Click",
+            "SearchGameImage_Click",
+            "HideGridPanelAsync (previously reachable via a stale close animation with no guard; fixed this loop)"
+          ],
+          "verdict": "Single and clear"
+        },
+        {
+          "concern": "Grid picker panel display contents (GridImagesView.Items / GridPanelStatus / GridLoadingRing / panel visibility during population and close)",
+          "owner": "PrimaryWidget (LoadGridSelectionAsync / PopulateGridSelectionPanelAsync / DownloadAndReplaceImageAsync / HideGridPanelAsync)",
+          "allowed_writers": [
+            "LoadGridSelectionAsync (Clear, status text, loading ring)",
+            "PopulateGridSelectionPanelAsync (Add - guarded since loop 4/F-007)",
+            "DownloadAndReplaceImageAsync (status text, triggers HideGridPanelAsync - guarded since loop 5/F-008)",
+            "HideGridPanelAsync (Visibility/Items/CurrentSelectedGame - guarded since this loop/F-009)"
+          ],
+          "readers": [
+            "user (visually)",
+            "GridImage_Click (via SessionId comparison)"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "LoadGridSelectionAsync",
+            "DownloadAndReplaceImageAsync",
+            "HideGridPanelAsync (one invocation per Edit/Search-result click, per tile click, per Close click)"
+          ],
+          "verdict": "Split and ambiguous (pre-fix) - see Finding F-009. CloseGridPanel_Click calls HideGridPanelAsync with no session check of its own; the panel is only partially covering the screen during its own 200ms close animation, so a new Edit click on a different game can start before the stale close finishes. This loop's fix captures the session before the animation starts and rechecks it after. Re-audit next loop once the fix has a full loop's scrutiny."
+        },
+        {
+          "concern": "Search results panel display contents (SearchResultsListView.Items / SearchPanelStatus / SearchLoadingRing during a name search, and its own close path)",
+          "owner": "PrimaryWidget (PerformGameSearchAsync / ShowSearchPanelAsync / HideSearchPanelAsync)",
+          "allowed_writers": [
+            "PerformGameSearchAsync (Clear, Add, status text, loading ring - guarded since loop 3/F-006)",
+            "ShowSearchPanelAsync (Clear, header/box text)",
+            "HideSearchPanelAsync (Visibility/Items - guarded since this loop/F-009)"
+          ],
+          "readers": [
+            "user (visually)",
+            "SearchResult_Click"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "PerformGameSearchAsync",
+            "ShowSearchPanelAsync",
+            "HideSearchPanelAsync"
+          ],
+          "verdict": "Split and ambiguous (pre-fix) - the search panel's own close path (CloseSearchPanel_Click -> HideSearchPanelAsync) had the identical unguarded shape as the grid panel's; fixed this loop alongside it (same finding, same commit). SearchResult_Click's call to HideSearchPanelAsync(false) is unaffected: nothing bumps searchPanelSessionId during that specific transition, so the new guard passes through as before."
+        },
+        {
+          "concern": "Bulk library operation exclusivity (isLibraryOperationRunning)",
+          "owner": "PrimaryWidget",
+          "allowed_writers": [
+            "TryBeginLibraryOperation",
+            "EndLibraryOperation"
+          ],
+          "readers": [
+            "IsLibraryOperationBlocking",
+            "TryBeginLibraryOperation"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "PrimaryWidget_Loaded",
+            "RefreshButton_Click",
+            "FixLibraryButton_Click",
+            "RestoreChangesButton_Click",
+            "RevertDefaultsButton_Click"
+          ],
+          "verdict": "Single and clear - unchanged since loop 4; not re-walked line-by-line this loop (no evidence suggests drift, and this loop's fix is unrelated to this gate), carried forward as background context."
+        },
+        {
+          "concern": "Applied-artwork record (AppliedArtworkStore's path->artworkId map)",
+          "owner": "AppliedArtworkStore (static Module)",
+          "allowed_writers": [
+            "SetAsync",
+            "ClearAsync (via UpdateAsync, gated by SemaphoreSlim gate)"
+          ],
+          "readers": [
+            "GetAsync (same gate)"
+          ],
+          "persistence_seam": "applied-artwork.json in the widget's local data (RecordFolder)",
+          "async_mutation_entry_points": [
+            "ReplaceImageCoreAsync",
+            "RestoreBackupCoreAsync"
+          ],
+          "verdict": "Single and clear - re-read in full this loop; GetAsync/UpdateAsync both take the same gate before touching the shared Dictionary instance, confirmed unchanged."
+        },
+        {
+          "concern": "Store-name / capsule-parse / fix-log ambient state (StoreNameLookup's three dictionaries, SteamGridDbClient.CapsuleParseNotes, FixLog's fields)",
+          "owner": "StoreNameLookup / SteamGridDbClient / FixLog (static Modules)",
+          "allowed_writers": [
+            "GetOrFetchGogNameAsync",
+            "GetOrFetchEpicNameAsync",
+            "FindGameByNameAsync (unlocked dictionaries)",
+            "NoteCapsuleParse (unlocked list)",
+            "FixLog.Start/Write (unlocked list+fields)"
+          ],
+          "readers": [
+            "same methods",
+            "FixLibraryAsync (reads CapsuleParseNotes)"
+          ],
+          "persistence_seam": null,
+          "async_mutation_entry_points": [
+            "LoadGameEntriesAsync's per-entry loop",
+            "FixLibraryAsync"
+          ],
+          "verdict": "Single and clear - independently re-traced this loop by helper: writer and reader both reachable only through the shared isLibraryOperationRunning gate, so they can never run concurrently. (See also Finding F-010 for a data-correctness, not thread-safety, concern on two of this Module's own methods.)"
+        }
+      ],
+      "strengths": [
+        "ArtworkDownloader.cs's DownloadBestTileFillingImageAsync / FindOfficialLookalikeAsync / PassesColourAndLayoutGate / ChosenAlreadyMatchesOfficialArt split (ArtworkDownloader.cs:71-220, re-read in full this loop) remains a genuinely deep Module: the five-step selection-and-veto pipeline is documented with the specific graded incident (officialArtworkFloor's doc comment cites 'Mad Max at 0.51') that calibrated each threshold, the two gate predicates are extracted as pure, independently-testable functions.",
+        "ArtworkRanker.RankGrids (ArtworkRanker.cs:189-205, re-read this loop) computes each grid's ranking signals exactly once via the private RankedGrid wrapper (:151-182) rather than recomputing GridMetadata's regex passes per sort-key access, and the doc comments name specific rejected alternatives with their graded results (e.g. 'moved 26 picks and graded 2 better against 7 worse') - genuine engineering discipline, not decoration.",
+        "This loop's own verification methodology held up under a second consecutive test: an independently-briefed helper explicitly tasked with re-testing 'is there a sixth instance' found the gap a same-loop full-file read initially missed, exactly as loop 5's equivalent methodology found F-008. Two consecutive loops now validate that a targeted, adversarially-framed sweep catches what a confident, generically-framed one does not."
+      ],
+      "findings": [
+        {
+          "loop_local_id": "F1",
+          "stable_id": "F-009",
+          "id": "F1",
+          "title": "HideGridPanelAsync and HideSearchPanelAsync unconditionally mutated shared panel state after their own await, with no session recheck, reachable from ungated Close-button clicks",
+          "why_it_matters": "A user who clicks the picker's Close (X) button starts a ~200ms slide-down animation. During that animation the full-screen panel only partially covers the screen, so the game list underneath - and a different game's Edit/Search button - can become reachable before the panel fully collapses. If a new picker/search session starts during that window, the stale close call finishing afterward would collapse the new, live session's panel, clear its tiles/results, and (for the grid panel) null its selected game - not just finish closing the panel the user actually clicked to close.",
+          "what_is_wrong": "HideGridPanelAsync (pre-fix PrimaryWidget.xaml.cs:1597-1624) had no session capture or check: after await Task.Delay(200) it unconditionally ran GridSelectionPanel.Visibility = Visibility.Collapsed; GridImagesView.Items.Clear(); CurrentSelectedGame = null; plus focus restoration. HideSearchPanelAsync (pre-fix :1836-1865) had the identical shape: after its own await Task.Delay(200) it unconditionally collapsed GameSearchPanel and cleared SearchResultsListView.Items. Both are reached from CloseGridPanel_Click/CloseSearchPanel_Click, neither of which check anything before calling in. This is the same 'stale async completion mutates shared picker UI state' hazard class as Findings F-001, F-005, F-006, F-007 and F-008, this time in the panel-close/teardown path rather than the open/populate/download paths those five fixes already cover.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1597-1624 (pre-fix, HideGridPanelAsync, no session recheck after its own await)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1629-1632 (pre-fix, CloseGridPanel_Click calls in with no guard of its own)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1836-1865 (pre-fix, HideSearchPanelAsync, same shape)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1870-1873 (pre-fix, CloseSearchPanel_Click calls in with no guard of its own)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None - correctness fix inside each method's own body; CloseGridPanel_Click/CloseSearchPanel_Click's call sites are unchanged.",
+          "locality_impact": "Fix stays entirely inside HideGridPanelAsync and HideSearchPanelAsync (one guard clause each, reusing the existing gridPanelSessionId/searchPanelSessionId fields); no other Module's behavior changes, and no network call is added, removed, or reordered.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A sixth and seventh instance of the identical 'stale authority remains alive' hazard class, found via a sweep explicitly tasked with falsifying loop 5's own 'fifth instance was the last one' implicit confidence, in the one path (panel teardown) none of the five prior fixes touched. Confirms the guard convention is not self-auditing across a third consecutive loop (4->5->6). Severity mirrors F-005/F-006/F-007/F-008: no network call or artwork-write-target is affected - only the panel's own in-memory display, item list, and (for the grid panel) selected-game field can be corrupted for an unrelated live session.",
+          "severity": "Serious deduction",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Add the same guard idiom used at the five prior sites to both methods: capture int session = gridPanelSessionId; (or searchPanelSessionId) before the animation starts, and after await Task.Delay(...) add if (session != gridPanelSessionId) { return; } (or the search equivalent) before any mutation. Reuses the existing fields - no new field, no new type.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Models/**",
+              "SteamGridDB.Xbox/Services/**",
+              "SteamGridDB.Xbox/PrimaryWidget.xaml"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F2",
+          "stable_id": "F-002",
+          "id": "F2",
+          "title": "Grid and search panel slide animations duplicate the same Storyboard ceremony four times",
+          "why_it_matters": "A future change to the panel's slide timing or easing (or a bug in it) has to be made and verified in four places instead of one, and the four copies have already begun to drift (200ms hide vs 250ms show, independently re-derived each time).",
+          "what_is_wrong": "ShowGridPanelAsync, HideGridPanelAsync, ShowSearchPanelAsync and HideSearchPanelAsync (current lines 1571-1592, 1597-1640, 1779-1847, 1852-1891 - shifted by this loop's own +27-line F-009 fix, which lands inside HideGridPanelAsync and HideSearchPanelAsync) each still hand-build a DoubleAnimation + Storyboard against a TranslateTransform, set From/To/Duration/EasingFunction, call storyboard.Begin(), then await Task.Delay matching the duration. This loop's own F-009 fix added a session guard around the mutation after each Hide method's animation, but did not touch the duplicated animation-construction ceremony itself.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1571-1592 (ShowGridPanelAsync)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1597-1640 (HideGridPanelAsync)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1779-1847 (ShowSearchPanelAsync)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1852-1891 (HideSearchPanelAsync)"
+          ],
+          "test_failed": "Shallow module",
+          "dependency_category": null,
+          "leverage_impact": "One call site to read/change instead of four; callers learn less, not more.",
+          "locality_impact": "Fully contained inside PrimaryWidget.xaml.cs; no other file's behavior changes.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Four near-identical bodies in the single largest, most-churned file in the codebase (PrimaryWidget.xaml.cs, 2058 LOC) is exactly the leaf-module duplication the Simplicity dimension's 9-anchor requires be swept for; it currently is not swept away. Five loops queued without action, correctly outranked each time by a higher-severity finding.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Extract a private SlidePanelAsync(TranslateTransform transform, double from, double to, int durationMs, EasingMode mode) helper that builds the DoubleAnimation/Storyboard once and awaits Task.Delay(durationMs); each of the four call sites becomes a one-line call. No new Seam, no new file - the four bodies collapse into the one Module (PrimaryWidget) that already owns them.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml (markup unchanged)",
+              "SteamGridDB.Xbox/Services/**"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F3",
+          "stable_id": "F-010",
+          "id": "F3",
+          "title": "StoreNameLookup's GOG and Epic name-fetch methods bypass the JsonRead helper that exists to prevent a documented JSON null-vs-missing bug",
+          "why_it_matters": "The codebase already shipped a bug once (documented in PrimaryWidget.xaml.cs:470-478 and JsonRead.cs:13-16) where a JSON member that was present-but-null was mishandled by raw Windows.Data.Json calls; JsonRead.cs exists specifically to make that class of bug impossible. Two of StoreNameLookup's three network-backed name-lookup methods still use the pattern that caused it.",
+          "what_is_wrong": "GetGogGameNameAsync (StoreNameLookup.cs:67-74) reads gameData.ContainsKey(\"_embedded\") && gameData.GetNamedObject(\"_embedded\").ContainsKey(\"product\"), then gameData.GetNamedObject(\"_embedded\").GetNamedObject(\"product\") (calling GetNamedObject(\"_embedded\") twice), then product.GetNamedString(\"title\") - all raw Windows.Data.Json calls. GetEpicGameNameAsync (:188-190) does the same for gameData.GetNamedString(\"title\"). GetNamedObject/GetNamedString throw InvalidOperationException when the member is present but JSON null, which ContainsKey cannot distinguish from a normal value - the exact ambiguity JsonRead.Object/JsonRead.String were written to resolve, and which SteamGridDbClient.cs:155-181 and EpicLibrary.cs both correctly use instead. The outer broad catch (Exception ex) in both methods means a null-title response would not crash - it would silently degrade to 'name not found' - so there is no live crash risk today; the harm is a maintained inconsistency next to the exact helper built to remove it.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:67-74 (GetGogGameNameAsync, raw ContainsKey/GetNamedObject/GetNamedString)",
+            "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:188-190 (GetEpicGameNameAsync, same pattern)",
+            "SteamGridDB.Xbox/Services/JsonRead.cs:1-17 (the helper and its own docstring naming the bug class)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:470-478 (the manifest-parsing comment citing the same bug class having shipped once already)",
+            "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs:155-181 (the established correct pattern, JsonRead.Object/JsonRead.String)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None directly - JsonRead already exists and is already used by two other call sites; this brings the remaining two into line rather than adding anything.",
+          "locality_impact": "Contained to StoreNameLookup.cs's two methods; no other file's behavior changes; JsonRead.cs itself is untouched.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Credibility/consistency deduction, not a live defect: the established, documented, purpose-built helper for this exact class of JSON-parsing bug exists in the same file's own dependency graph and is used by two of the three sibling call sites plus SteamGridDbClient.cs and EpicLibrary.cs, yet two methods opt out with no stated reason.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Replace the raw ContainsKey/GetNamedObject/GetNamedString chains in both methods with JsonRead.Object(gameData, \"_embedded\") -> JsonRead.Object(embedded, \"product\") -> JsonRead.String(product, \"title\") (GOG) and JsonRead.String(gameData, \"title\") (Epic), matching SteamGridDbClient.cs's established pattern. Behavior-preserving: for every currently-well-formed response the observable result is identical; for a hypothetical null-valued 'title', both the old (exception caught by the outer catch) and new (JsonRead returns null directly) paths converge on the same observable null return to the caller - no network call, call count, ordering, payload, or error-handling behavior visible to any caller changes.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/JsonRead.cs",
+              "SteamGridDB.Xbox/Services/SteamGridDB/**",
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F4",
+          "stable_id": "F-003",
+          "id": "F4",
+          "title": "Fix/Restore/Revert confirmation dialogs duplicate the same ContentDialog construction and guard-and-run ceremony three times",
+          "why_it_matters": "Each of the three destructive-operation confirmations has to be kept in sync by hand - the same style-resource assignment, the same XamlRoot API-contract check, the same TryBeginLibraryOperation/EndLibraryOperation guard wiring - and nothing enforces that a future fourth operation (or an edit to one of the three) follows the same shape.",
+          "what_is_wrong": "FixLibraryButton_Click, RestoreChangesButton_Click and RevertDefaultsButton_Click (current lines 742-786, 788-822, 824-858 - unaffected by this loop's edits, which land far below at line 1597+) each build a ContentDialog with the same four style-resource lookups and the same Windows.Foundation.Metadata.ApiInformation.IsApiContractPresent XamlRoot check, call ShowAsync, branch on the result, and wrap the actual operation in the same TryBeginLibraryOperation/try/finally/EndLibraryOperation pattern.",
+          "evidence": [
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:742-786 (FixLibraryButton_Click)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:788-822 (RestoreChangesButton_Click)",
+            "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:824-858 (RevertDefaultsButton_Click)"
+          ],
+          "test_failed": "Shallow module",
+          "dependency_category": null,
+          "leverage_impact": "Three call sites drop to naming their own title/content/action instead of re-deriving the whole confirm-guard-run shape.",
+          "locality_impact": "Fully contained inside PrimaryWidget.xaml.cs.",
+          "metric_signal": "none",
+          "why_weakens_submission": "Same leaf-module-duplication concern as Finding F-002, in the same file; combined the two clusters account for roughly 225 of PrimaryWidget.xaml.cs's 2058 lines being ceremony repeated 3-4x rather than owned once. Five loops queued without action, correctly outranked each time by a higher-severity finding.",
+          "severity": "Noticeable weakness",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Extract a private ConfirmAndRunAsync(string title, string content, string primaryText, string secondaryText, Func<ContentDialogResult, bool> shouldRun, Func<Task> action) (or the smallest signature that covers the 2-button and 3-button cases) that owns dialog construction, the XamlRoot check, and the TryBeginLibraryOperation/EndLibraryOperation wrapping; each handler becomes a short call naming its own title/content/action.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/PrimaryWidget.xaml",
+              "SteamGridDB.Xbox/Services/**"
+            ]
+          }
+        },
+        {
+          "loop_local_id": "F5",
+          "stable_id": "F-004",
+          "id": "F5",
+          "title": "TileImage.FillsTileAsync's alpha and corner-count thresholds are untested at their exact boundary values",
+          "why_it_matters": "A boundary-flip mutation at either threshold (< to <=) would ship silently: the corner-transparency gate that keeps case-mockup art off tiles would become off-by-one permissive or strict with no test failing.",
+          "what_is_wrong": "FillsTileAsync (TileImage.cs:231-265) treats a pixel transparent when alpha < 64 (line 250) and rejects the image when 2 or more of its 4 corners are transparent (transparentCorners < 2, line 263). TileImageTests exercises fully-opaque and fully-transparent corners but not alpha exactly at 64 or a candidate with exactly 2 transparent corners. Re-read this loop (TileImage.cs/TileImageTests.cs unaffected by this loop's edits); gap re-confirmed unchanged.",
+          "evidence": [
+            "SteamGridDB.Xbox/Services/Artwork/TileImage.cs:250 (alpha < 64 threshold)",
+            "SteamGridDB.Xbox/Services/Artwork/TileImage.cs:263 (transparentCorners < 2 threshold)"
+          ],
+          "test_failed": "n/a",
+          "dependency_category": null,
+          "leverage_impact": "None - test-only addition.",
+          "locality_impact": "Contained to the test file.",
+          "metric_signal": "none",
+          "why_weakens_submission": "A minor, off-primary-flow gap (per the Test strategy dimension's own anchor language, an off-path helper boundary is Cosmetic on its own) but worth naming before it is mistaken for full coverage.",
+          "severity": "Cosmetic for contest",
+          "adr_conflicts": [],
+          "adr_reopen_justification": null,
+          "minimal_correction_path": "Add two TileImageTests cases: a corner at exactly alpha 63/64, and an image with exactly 2 (not 0, not 4) transparent corners, asserting the documented boundary.",
+          "blast_radius": {
+            "change": [
+              "SteamGridDB.Xbox.Tests/TileImageTests.cs"
+            ],
+            "avoid": [
+              "SteamGridDB.Xbox/Services/Artwork/TileImage.cs (test-only addition, no production change)"
+            ]
+          }
+        }
+      ],
+      "simplification_check": {
+        "structurally_necessary": "Finding F-009's session-liveness guards close a real, evidenced display-corruption path (an unrelated live session's panel closed, tiles/results cleared, and for the grid panel its selected game nulled) caused by a stale HideGridPanelAsync/HideSearchPanelAsync completion (no architectural test in the deletion/seam sense applies - this is a state-ownership fix, matching Findings F-001/F-005/F-006/F-007/F-008's own categorization).",
+        "new_seam_justified": false,
+        "new_seam_adapters": [],
+        "helpful_simplification": "none this loop (Findings F-002/F-003 remain queued, not implemented, fifth loop running for F-002)",
+        "should_not_be_done": "Do not build a shared session-guard type or population/close-orchestration wrapper. Considered and rejected again this loop, now with a sixth and seventh data point: fails SPT Q1 (fixes real ambiguity) because the failure mode across all seven instances was never 'the check is hard to write' - including, this loop, the teardown path rather than a populate path - and a wrapper type does not change whether a future async method remembers to call it. Also fails Q3 (duplicate layer) on the same textual-cost grounds established since loop 4. A bigger alternative was also considered this loop given the pattern's now-seven-instance recurrence: centralizing panel open/populate/close behind a single owning orchestration method. Rejected: this would be a materially larger, riskier rewrite of PrimaryWidget.xaml.cs's UI orchestration on a file that cannot be unit-tested, for a defect class where every fixed instance has held across every subsequent loop's re-verification - the marginal risk of a large untested rewrite outweighs the marginal benefit over the existing, proven, minimal per-site guard idiom. Also re-confirmed this loop: do not add a per-row reentrancy guard to RestoreBackup_Click/RestoreBackupCoreAsync - independently re-traced via helper: ArtworkFiles.RestoreOriginalAsync's backup-first, rename-with-ReplaceExisting ordering means a concurrent second call on the same row either succeeds harmlessly or throws (caught by the outer catch, reported as a user-facing error) - no data loss, no corruption, materially smaller blast radius than F-001/F-005/F-006/F-007/F-008/F-009's shape.",
+        "tests_after_fix": "None added or deleted - PrimaryWidget.xaml.cs is outside the test-linked Services/** surface and cannot be unit-tested in the current infra, matching Findings F-001/F-005/F-006/F-007/F-008's fixes. Verification is: full build (exit 0) + full test suite (138/138 unchanged) both re-run after the change, an independent fresh-eyes implementation review (separate subagent, read-only, verdict approved, all three checks passed), plus a manual trace confirming both guards sit after each method's only await that matters and before every subsequent mutation. This is the reasoning_only evidence path (Meta-Rule 4) for the local-UI-ownership invariant; the no-network-call-touched half is directly inspectable (neither guard touches, reorders, or wraps any network/file-write call)."
+      },
+      "backlog": [
+        {
+          "priority": 1,
+          "title": "Collapse the four-times-duplicated panel slide animation (Finding F-002)",
+          "kind": "simplification",
+          "rank": "helpful",
+          "why_it_matters": "Removes ~120 lines of repeated ceremony from the largest, most-churned file; the two Show/Hide pairs have already drifted (200ms vs 250ms) once, showing the duplication is actively costing consistency, and it has now been queued unfixed for five full loops.",
+          "score_impact": "simplicity +0.5; framework_idioms +0.5"
+        },
+        {
+          "priority": 2,
+          "title": "Route StoreNameLookup's GOG and Epic name-fetch methods through the existing JsonRead helper (Finding F-010)",
+          "kind": "simplification",
+          "rank": "helpful",
+          "why_it_matters": "Removes a documented-bug-class inconsistency next to the exact helper built to prevent it; small, mechanical, behavior-preserving per the five properties named in the finding.",
+          "score_impact": "data_flow +0.5"
+        },
+        {
+          "priority": 3,
+          "title": "Collapse the three-times-duplicated confirmation-dialog ceremony (Finding F-003)",
+          "kind": "simplification",
+          "rank": "helpful",
+          "why_it_matters": "Removes ~105 more lines of repeated ceremony from the same file; combined with F-002 this is the largest remaining simplicity gap in the codebase, also queued unfixed for five full loops.",
+          "score_impact": "simplicity +0.5"
+        }
+      ],
+      "unresolved_reason": null,
+      "deepening_candidates": [
+        {
+          "candidate_module": "PrimaryWidget's panel slide-animation ceremony (the four bodies in Finding F-002)",
+          "source_friction_proven": "Finding F-002 - four near-identical DoubleAnimation/Storyboard bodies, one already-observed drift (200ms vs 250ms) between the pairs, re-confirmed unchanged this loop (line numbers refreshed for this loop's own +27-line insertion)",
+          "why_shallow_or_misplaced": "There is no Interface at all - each Show/Hide method inlines its own animation construction; Interface approximately equals Implementation four times over (Shallow module test)",
+          "behavior_to_move_behind_interface": "The DoubleAnimation + Storyboard construction, Begin(), and matching Task.Delay, parameterized by transform/from/to/duration/easing",
+          "dependency_category": "in-process",
+          "test_surface_after_change": "None - PrimaryWidget.xaml.cs is UWP-page-bound and untestable in the current infra either before or after this extraction; verified by build + manual trace, same as Findings F-001, F-005, F-006, F-007, F-008 and F-009's fixes",
+          "smallest_first_step": "Extract private static async Task SlidePanelAsync(TranslateTransform transform, double from, double to, int durationMs, EasingMode mode) and replace all four call sites",
+          "what_not_to_do": "Do not introduce an IAnimator/IPanelController protocol or a separate animation-coordinator class - this is private in-process UI glue with one production caller-family; the Unified Seam Policy's two-adapter rule fails immediately, and single-Adapter policy/failure/platform-isolation justification doesn't apply either. Inline extraction only."
+        }
+      ],
+      "builder_notes": [
+        {
+          "pattern": "A helper sweep framed as 'does a gap still exist' finds what a helper sweep framed as 'look for problems' misses - the framing of the task, not just the act of delegating it, is what surfaces a falsified assumption",
+          "how_to_recognize": "After a prior loop closes a recurring defect class, the temptation is to spawn a generic 'review this file for issues' sweep next time. That framing inherits the same blind spot the fix's author had, because nothing in the prompt asks the sweep to specifically distrust the 'this was the last instance' assumption.",
+          "smallest_coding_rule": "When re-testing a completeness claim, brief the checker with the specific claim to falsify ('is there a sixth instance of X shape, reachable from an ungated entry point') rather than a generic quality pass. Two consecutive loops (5 and 6) both used this framing and both found a real gap.",
+          "stack_example": "This loop's helper was briefed to enumerate every async method with a mutation after its own await and trace each one's reachability back to a gate, rather than 'look for bugs in PrimaryWidget.xaml.cs' - that enumeration discipline is what caught HideGridPanelAsync/HideSearchPanelAsync, both of which read as simple teardown code with nothing to audit until the reachability trace is actually run."
+        },
+        {
+          "pattern": "The same defect class can hide in a teardown/close path just as easily as in a populate/open path - 'this method doesn't populate anything, it just cleans up' is not evidence it is safe",
+          "how_to_recognize": "An async method that runs an animation then unconditionally resets state (Visibility = Collapsed, Items.Clear(), nulls a selection field) reads as 'closing' rather than 'writing,' which makes it easy to mentally exclude from a sweep focused on 'does every populate step have a guard.' But a stale close finishing after a new session has already opened and populated its own panel is exactly as destructive as a stale populate step overwriting a live one.",
+          "smallest_coding_rule": "Audit every async method that mutates shared UI/session state after its own await, regardless of whether the mutation is additive (populate) or subtractive (teardown/reset) - the reentrancy hazard is identical in both directions.",
+          "stack_example": "HideGridPanelAsync nulls CurrentSelectedGame and clears GridImagesView.Items - the same fields PopulateGridSelectionPanelAsync (F-007, fixed loop 4) writes to on the populate side. Both directions needed the same guard; only one had it before this loop."
+        },
+        {
+          "pattern": "When a fix touches network-call-adjacent code but is queued rather than implemented, name the behavior-preservation argument in the finding text now, so the loop that eventually implements it does not have to re-derive it from scratch",
+          "how_to_recognize": "A finding's minimal correction path touches a method that makes an external network call, but the proposed fix itself only changes local parsing/plumbing around that call, not the call's arguments, count, ordering, or error surface. It is tempting to defer the behavior-preservation analysis to 'whichever loop actually implements it.'",
+          "smallest_coding_rule": "State explicitly which of the five behavior-preservation properties (call count, ordering, payload, error handling, observable result) the fix relies on and why, in the finding itself - not just at implementation time.",
+          "stack_example": "Finding F-010's correction path touches methods that call GOG's and a GitHub-hosted community database's HTTP endpoints, but the fix only changes how the already-fetched response body is parsed - the finding states explicitly that both the well-formed and hypothetical-null-title cases converge on the same observable null-or-name result to the caller, so the STANDING USER CONSTRAINT's 'provably behaviour-preserving' carve-out applies without needing a behavioral oracle."
+        }
+      ],
+      "narrative": "Place, not win, this loop. Runtime ownership is again not more trustworthy by a plain net-wash accounting - a sixth and seventh instance of the identical shape lived in the panel-close path, found by a sweep this loop specifically tasked with distrusting the prior loop's implicit 'that was the last one' confidence. This loop closes that gap with the same minimal, proven idiom as the five prior fixes, verified by full build + full test suite (138/138 unchanged) + an independent implementation review (verdict approved, all three checks passed). State_management and concurrency both moved DOWN again, not because the code regressed since loop 5, but because a third consecutive loop finding more instances of the same class is itself evidence the residual was under-priced, exactly the same non-regression-basis for downward correction loop 5 established. Architecture_quality was deliberately held at SAME rather than compounding the same critique a second time, on the explicit reasoning that the concern is already priced into state_management/concurrency and a second full deduction risks double-counting loop 5 itself flagged as a risk - a genuinely close call, recorded in the humility check below. Simplification did not happen this loop on the F-002/F-003 axis - both remain queued for a fifth full loop, correctly outranked again by F-009's higher severity. A new, smaller finding (F-010, StoreNameLookup bypassing the established JsonRead helper) was surfaced by an independent Services/Models sweep and queued, not implemented, since it is lower severity than F-009. Tests do not, and structurally cannot, reduce regression risk on PrimaryWidget.xaml.cs; this loop's only regression evidence is full build + full suite + independent review + a manual trace of both new guards' placement. Future work risks over-engineering only if F-002/F-003's eventual extraction reaches for a coordinator abstraction instead of a private helper method, or if a future loop tries to wrap the now-seven hand-rolled session-check idioms in a shared type or a centralized panel-lifecycle orchestrator - both explicitly evaluated and rejected again this loop on Simplify Pressure Test grounds, unchanged guidance from loop 1's own Deepening Candidate, now re-affirmed a sixth and seventh time against fresh-method instances too.\n\nScorecard humility check: (1) holding architecture_quality at SAME (7.5) rather than moving it DOWN again for the second confirmatory instance of the same 'manually-repeated convention' critique - a reviewer could reasonably argue two more scattered guard sites (bringing the total to seven) is independently-verified evidence the convention doesn't scale regardless of double-counting risk, and that loop 5's own DOWN move set the correct precedent this loop should have continued rather than held. (2) Treating HideGridPanelAsync and HideSearchPanelAsync as one finding (F-009) fixed in a single loop rather than two separate findings fixed one loop at a time, as F-005 through F-008 each were - a stricter reading of the one-Priority-1-finding-per-loop cadence could argue HideSearchPanelAsync 'jumped the queue' ahead of F-002/F-003 without its own dedicated loop's worth of scrutiny, even though the fix is mechanically identical and low-risk. (3) The judgment call not to reuse F-006's stable_id for F-009 despite a mechanical line-proximity (Fuzzy-match rule M2) collision (HideGridPanelAsync's evidence-line start sits within 50 lines of F-006's recorded start, and both share test_failed: n/a and severity: Serious deduction) - Title/Claim proximity (M1) clearly does not match, and the two findings describe different methods with different fixes already independently verified holding, but a strict reading of Step 1.5's 'iff' wording could argue the mechanical rule should have been followed regardless of the semantic mismatch; this is documented explicitly here so a future loop or the registry validator can revisit the call.",
+      "loop_result": {
+        "what_changed": "Added a session capture and recheck to HideGridPanelAsync (captures int session = gridPanelSessionId; before the close animation starts; after await Task.Delay(200) adds if (session != gridPanelSessionId) { return; } before the Visibility/Items.Clear()/CurrentSelectedGame = null mutations and focus restoration) and the identical pattern to HideSearchPanelAsync (searchPanelSessionId, guarding the Visibility/Items.Clear()/focus-restoration mutations). Both reuse the existing session fields already used by the five prior fixes.",
+        "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:AppxBundle=Never) exits 0 both before and after the change. Full test suite (run-tests.ps1) reports 138 passed / 0 failed / 0 skipped both before and after, unchanged - expected, since PrimaryWidget.xaml.cs is not part of the test-linked Services/** surface. Neither method's own animation construction, timing, or the network/file-write calls elsewhere in the flow changed - no network call count, ordering, payload, or error-handling behavior changes anywhere; manual trace confirms both guards sit textually immediately after each method's only await that matters and before every subsequent mutation. Independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on the targeted finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed.",
+        "risk_boundary_evidence": null,
+        "targeted_finding_status": "resolved",
+        "unintended_regression": null,
+        "changed_paths": [
+          "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+        ],
+        "interface_test_coverage_path": null
+      },
+      "implementation_review": {
+        "verdict": "approved",
+        "reason": "Both Hide*PanelAsync methods now capture their session id before the animation delay and bail out on a session mismatch after it, exactly mirroring the five prior fixed sites, with no new same-or-higher-severity regression introduced.",
+        "checks": {
+          "reality": "passed",
+          "honesty": "passed",
+          "regression": "passed"
+        },
+        "regressions": [],
+        "conditions": [],
+        "rounds": 1,
+        "retry_count": 1,
+        "retry_cause": null,
+        "retry_attempts": [
+          {
+            "attempt": 1,
+            "outcome": "ok",
+            "error": null,
+            "duration_ms": 153810
+          }
+        ]
+      }
     }
   ]
 }
