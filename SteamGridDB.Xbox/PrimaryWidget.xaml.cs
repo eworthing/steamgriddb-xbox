@@ -1430,6 +1430,18 @@ namespace SteamGridDB.Xbox
             // Which of these, if any, is already on the tile
             int? appliedArtworkId = await AppliedArtworkStore.GetAsync(CurrentSelectedGame?.ImageFilePath);
 
+            // A newer picker session has started while this awaited - the same shape LoadGridSelectionAsync
+            // already guards against after its own network awaits, and PerformGameSearchAsync guards after
+            // its own. The caller checked the session immediately before calling this method, but that
+            // check does not cover this method's own await: the fetched grids/icons still belong to a
+            // session no longer live, so ranking or adding them now would rank by a game name that has
+            // since changed, or mix stale, permanently unclickable tiles into whatever the live session's
+            // own population already claimed the panel with.
+            if (sessionId != gridPanelSessionId)
+            {
+                return;
+            }
+
             // Combine grids and icons - ranked grids first (style, language, metadata), then icons
             List<SteamGridDbGrid> sortedArtworks = new List<SteamGridDbGrid>();
 
