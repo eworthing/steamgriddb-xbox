@@ -64,16 +64,10 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                     if (JsonObject.TryParse(jsonContent, out JsonObject gameData))
                     {
-                        if (gameData.ContainsKey("_embedded") &&
-                            gameData.GetNamedObject("_embedded").ContainsKey("product"))
-                        {
-                            JsonObject product = gameData.GetNamedObject("_embedded").GetNamedObject("product");
+                        JsonObject embedded = JsonRead.Object(gameData, "_embedded");
+                        JsonObject product = JsonRead.Object(embedded, "product");
 
-                            if (product.ContainsKey("title"))
-                            {
-                                return product.GetNamedString("title");
-                            }
-                        }
+                        return JsonRead.String(product, "title");
                     }
                 }
             }
@@ -185,10 +179,7 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                     if (JsonObject.TryParse(jsonContent, out JsonObject gameData))
                     {
-                        if (gameData.ContainsKey("title"))
-                        {
-                            return gameData.GetNamedString("title");
-                        }
+                        return JsonRead.String(gameData, "title");
                     }
                 }
             }

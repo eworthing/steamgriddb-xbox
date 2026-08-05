@@ -1828,3 +1828,227 @@ Changed `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` only (140 lines changed: 59 ins
 
 ## Loop 8 Implementation Review
 Verdict: **approved**. Reason: the three duplicated `ContentDialog`-construction-plus-guard-and-run bodies are now genuinely consolidated into one private `ConfirmAndRunAsync` helper (only one `new ContentDialog` remains in the file), the extraction is behavior-preserving call-site-by-call-site, introduces no new Seam/protocol, and the missing direct tests are not a new gap - `PrimaryWidget.xaml.cs` was already structurally excluded from the test project before this diff. Checks: reality passed, honesty passed, regression passed. Regressions: none. Conditions: none.
+
+--- Loop 9 (UTC 2026-08-05T04:53:10Z) ---
+
+### Loop Counter
+Loop 9 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+**Promising, but architecturally immature.**
+
+This loop wrote an independent scorecard from current source first (fresh direct reads of `StoreNameLookup.cs`, `JsonRead.cs`, `GamePlatform.cs`, `GameEntry.cs`, `GridImageItem.cs`, `SteamGridDbClient.cs`, `ArtworkDownloader.cs`, `FixLog.cs`, `App.xaml.cs`, the app csproj's target platform, plus two independently-briefed cold helper sweeps), before reading `CURRENT_REVIEW.md`/`REVIEW_HISTORY.md` for delta basis. Finding F-010 (`StoreNameLookup` bypassing the `JsonRead` helper, tracked since loop 6) was implemented, verified by build + full test suite + an independent implementation review approved on first pass, net -9 lines. The mandatory Adversarial Pass on `domain_modeling`'s accepted residual tested a smaller counter-proposal than loop 8's own and found a fresh, concrete reason it still fails Simplify Pressure Test. A cold helper sweep surfaced a new, real, Noticeable-severity finding: F-013, a third instance of the entry-update-loop duplication pattern.
+
+## Scorecard (1-10)
+
+- **Architecture quality**: 7.5 | SAME | `Services/` modules re-confirmed via this loop's own direct reads plus a cold helper sweep — each remains a deep, single-responsibility Module. A second, independently-briefed helper produced an exhaustive method inventory of `PrimaryWidget.xaml.cs` (46 methods) and independently confirmed the same 5-concern split loop 8 named, with no internal sub-Module boundary beyond the already-extracted helpers. **Stalled-Dimension Sweep (loop 9, 4th consecutive SAME)**: 9-anchor re-judged NOT met. Not backlog-worthy: `TESTING.md` documents the bulk-operation loops staying in the widget as deliberate — fails SPT Q5/Q2.
+- **State management and runtime ownership**: 7.0 | SAME | A cold, independently-briefed helper sweep traced every async method in `PrimaryWidget.xaml.cs` with an await followed by a mutation (12 total) and reconfirmed, with zero prior knowledge of the finding history, all 6 previously-fixed session-guard sites hold and the 6 unguarded sites are correctly unguarded by design. Held SAME: re-confirmation is not new structural proof per G8. The 9-anchor also requires state "separated by Module" — `PrimaryWidget` still mixes it all in one class. Not DOWN: flagged multi-writer fields traced to single-UI-thread-only writes with documented intent — smoke, not a finding.
+- **Domain modeling**: 9.5 | SAME | **Adversarial Pass re-run this loop** against a smaller counter-proposal than loop 8's own: private setters plus factory-style methods on `GameEntry`, instead of a full discriminated-union rewrite. Traced the mechanics: C# object-initializer syntax at the sole construction site would force splitting the one construction call into two steps — a real blast-radius expansion into `PrimaryWidget`'s riskiest region. **SPT-rejected on Q5**: the benefit doesn't justify that blast radius for a Cosmetic, zero-live-harm gap.
+- **Data flow and dependency design**: 7.5 | UP | Finding F-010 resolved this loop (git diff: 4 insertions, 13 deletions, net -9 lines). Closes the concrete "reuse/consistency" finding cited for 3 consecutive loops. Not promoted past 7.5: the 9-anchor's "one or two ambient-context dependencies" allowance is exceeded — five separate static-mutable-state instances exist without a consolidated ownership story, a freshly-named reason. Not backlog-worthy on its own: locking without parallelizing delivers no verifiable change; captured as F-011's own prerequisite.
+- **Framework / platform best practices**: 10.0 | SAME | **G6 re-verification this loop**: independently checked the app's target platform (`TargetPlatformIdentifier=UAP`, a genuine legacy UWP `AppContainerExe`) — confirming `SteamGridDbClient.cs`'s serializer split remains period-appropriate. `StoreNameLookup.cs` is now MORE idiomatic after F-010. Could not name a source-backed improvement: `Debug.WriteLine` usage is reasonable at this scale, not an idiom gap.
+- **Concurrency and runtime safety**: 6.5 | SAME | F-011 re-confirmed unchanged, untouched by this loop's edit. Still blocked by the STANDING USER CONSTRAINT; the unlocked-cache prerequisite widened slightly (`FixLog`'s static fields, `SteamGridDbClient.CapsuleParseNotes` join `StoreNameLookup`'s three caches). No new hazard found.
+- **Code simplicity and clarity**: 8.0 | SAME | Leaf-module-duplication sweep surfaced a genuine new instance (F-013: `ReplaceImageCoreAsync`/`RestoreAllChangesAsync`/`RestoreBackupCoreAsync`, with observed drift). Not fixed this loop; its discovery does not move the score down — the source didn't change by being found. Held SAME, correctly routed to the backlog.
+- **Test strategy and regression resistance**: 6.5 | SAME | **Stalled-Dimension Sweep (loop 9, 9th consecutive SAME — the most score-stalled dimension across this run)**: fresh mutation-test citation this loop (the `ConfirmAndRunAsync` guard's `||`/`&&` swap, a primary-flow gap) — 9-anchor genuinely NOT met. F-004 confirmed to sit off that primary flow — implementing it would not move this score.
+- **Overall implementation credibility**: 9.5 | UP | Fresh cross-loop-independent re-verification of two dimensions loop 8 promoted in the same loop it promoted them — both re-tested from a different angle in a different loop, and both held. F-010's fix verified by independent review approved first pass. Two cold sweeps found zero doc-rot. F-013 independently confirmed by direct reads.
+
+## Authority Map
+Empty this loop — no authority/ownership finding is Priority 1. See loop 7/8 above for the last full Authority Map.
+
+## Strengths That Matter
+- The `domain_modeling` Adversarial Pass this loop tested a materially different, smaller counter-proposal than loop 8's own and reached a fresh, concrete rejection reason rather than reusing loop 8's reasoning.
+- An independently-briefed cold helper sweep of `PrimaryWidget.xaml.cs`, told to trace the session-guard pattern generically, reconfirmed all 6 prior fixes hold with zero prior knowledge of the finding history.
+- F-013 was found by a helper sweep with no knowledge of this run's finding history, then independently re-verified by direct reads of all three cited method bodies.
+
+## Findings
+
+### Finding #1 (stable_id F-010): StoreNameLookup's GOG and Epic name-fetch methods bypass the JsonRead helper that exists to prevent a documented JSON null-vs-missing bug
+
+**Why it matters** — The codebase already shipped a bug once (documented in `PrimaryWidget.xaml.cs`'s manifest-parsing comment and `JsonRead.cs`'s own docstring) where a JSON member that was present-but-null was mishandled by raw `Windows.Data.Json` calls; `JsonRead.cs` exists specifically to make that class of bug impossible. Two of `StoreNameLookup`'s three network-backed name-lookup methods used the pattern that caused it.
+
+**What is wrong** — `GetGogGameNameAsync` and `GetEpicGameNameAsync` used raw `ContainsKey`/`GetNamedObject`/`GetNamedString` `Windows.Data.Json` calls instead of the existing `JsonRead.Object`/`JsonRead.String` helper that `SteamGridDbClient.cs` and `EpicLibrary.cs` already use consistently.
+
+**Evidence** — `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs:67-77` (pre-fix, `GetGogGameNameAsync`), `:186-191` (pre-fix, `GetEpicGameNameAsync`), `SteamGridDB.Xbox/Services/JsonRead.cs:1-17`, `SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs:155-181`
+
+**Architectural test failed** — n/a — a Reuse/consistency finding
+
+**Dependency category** — n/a
+
+**Leverage impact** — None directly - `JsonRead` already exists and is already used by two other call sites; this brings the remaining two into line.
+
+**Locality impact** — Contained to `StoreNameLookup.cs`'s two methods; `JsonRead.cs` itself untouched.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Credibility/consistency deduction, not a live defect (the outer catch prevented a crash even before the fix): the established, documented, purpose-built helper for this exact class of JSON-parsing bug existed in the same file's own dependency graph and was used by two of three sibling call sites plus `SteamGridDbClient.cs` and `EpicLibrary.cs`, yet two methods opted out with no stated reason.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Replaced the raw `ContainsKey`/`GetNamedObject`/`GetNamedString` chains in both methods with `JsonRead.Object(gameData, "_embedded") -> JsonRead.Object(embedded, "product") -> JsonRead.String(product, "title")` (GOG) and `JsonRead.String(gameData, "title")` (Epic), matching `SteamGridDbClient.cs`'s established pattern.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs`. Avoid: `SteamGridDB.Xbox/Services/JsonRead.cs`, `SteamGridDB.Xbox/Services/SteamGridDB/**`, `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`.
+
+**Status this loop: implemented — see Loop 9 Result below.**
+
+### Finding #2 (stable_id F-013): ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times
+
+**Why it matters** — Any future change to what happens when a game's tile image is replaced (a new derived property, a new visual state, a new field to keep in sync) has to be found and added in three places by hand, and the three copies have already drifted: `RestoreAllChangesAsync` omits the `HasBackup` write and the per-call status-text update that the other two include.
+
+**What is wrong** — `ReplaceImageCoreAsync` (`PrimaryWidget.xaml.cs:1169-1182`), `RestoreAllChangesAsync`'s per-entry block (`:1101-1108`) and `RestoreBackupCoreAsync` (`:1924-1937`) each dispatch to the UI thread via `OnUiThreadAsync` and `foreach` over `EntriesSharingImage(game)`, writing `entry.Image` and `entry.ImageFileName` in all three, `entry.HasBackup` in two of three, and `StatusText.Text` conditionally in two of three.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1169-1182` (`ReplaceImageCoreAsync`), `:1101-1108` (`RestoreAllChangesAsync`), `:1924-1937` (`RestoreBackupCoreAsync`)
+
+**Architectural test failed** — Shallow module
+
+**Dependency category** — n/a
+
+**Leverage impact** — Three call sites drop to naming their own image/backup-flag values instead of re-deriving the whole dispatch-and-foreach shape.
+
+**Locality impact** — Fully contained inside `PrimaryWidget.xaml.cs`.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Same leaf-module-duplication class as Finding F-002 and F-003 (both resolved), in the same file — a third, smaller instance that survived two prior rounds of exactly this kind of sweep because no prior loop's helper looked at these specific three methods together; the observed drift between the three copies is concrete evidence unsynchronized duplication already costs correctness attention, not just line count.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Extract a private helper (e.g. `UpdateEntriesSharingImage(GameEntry game, BitmapImage image, string imageFileName, bool? hasBackup)`) that owns the `OnUiThreadAsync` dispatch and the `EntriesSharingImage(game)` foreach, writing `Image`/`ImageFileName` always and `HasBackup` only when a value is supplied; each call site keeps its own status-text/counter logic outside the helper.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`. Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml`, `SteamGridDB.Xbox/Services/**`.
+
+### Finding #3 (stable_id F-011): LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — A user whose library has many GOG/Epic games without a direct SteamGridDB match pays the full network latency of the GOG, Epic (or Ubisoft/community-database) endpoint plus the SteamGridDB name-search endpoint for every one of those games, one after another, before the library list finishes loading.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (`PrimaryWidget.xaml.cs:455-679`) awaits, in strict sequence for each manifest entry, several independent network calls. The awaits are independent across entries; this is a sequential-independent-effects shape.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:455-679`, `:581`, `:603`, `:612`, `:641`
+
+**Architectural test failed** — n/a — different category (efficiency/D2)
+
+**Dependency category** — n/a
+
+**Leverage impact** — None currently - no seam exists to batch or parallelize through.
+
+**Locality impact** — Contained to `LoadGameEntriesAsync`'s own per-entry loop body and, if fixed, `StoreNameLookup`'s/`FixLog`'s/`SteamGridDbClient`'s static caches' thread-safety.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Hot path (the library reloads on every widget open) doing per-item network I/O one item at a time where nothing in the current design requires that ordering.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Not implemented this loop — blocked by the STANDING USER CONSTRAINT and by StoreNameLookup's three unlocked caches (plus FixLog's static fields and SteamGridDbClient.CapsuleParseNotes, all confirmed unlocked by an independent Services/ sweep this loop), which would need real thread-safety added first.
+
+**Blast radius** — Change: none this loop. Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`, `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs` (both not attempted this loop).
+
+### Finding #4 (stable_id F-012): GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth
+
+**Why it matters** — Adding, renaming, or removing a platform requires updating both switches by hand; nothing enforces they stay in sync, and each has a silent default fallback, so a future skew would degrade silently.
+
+**What is wrong** — `GamePlatformHelper.FromXboxDirectory` (`GamePlatform.cs:22-46`) and `GamePlatformHelper.GamePlatformToSGDBApiString` (`:48-67`) both switch over the same 8-case enum but are independently authored with no shared table.
+
+**Evidence** — `SteamGridDB.Xbox/Models/GamePlatform.cs:22-46`, `:48-67`
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None currently; a consolidated metadata table would let a future platform addition touch one place.
+
+**Locality impact** — Contained to `GamePlatform.cs`'s two static methods.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A real but currently-latent duplicate-abstraction risk; not yet manifesting live harm since the six shared cases are currently correctly mirrored in both switches.
+
+**Severity** — Cosmetic for contest
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Introduce a single static table both methods query, replacing both switch bodies with a lookup.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/Models/GamePlatform.cs`. Avoid: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` (both call sites unchanged), `SteamGridDB.Xbox/Services/**`.
+
+### Finding #5 (stable_id F-004): TileImage.FillsTileAsync's alpha and corner-count thresholds are untested at their exact boundary values
+
+**Why it matters** — A boundary-flip mutation at either threshold would ship silently.
+
+**What is wrong** — `FillsTileAsync` (`TileImage.cs:231-265`) thresholds at `alpha < 64` and `transparentCorners < 2` are untested at their exact boundary. Re-read this loop, unchanged.
+
+**Evidence** — `SteamGridDB.Xbox/Services/Artwork/TileImage.cs:250`, `:263`
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None - test-only addition.
+
+**Locality impact** — Contained to the test file.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Minor, off-primary-flow gap; Cosmetic per the anchor's own carve-out — re-confirmed this loop against a fresh primary-flow mutation (the `ConfirmAndRunAsync` guard) that IS the actual blocker capping test_strategy below 9.5, not this boundary gap.
+
+**Severity** — Cosmetic for contest
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Add two `TileImageTests` cases at the exact documented boundaries.
+
+**Blast radius** — Change: `SteamGridDB.Xbox.Tests/TileImageTests.cs`. Avoid: `SteamGridDB.Xbox/Services/Artwork/TileImage.cs` (test-only addition).
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Finding F-010's `JsonRead` substitution resolves a real, evidenced consistency gap with a call-site substitution to an existing helper. |
+| New seam justified | No — no new port/adapter added. |
+| Helpful simplification | F-010's fix is net -9 lines in `StoreNameLookup.cs` (4 insertions, 13 deletions) - genuinely subtractive. |
+| Should NOT be done | Do not extract F-013's entry-update loop until it is actually implemented. Re-confirmed: do not touch `GameEntry`'s match-state construction. Do not attempt F-011's fix without first adding real locking to every static cache this loop's sweep identified. |
+| Tests after fix | None added or deleted — verification is build + full test suite + independent implementation review + a manual trace of `JsonRead`'s null-propagation semantics. |
+
+## Improvement Backlog
+1. **Extract a shared entry-update helper for ReplaceImageCoreAsync/RestoreAllChangesAsync/RestoreBackupCoreAsync (Finding F-013).**
+   - why it matters: removes a third instance of the leaf-module-duplication class F-002/F-003 already fixed, with concrete evidence (a missing `HasBackup` write) that unsynchronized duplication already costs correctness attention.
+   - score impact: `simplicity +0.5`
+   - simplification / helpful
+
+2. **Consolidate GamePlatformHelper's two independent switch statements into one shared platform-metadata table (Finding F-012).**
+   - why it matters: removes a latent duplicate-abstraction/skew risk before a future platform addition can be silently mishandled.
+   - score impact: `simplicity +0.5`
+   - simplification / helpful
+
+3. **Add bounded concurrency to LoadGameEntriesAsync's per-entry name/match resolution, after first adding real locking to every static cache (Finding F-011).**
+   - why it matters: removes a real, linearly-scaling latency cost on the primary library-load hot path — but not actionable yet: blocked by the STANDING USER CONSTRAINT and the unlocked-cache thread-safety prerequisite.
+   - score impact: `concurrency +0.5`
+   - structural / helpful
+
+**Priority-1 accounting**: F-010 was Priority 1 this loop as the longest-tracked, fully actionable Noticeable-severity candidate (open since loop 6). F-011 ranks higher on merit but remains blocked — named per criterion 0, not silently demoted. For loop 10, F-013 (new this loop) is Priority 1.
+
+## Deepening Candidates
+1. **Candidate Module**: `LoadGameEntriesAsync`'s per-entry name/match resolution (Finding F-011). Smallest first step: add real locking (a `SemaphoreSlim` per cache) to `StoreNameLookup`'s, `FixLog`'s, and `SteamGridDbClient`'s static mutable state BEFORE attempting any concurrency change to the calling loop. What not to do: do not wrap the loop in `Task.WhenAll` before every static cache is locked, and do not attempt the network-ordering half of this fix at all until a behavioural oracle exists.
+
+## Builder Notes
+1. **Pattern: an independently-briefed cold helper sweep with no knowledge of prior loops' finding history is more likely to surface a genuinely new instance of a known defect class than one primed to check a known list.** → REVIEW_HISTORY.json `loops[8].builder_notes` for full notes (array index 8 = loop 9).
+2. **Pattern: an Adversarial Pass on an accepted residual only does its job when it tests a materially different, smaller fix than what was already rejected.** → REVIEW_HISTORY.json `loops[8].builder_notes` for full notes.
+3. **Pattern: a dimension can be the most score-stalled item on the board while having zero legitimate backlog-worthy candidates, when its one remaining open finding sits off the primary flow that actually sets the score's ceiling.** → REVIEW_HISTORY.json `loops[8].builder_notes` for full notes.
+
+## Final Judge Narrative
+Place, not win, this loop. This loop's headline result is a genuinely new finding nine loops into repeated scrutiny of the same file: an independently-briefed cold helper sweep, told to look for a general shape rather than a known list, surfaced F-013 — a third, smaller instance of the leaf-module-duplication class F-002 and F-003 already fixed, with concrete evidence of drift between the copies. This loop's own implementation work (F-010, routing `StoreNameLookup`'s last two holdout JSON-reading call sites through the established `JsonRead` helper) is real, net-subtractive (-9 lines), verified by build + full test suite + an independent implementation review that returned `approved` on first pass. The mandatory Adversarial Pass on `domain_modeling`'s accepted residual tested a materially smaller fix than loop 8's own and found a fresh, concrete reason it still fails — genuine re-examination, not rubber-stamping. Runtime ownership is more trustworthy this loop by fresh, independent completeness evidence, though the score itself holds rather than climbs, since re-confirmation of already-credited evidence is not new structural proof. Concurrency's own blocker widened slightly in scope without changing its disposition. Tests do not, and structurally cannot, reduce regression risk on `PrimaryWidget.xaml.cs`; test_strategy's own 9-loop stall is now confirmed to be a genuine structural ceiling rather than an unaddressed choice, since its one remaining candidate (F-004) provably would not move the score even if implemented. Future work risks over-engineering only if F-013's eventual extraction reaches for a shared status-text abstraction beyond the narrow Image/ImageFileName/HasBackup fields, or if F-011's eventual fix attempts to parallelize the network loop before locking every static cache this loop's sweep identified.
+
+## Loop 9 Result
+Changed `SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs` only (4 insertions, 13 deletions, net -9 lines): replaced the raw `Windows.Data.Json` `ContainsKey`/`GetNamedObject`/`GetNamedString` call chains in `GetGogGameNameAsync` and `GetEpicGameNameAsync` with calls to the existing `JsonRead.Object`/`JsonRead.String` helper, matching `SteamGridDbClient.cs`'s and `EpicLibrary.cs`'s already-established pattern. Full build (`msbuild SteamGridDB.Xbox.sln /p:AppxBundle=Never`) exits 0 both before and after the change. The full test suite (`run-tests.ps1`) reports 138 passed / 0 failed / 0 skipped both before and after — unchanged, as expected, since these two methods make live network calls and are deliberately untested per `TESTING.md`. Manually traced `JsonRead.Object`/`JsonRead.String`'s null-propagation semantics against every pre-fix failure path (member absent, member present-but-JSON-null, member present-but-wrong-type) and confirmed each now falls through to the same `null` return as before. An independent fresh-eyes implementation review (separate subagent, read-only, briefed cold on Finding F-010 and the diff only) returned verdict `approved` with all three checks (reality, honesty, regression) passed on the first pass, and independently re-ran the full test suite confirming 138/0/0. Finding F1 (stable_id F-010) is **resolved**. This loop also surfaced a new Finding F-013 (a third instance of the entry-update-loop leaf-module-duplication class in `PrimaryWidget.xaml.cs`, queued for loop 10) and independently re-verified Findings F-011/F-012/F-004 unchanged. No unintended scorecard regression: the change touches no network call ordering, no ranking/selection logic, and no file outside the one named.
+
+## Loop 9 Implementation Review
+Verdict: **approved**. Reason: both methods now route entirely through `JsonRead.Object`/`JsonRead.String` with no raw `ContainsKey`/`GetNamedObject`/`GetNamedString` remaining, every failure path traced by hand converges to the same `null` return as before, only `StoreNameLookup.cs` changed, and the full suite still passes 138/0/0. Checks: reality passed, honesty passed, regression passed. Regressions: none. Conditions: none.

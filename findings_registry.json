@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 13,
+  "next_serial": 14,
   "entries": [
     {
       "stable_id": "F-001",
@@ -243,7 +243,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 1,
@@ -338,6 +338,18 @@
             "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
           },
           "attempted_remedy_hash": "sha256:e0275c984711e09a76ee9c1669d65a12393f85086e57ecc4eb64c4c599abf182"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F5",
+          "status": "open",
+          "sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
+          "note": "re-derived loop 9 (TileImage.cs/TileImageTests.cs unaffected by this loop's F-010 edit, confined to StoreNameLookup.cs; gap re-confirmed, evidence lines unchanged). Still the only test_strategy candidate; still Cosmetic/off-primary-flow. Re-examined via the mutation-test mental model with a fresh mutation site this loop (the ConfirmAndRunAsync guard's || -> && swap, a primary-flow gap) - confirmed this Cosmetic boundary gap is not, and never was, the actual blocker; implementing it would not move test_strategy's score.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:7d709390f9ea657341b76bfadfae44a88f04dd4be70e8d08996c6cae1b9e5178",
+            "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
+          },
+          "attempted_remedy_hash": "sha256:43c3b38344222a063daa8e26db7df4e634d9436f5d5f57fab537d291319e6e0e"
         }
       ]
     },
@@ -481,7 +493,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 6,
       "first_seen_sha": "99f8ace",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 6,
@@ -518,6 +530,18 @@
             "evidence_paths_hash": "sha256:f6c55adbe3bb8f0ab5cf38bee8743c4bbba8fef3b992a639cbbb4e0a81e8ae65"
           },
           "attempted_remedy_hash": "sha256:523b71445f86656ec1fedd573dafa19f692475a5f73da1b2623d7a0e6db0c352"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: both GetGogGameNameAsync and GetEpicGameNameAsync now route through JsonRead.Object/JsonRead.String instead of raw ContainsKey/GetNamedObject/GetNamedString, matching SteamGridDbClient.cs's/EpicLibrary.cs's established pattern. Net -9 lines (4 insertions, 13 deletions), one file (StoreNameLookup.cs) only. Behavior-preservation verified by manually tracing JsonRead's null-propagation semantics against every pre-fix failure path (member absent / present-but-null / wrong type), all falling through to the same null return as before. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed on the first pass, independently re-running the test suite.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:8399025daf3b119cb85ad656ca00950c4f025b3bc22867a546e1fb3f00372a76",
+            "evidence_paths_hash": "sha256:976272ddc5a3f93376a69f6f60557199b2dcafb71bc53ad1c35e6cda697163ca"
+          },
+          "attempted_remedy_hash": "sha256:cbb8314a414f81ef2adffdcc3d153bf29abadd3dd94ccdba4958ebe1bc68a1a2"
         }
       ]
     },
@@ -531,7 +555,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 7,
@@ -556,6 +580,18 @@
             "evidence_paths_hash": "sha256:809c77b1cc653f812e3d1bcd3b4c796d39807f2c5c7a6d158128456aebedcb68"
           },
           "attempted_remedy_hash": "sha256:75af7690920843cc09519d61c4209cc5ef9ac4c8a8a9c9db29fe0c74adb8e1a4"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (untouched by this loop's F-010 edit, confined to StoreNameLookup.cs). Still blocked by the STANDING USER CONSTRAINT. Prerequisite scope widened this loop: an independent Services/ sweep found FixLog's static fields and SteamGridDbClient.CapsuleParseNotes unlocked too, not just StoreNameLookup's three caches - same 'safe only by single-threaded-per-load convention' pattern. Ranks above F-012 on merit (concurrency tied-lowest-scored dimension) but stays listed at Priority 3, not actionable yet.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:eab669877beb1a680200efa428b0c49fcff68b9692a1b320fbb8b694a4cfc877",
+            "evidence_paths_hash": "sha256:22d8cd1708dbd9bca8b75d61abd4ce3ecbbcb93af581a1353806712e4fc837c2"
+          },
+          "attempted_remedy_hash": "sha256:f4c2f86323473f695a8bf1ec1842abc0a2acea44605e8f79302f29d51ab26207"
         }
       ]
     },
@@ -569,7 +605,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 8,
@@ -582,6 +618,44 @@
             "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
           },
           "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
+          "note": "Independently re-verified unchanged this loop by direct read of GamePlatform.cs (untouched by this loop's F-010 edit, confined to StoreNameLookup.cs). Still Cosmetic, still no live harm. Outranked this loop by F-013 (Noticeable severity, new this loop) for the loop-10 Priority 1 slot; stays Priority 2 in the backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:866a656ab22a714abf19948ee3f26b397858e2e0c0455c538a44fb8ddd6c2d78",
+            "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
+          },
+          "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-013",
+      "title": "ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times",
+      "category_hint": "leaf-module-duplication",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [1101, 1937],
+      "test_failed": "Shallow module",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 9,
+      "first_seen_sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
+      "last_seen_loop": 9,
+      "occurrences": [
+        {
+          "loop": 9,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
+          "note": "Surfaced by an independent, cold PrimaryWidget.xaml.cs helper sweep this loop (told to trace the session-guard pattern generically, not briefed on the finding history), independently confirmed by direct read of all three cited method bodies. A third, smaller instance of the same leaf-module-duplication class as F-002/F-003 (both resolved) - ReplaceImageCoreAsync, RestoreAllChangesAsync's per-entry block, and RestoreBackupCoreAsync each dispatch-and-foreach with observed drift (RestoreAllChangesAsync omits the HasBackup write). Not implemented this loop (F-010 was this loop's one refactor); queued Priority 1 for loop 10.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:e446686b615085264e1d004f931475ec96b8c5469f9ba970d5f7f13e470083e5",
+            "evidence_paths_hash": "sha256:8ed33150fe9d16ba98055d488f90587010b88053fb1fa89aa727ed4122c6e210"
+          },
+          "attempted_remedy_hash": "sha256:5707f29fb371b62ca13b519a90eb05ab2b3bc974357f7f5b1367bc55eb90132d"
         }
       ]
     }
