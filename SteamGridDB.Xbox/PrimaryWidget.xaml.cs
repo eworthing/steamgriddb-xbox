@@ -1331,6 +1331,18 @@ namespace SteamGridDB.Xbox
                     List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, source);
                     List<SteamGridDbGrid> icons = await iconsTask;
 
+                    // A newer picker session has started while this fetch was in flight (its own
+                    // LoadGridSelectionAsync call already owns the panel). This session's results are
+                    // still fetched above - so a superseded fetch never wastes a retry and this closes
+                    // no faster than it otherwise would - but they must not touch the panel now: doing
+                    // so could clear or append onto whatever the live session already showed, mixing a
+                    // stale (and, per GridImage_Click's session check, permanently unclickable) tile set
+                    // into the current one, or hiding its loading state.
+                    if (session != gridPanelSessionId)
+                    {
+                        return;
+                    }
+
                     if (grids == null && icons == null)
                     {
                         // Distinguishing this from "no artwork" is the whole point of the null contract

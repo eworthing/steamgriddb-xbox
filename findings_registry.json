@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 5,
+  "next_serial": 6,
   "entries": [
     {
       "stable_id": "F-001",
@@ -32,12 +32,12 @@
       "title": "Grid and search panel slide animations duplicate the same Storyboard ceremony four times",
       "category_hint": "duplicate-ceremony",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1506, 1784],
+      "primary_evidence_lines": [1540, 1818],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -49,6 +49,18 @@
             "evidence_paths_hash": "sha256:73098c576a0153fcd5e80facd304e4033135cf25334a4c5a99c4d384b01cf65d"
           },
           "attempted_remedy_hash": "sha256:8a1908727f0ea2bf20017bf4ea445b260fe801430027c6cf29166fc664cf1a06"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "56df871d9906f6aca003a3999f5a378fafc74c26",
+          "note": "evidence line numbers corrected against current source this loop (loop 1's own fix shifted the file by +10 lines below the insertion point; loop 1's committed citation was never updated). Claim/Consequence/Remedy text unchanged.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:87c77612a7e5a54b3eac0f20617c477dfc1aa8939494af5b6c4bf00444939092",
+            "evidence_paths_hash": "sha256:c1b9a0e6e76d57cbffb1343588a0918da6260f444565b0ac127b2956b8c97690"
+          },
+          "attempted_remedy_hash": "sha256:8a1908727f0ea2bf20017bf4ea445b260fe801430027c6cf29166fc664cf1a06"
         }
       ]
     },
@@ -57,12 +69,12 @@
       "title": "Fix/Restore/Revert confirmation dialogs duplicate the same ContentDialog construction and guard-and-run ceremony three times",
       "category_hint": "duplicate-ceremony",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [724, 840],
+      "primary_evidence_lines": [734, 850],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -72,6 +84,18 @@
           "fingerprint": {
             "claim_consequence_hash": "sha256:8acaeef109c4d57740d29f194e964ea7868c480afa8bd2ea1c0a181c9dc7bc89",
             "evidence_paths_hash": "sha256:d6d35bc4608b30f48117e6e4d31f851af0a08e5c101793ee4cc8b86910d690e8"
+          },
+          "attempted_remedy_hash": "sha256:67296fc9af008c0b46eaf44cf2d68133d1de332cfe11fc33361be40c075a244a"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "56df871d9906f6aca003a3999f5a378fafc74c26",
+          "note": "evidence line numbers corrected against current source this loop (same +10 shift as F-002; loop 1's committed citation was never updated after its own fix). Claim/Consequence/Remedy text unchanged.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:345fb3a35ca58f2241e6805b96d0fe20843ec1fb2a76cc339bae7c92dada5e3a",
+            "evidence_paths_hash": "sha256:11e5192e742aa150d7be8ec486a4db59fbf161b62b7e00bf8f33b282ccc6de6a"
           },
           "attempted_remedy_hash": "sha256:67296fc9af008c0b46eaf44cf2d68133d1de332cfe11fc33361be40c075a244a"
         }
@@ -87,7 +111,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
       "first_seen_sha": "789a66625bb516a397d5b99c060857427ab21752",
-      "last_seen_loop": 1,
+      "last_seen_loop": 2,
       "occurrences": [
         {
           "loop": 1,
@@ -99,6 +123,42 @@
             "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
           },
           "attempted_remedy_hash": "sha256:3b0af26c79eda08ae1ff5d4234cc7411e99d388975caef1a1dc9f9eab254fd71"
+        },
+        {
+          "loop": 2,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "56df871d9906f6aca003a3999f5a378fafc74c26",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:b0ee9368073cd7669a574f71794ed51d98c416ab5aca5902e39666de93bd538d",
+            "evidence_paths_hash": "sha256:b1cdd58fcadf33821df57b9dd4f61c7a7067fc3e4ece24b4ed9558e150344575"
+          },
+          "attempted_remedy_hash": "sha256:3b0af26c79eda08ae1ff5d4234cc7411e99d388975caef1a1dc9f9eab254fd71"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-005",
+      "title": "LoadGridSelectionAsync's panel-population step has no ownership check against a superseded picker session",
+      "category_hint": "state-ownership/reentrancy",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [1295, 1448],
+      "test_failed": "n/a",
+      "severity": "Serious deduction",
+      "first_seen_loop": 2,
+      "first_seen_sha": "56df871d9906f6aca003a3999f5a378fafc74c26",
+      "last_seen_loop": 2,
+      "occurrences": [
+        {
+          "loop": 2,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:19e2bfbafeb4429a6b76265a8852c0d87e138d63445b6b67540d99b5ef8fe639",
+            "evidence_paths_hash": "sha256:d7f91f325c827bf00843293d15228cd0cf39301dc76d4b9502b2bb786a28faf8"
+          },
+          "attempted_remedy_hash": "sha256:6f6cc6f3cde56da4d1234b21405d74a5d3f3ee7eafb2b918f6e08bf379350f99"
         }
       ]
     }
