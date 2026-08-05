@@ -3847,3 +3847,159 @@ Verdict: **approved**. Reason: `lastFocusedButton` no longer exists in current s
 
 ## Retired Findings (this loop)
 None.
+
+--- Loop 9 (UTC 2026-08-05T23:17:26Z) ---
+
+### Discovery
+(see Loop 1 Discovery)
+
+### Loop Counter
+Loop 9 of 10 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+Good app, but not top-tier yet
+
+This loop resolved F-020 (StoreNameLookup's GOG/Epic double-checked-locking duplication) by consolidating both methods' identical bodies into one shared private helper, with zero PrimaryWidget.xaml.cs/XAML edits. The louder work this loop was verification: per the run's own instruction, `state_management` and `credibility` (both raised to 10 last loop) were re-tested against current source by two independent, blind adversarial helper passes plus a direct field-by-field census, and both held on fresh evidence with zero counter-examples found. `simplicity` also reaches 10 this loop on a comprehensive fresh leaf-module sweep finding nothing beyond F-020. `architecture_quality` and `data_flow` remain flat (7.5) and F-011 remains genuinely blocked by the standing user constraint, which is what keeps this short of a top-tier verdict.
+
+## Scorecard (1-10)
+
+- Architecture quality: 7.5 | SAME | Fresh direct reads this loop (PrimaryWidget.xaml.cs in full again, plus SteamGridDbClient.cs, GameImages.cs, OperationReport.cs, LibraryOperationGuard.cs, AppliedArtworkStore.cs, FixLog.cs, JsonRead.cs, AsyncLazyCache.cs, ArtworkDownloader.cs, ArtworkRanker.cs, ArtworkSignature.cs, all read directly this loop) plus two independent helper sweeps found no new module-graph or Seam-level finding: PrimaryWidget.xaml.cs still co-locates UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class, and no extraction candidate passes SPT without a multi-file redesign disproportionate to one loop's blast radius. This loop's own fix (F-020) is confined to StoreNameLookup.cs's internal implementation, not a module-graph change. Stalled-Dimension Sweep (9 consecutive loops SAME, per loop 8's own count of 8 plus this loop): explicit clean.
+- State management and runtime ownership: 10 | SAME | Extra-scrutiny re-verification this loop (per the run's own instruction to adversarially re-test loop 8's two same-loop 10s): two independent, blind helper passes (one explicitly briefed to try to break the claim) plus my own direct field-by-field census of every PrimaryWidget.xaml.cs mutable field re-derived every write/read site and found zero counter-examples. `gridPanelFocusRestoreTarget`'s 3 write sites (EditGameImage_Click:1291, HideGridPanelAsync:1701-1702, SearchResult_Click:1840) and `searchPanelFocusRestoreTarget`'s 3 (SearchGameImage_Click:1732, SearchResult_Click:1841, HideSearchPanelAsync:1940-1943) remain exhaustively classified against the field's own doc comment. `searchPanelSessionId`'s two increment sites (PerformGameSearchAsync:1765, ShowSearchPanelAsync:1856) remain a documented, semantically-justified invalidation-counter pattern, not an ownership ambiguity. Every `LibraryOperationGuard` TryBegin/End pair remains balanced across every early return and exception path. This loop's own F-020 fix touches no PrimaryWidget.xaml.cs state at all. No nameable residual survived genuine adversarial pressure.
+- Domain modeling: 9.5 | SAME | Direct re-read this loop of GameEntry.cs in full re-confirms the parallel-fields case (`HasSteamGridDBMatch`/`OfficialCapsuleUrl`/`SteamGridDbGameId`, lines 113-145) unchanged. Adversarial Pass on this accepted residual: considered a genuinely new alternative to the previously-rejected readonly-struct proposal - a factory-method/enum design that would make the true correlation between the three fields enforced rather than merely conventional. Rejected on SPT Q2: the single flat object-initializer at the one construction site would have to become a two-step construct-then-conditionally-call-one-of-two-setters protocol, trading today's permissiveness for a comparably-sized new failure class. Residual accepted (now formally registered as F-021).
+- Data flow and dependency design: 7.5 | SAME | Direct re-reads this loop of StoreNameLookup.cs (post-fix), SteamGridDbClient.cs, FixLog.cs, AppliedArtworkStore.cs, AsyncLazyCache.cs in full: the same scattered process-lifetime static caches persist - this loop's own fix consolidated duplicate CODE across two of these caches' accessor methods but did not consolidate the STATE itself. No consolidation candidate passes SPT Q2 for a single-instance widget. Stalled-Dimension Sweep: explicit clean.
+- Framework / platform best practices: 9.5 | SAME | App.xaml.cs:120's TODO comment re-confirmed present via direct read. Prior-audit adopt-or-falsify pass this loop (ARTWORK-SELECTION.md): the one open claim touching this dimension (no 429-specific retry policy) verified live but adopted as Cosmetic-for-contest - the failure IS already caught and correctly reported; retry/backoff is a resilience/product feature, not this rubric's concern. Adversarial Pass on the accepted TODO residual: re-confirmed genuinely zero-behavioral-consequence.
+- Concurrency and runtime safety: 9.5 | SAME | This loop's own F-020 fix preserves the exact same single-lock-per-call shape (no lock-ordering change, not a Meta-Rule 4 crossing). Adversarial Pass on the accepted `PopulateGridSelectionPanelAsync` residual: re-tested the proposed fix (await it) - the callback's only realistic failure mode remains an inert missed focus, still SPT-rejected on Q5 even as the sole remaining candidate this loop.
+- Code simplicity and clarity: 10 | UP | F-020 resolved this loop: `GetOrFetchGogNameAsync`/`GetOrFetchEpicNameAsync` now both delegate to one shared private `GetOrFetchNameAsync` helper (StoreNameLookup.cs:101-151); `FindGameByNameAsync`'s distinct shape deliberately left untouched. Comprehensive fresh leaf-module duplication sweep this loop found nothing else Noticeable-or-worse. Per the 9.5+/10 Threshold rule the honest score is 10.
+- Test strategy and regression resistance: 8.0 | SAME | `GridImage_Click`'s stale-session guard (PrimaryWidget.xaml.cs:1552) remains untested - zero `SessionId` hits in Tests\. This loop's own fix touches only already-untested-by-design StoreNameLookup.cs methods. Mutation-test mental model re-run on the new shared helper: same untestable-surface class, not a new finding. Held at 8.0.
+- Overall implementation credibility: 10 | SAME | Extra-scrutiny re-verification this loop found zero doc-comment-vs-code mismatches anywhere sampled. This loop's own new doc comment on `GetOrFetchNameAsync` makes a falsifiable claim about `FindGameByNameAsync`'s exclusion, independently verified true by re-reading its catch block. No nameable residual survived a second consecutive loop of genuine adversarial pressure.
+
+## Authority Map
+(Not re-emitted this loop: no authority/state-ownership finding was Priority 1. See loop 8's archive for the current Authority Map, unchanged this loop.)
+
+## Strengths That Matter
+- ArtworkRanker/ArtworkDownloader/ArtworkSignature/TileImage remain a genuinely deep, pure, well-tested pipeline - re-confirmed this loop by direct reads of ArtworkSignature.cs, ArtworkRanker.cs and ArtworkDownloader.cs in full plus a helper's four-angle sweep.
+- This loop's own F-020 fix is a clean, verifiable subtraction: two hand-synchronized method bodies collapse into two 3-line delegating calls plus one shared helper, with the public interface, cache semantics, and lock behavior all provably unchanged - confirmed by a cold implementation reviewer on the first pass.
+- This loop's extra-scrutiny mandate on state_management/credibility was answered with real adversarial effort: two independently-spawned helpers, one explicitly briefed to try to break the claim, both came back with a full field-by-field census and zero counter-examples.
+
+## Findings
+
+### Finding #1: StoreNameLookup's GOG and Epic name-fetch methods independently reimplement the same double-checked-locking skeleton
+
+**Why it matters** — Any future fix or refinement to the check-then-populate discipline has to be applied by hand in both places; nothing enforces they stay identical.
+
+**What is wrong** — `GetOrFetchGogNameAsync` (StoreNameLookup.cs:102-131, pre-fix) and `GetOrFetchEpicNameAsync` (StoreNameLookup.cs:244-277, pre-fix) each independently implemented the identical shape: check cache unlocked, await the cache's own gate, re-check under the gate, fetch, cache only a non-empty result, release. `FindGameByNameAsync` (144-190) is a related but distinct third shape - genuinely different enough to stay out of scope.
+
+**Evidence** — StoreNameLookup.cs:102-131, 244-277 (pre-fix line numbers)
+
+**Architectural test failed** — Shallow module
+
+**Dependency category** — n/a
+
+**Leverage impact** — Each new per-key string cache with the same "skip empty-string misses" semantics paid the double-checked-locking boilerplate tax again by hand.
+
+**Locality impact** — Contained to StoreNameLookup.cs.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — Synchronized maintenance across two behavior-bearing sites implementing the identical check-then-populate skeleton.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Fixed this loop: extracted a small private `GetOrFetchNameAsync(Dictionary<string,string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch)` helper used by the two GOG/Epic methods only; `FindGameByNameAsync`'s distinct logic left untouched.
+
+**Blast radius** — Change: StoreNameLookup.cs. Avoid: `FindGameByNameAsync` (out of scope), EpicLibrary.cs, StoreNameLookupTests.cs.
+
+### Finding #2: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (PrimaryWidget.xaml.cs:411-781, unaffected by this loop's edit) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence, even though the awaits are independent across entries.
+
+**Evidence** — PrimaryWidget.xaml.cs:411-781
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None currently actionable - see blocker.
+
+**Locality impact** — Would be contained to PrimaryWidget.xaml.cs if unblocked.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint means this loop cannot land a change altering observable call ordering/concurrency/count without a product decision this loop cannot make.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — BLOCKED this loop; named for continuity per Backlog Prioritization Pass criterion 0.
+
+**Blast radius** — Change: none (blocked). Avoid: PrimaryWidget.xaml.cs (no change while blocked).
+
+### Finding #3: GameEntry's SteamGridDB-match fields (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId) admit a combination LoadGameEntriesAsync never actually constructs
+
+**Why it matters** — A reader of GameEntry's type alone cannot tell that `HasSteamGridDBMatch==false` combined with `SteamGridDbGameId>0` never happens in practice.
+
+**What is wrong** — `HasSteamGridDBMatch` (bool), `OfficialCapsuleUrl` (nullable string) and `SteamGridDbGameId` (int) are three independently publicly-settable properties (GameEntry.cs:113-145). LoadGameEntriesAsync's construction only ever produces three of the four representable combinations.
+
+**Evidence** — GameEntry.cs:113-145; PrimaryWidget.xaml.cs (LoadGameEntriesAsync's construction site)
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — A caller reading GameEntry's type signature alone cannot recover which combinations are real.
+
+**Locality impact** — Contained to GameEntry.cs and its one construction site.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — An impossible-in-practice state remains representable, but the harm is narrow and every proposed fix trades today's permissiveness for a comparably-sized new ceremony burden.
+
+**Severity** — Cosmetic for contest
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Not fixed this loop (accepted residual). Two alternatives considered and both rejected on SPT Q2: (a) a readonly struct with static factories - fails XAML two-way binding; (b) a `SteamGridDbMatchKind` enum + factory methods (considered fresh this loop) - trades permissiveness for a new "forgot to call the setter" failure class.
+
+**Blast radius** — Change: none this loop. Avoid: GameEntry.cs (accepted residual, not queued).
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Consolidating `GetOrFetchGogNameAsync`'s and `GetOrFetchEpicNameAsync`'s identical double-checked-locking bodies into one shared private `GetOrFetchNameAsync` helper - passes the deletion test. |
+| New seam justified | false (no port/adapter added) |
+| Helpful simplification | `GetOrFetchGogNameAsync` and `GetOrFetchEpicNameAsync` both shrink to a single delegating call each. |
+| Should NOT be done | Folding `FindGameByNameAsync` into the same helper (distinct semantics). Modeling GameEntry's SteamGridDB-match fields as a discriminated enum+factory-methods (trades permissiveness for comparably-sized ceremony). |
+| Tests after fix | StoreNameLookupTests.cs's existing tests unaffected; the touched methods remain untested by design (network-bound). Full build + full test suite (167/167) re-run before and after; independent implementation review approved on first pass. |
+
+## Improvement Backlog
+1. F-011 — Parallelize LoadGameEntriesAsync's per-entry network resolution. Kind: structural. Rank: needed for winning. Why it matters: the sole remaining Noticeable-or-worse candidate this loop's investigation found; BLOCKED by the standing user constraint. Score impact: concurrency +0.5.
+
+## Deepening Candidates
+None. No friction proven this loop beyond what Findings #1-#3 already cover.
+
+## Builder Notes
+- A duplicated double-checked-locking skeleton across two methods extracts cleanly into one private helper parameterized by (cache, gate, key, fetch).
+- Adversarially re-testing an accepted residual with a genuinely NEW proposed fix (not just re-reading the old rejection) sometimes surfaces a smaller alternative worth real consideration, even when the original rejection still holds.
+- A perfect score (10) earned honestly under genuine adversarial pressure is worth re-testing again the next time a NEW dimension reaches it too.
+
+→ REVIEW_HISTORY.json `loops[8].builder_notes` for full notes (0-indexed; this is loop 9)
+
+## Final Judge Narrative
+Place, and a genuinely re-verified one - this loop resolved F-020, the long-queued StoreNameLookup double-checked-locking duplication, by consolidating GetOrFetchGogNameAsync's and GetOrFetchEpicNameAsync's identical bodies into one shared private helper with zero public-interface change and zero XAML/PrimaryWidget.xaml.cs edits. Simplification helped: net line reduction at the two call sites, one shared implementation instead of two hand-synchronized copies, no new seam. The louder story is verification, not construction: this loop's own instruction called for genuine adversarial re-testing of loop 8's two same-loop jumps to 10 (state_management, credibility), and two independent blind helper passes plus a direct field-by-field census found zero counter-examples on either dimension after real effort to find one - both scores hold on fresh evidence, not deference. Simplicity also reaches 10 this loop on the strength of a comprehensive fresh sweep finding nothing beyond F-020. Runtime ownership and credibility are both genuinely trustworthy. Concurrency remains trustworthy; its one accepted residual and domain_modeling's own accepted residual both survived a fresh Adversarial Pass this loop with newly-considered alternative fixes, not recycled reasoning. Tests reduce regression risk everywhere they can reach, but GridImage_Click's session guard stays outside that protection, unchanged. architecture_quality and data_flow remain the two dimensions genuinely capping this below top-tier; F-011 stays the only backlog item, still blocked by the standing user constraint. Future work risks nothing from this loop's own fix (behavior-preserving, cold-reviewed); the risk to watch is treating three same-loop-adjacent 10s as momentum rather than re-testing each on its own merits again next loop.
+
+## Loop 9 Result
+Replaced `GetOrFetchGogNameAsync`'s and `GetOrFetchEpicNameAsync`'s identical double-checked-locking bodies (StoreNameLookup.cs) with calls to one new shared private `GetOrFetchNameAsync(Dictionary<string,string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch)` helper containing that logic once; both methods' public signatures and observable behavior are unchanged. `FindGameByNameAsync`'s distinct logic was left untouched. Full build (msbuild, exit 0) and full test suite (run-tests.ps1: 167 passed/0 failed, unchanged before and after) both re-run - StoreNameLookup.cs's GOG/Epic methods have no direct tests by design, so no new tests were possible or expected. A manual trace confirms 1:1 behavior preservation. Finding F1 (stable_id F-020) is **resolved**. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass. No unintended scorecard regression observed; `simplicity` moved UP as a direct consequence, and `state_management`/`credibility` were independently re-verified at 10 via a separate adversarial investigation pass earlier in this loop.
+
+## Retired Findings (this loop)
+None.

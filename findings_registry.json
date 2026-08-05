@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 21,
+  "next_serial": 22,
   "entries": [
     {
       "stable_id": "F-001",
@@ -562,12 +562,12 @@
       "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
       "category_hint": "efficiency-D2/sequential-network-io",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [455, 679],
+      "primary_evidence_lines": [411, 781],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 7,
@@ -712,6 +712,18 @@
             "evidence_paths_hash": "sha256:3f05826730b993041602116bf89897f11c9b655bd5db438fb2ddd1209a9d4f9a"
           },
           "attempted_remedy_hash": "sha256:66cb747a98e1a4e18e14e9e20f021b5a6cff677220e66049e7a8de0128c776cb"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:411-781, unaffected by this loop's F-020 edit, confined to StoreNameLookup.cs). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop - a pure extraction would not be blocked, but F-011's own remedy (bounded concurrency) necessarily changes network-call ordering, so it remains genuinely blocked. Sole remaining backlog item this loop now that F-020 is resolved and no other Noticeable-or-worse actionable candidate was found; Priority 1 by elimination, still not actionable.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:f9429debbeca8575cb7e75f91af2b3193a68254ea65c0685fe5a744cf7532a3a",
+            "evidence_paths_hash": "sha256:71940a9780079288d62977d789af3c2d2c31923296f113dab991d708a160dead"
+          },
+          "attempted_remedy_hash": "sha256:b50b9d363758e69ae4db5406ea16d6cc70c702e7bd82d4b0e6528749ae68b6d4"
         }
       ]
     },
@@ -1137,7 +1149,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "5b2e069d2ee47241112c8b705f9fbbe9f6845a13",
-      "last_seen_loop": 8,
+      "last_seen_loop": 9,
       "occurrences": [
         {
           "loop": 7,
@@ -1162,6 +1174,44 @@
             "evidence_paths_hash": "sha256:8f10d5b1f6be2caee8515247ce807c4fbc1a97dc88afb594ae3b5b29b530ddc8"
           },
           "attempted_remedy_hash": "sha256:728b64e10fe8016c5646cef2b2306eee2d4c678a3c1aa2ae5e427611fa6438f9"
+        },
+        {
+          "loop": 9,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop: extracted a small private GetOrFetchNameAsync(Dictionary<string,string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch) helper; GetOrFetchGogNameAsync and GetOrFetchEpicNameAsync both now delegate to it, FindGameByNameAsync's distinct int-cacheable-zero/must-not-cache-failure logic left untouched. Behavior-preservation verified by manually tracing both original methods' unlocked-check/await-gate/re-check/fetch/cache-if-nonempty/release-in-finally sequence against the shared helper's own, and by re-confirming GetOrFetchEpicNameAsync's EpicLibrary.GetDisplayNameAsync ?? GetEpicGameNameAsync fallback order is preserved. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed on the first pass, independently re-running the full build and test suite (167/167 unchanged).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:dcb85f7bdac43b61d3013cd70bcf9873296aea270d25048661b5e0b4caa50edc",
+            "evidence_paths_hash": "sha256:1b69c1c1ba9053c5aebe61ed183c6f19dd10fb33b7c2a41981e6d3d4d5f76c19"
+          },
+          "attempted_remedy_hash": "sha256:c4f719abc5d9786507d828b82bee287ad5b9684a4abe394a54983451f465fc3f"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-021",
+      "title": "GameEntry's SteamGridDB-match fields (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId) admit a combination LoadGameEntriesAsync never actually constructs",
+      "category_hint": "domain-modeling/parallel-fields",
+      "primary_file": "SteamGridDB.Xbox/Models/GameEntry.cs",
+      "primary_evidence_lines": [113, 145],
+      "test_failed": "n/a",
+      "severity": "Cosmetic for contest",
+      "first_seen_loop": 9,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 9,
+      "occurrences": [
+        {
+          "loop": 9,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "First formally registered this loop, though the underlying observation (GameEntry's three SteamGridDB-match properties admit an unconstructed combination) has been carried as domain_modeling's accepted scorecard residual since loop 7 without a stable_id. Registered this loop because the mandatory Adversarial Pass on accepted residuals produced fresh, source-backed evidence (a newly-considered factory-method/enum alternative, evaluated and rejected on SPT Q2) worth a full Claim->Source->Consequence->Remedy write-up. Disposition: accepted residual, not queued to backlog - domain_modeling score stays 9.5.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2632adc56722234b901b5dce619c1e9cc78f8b37308f2c664a5fd9576128d5eb",
+            "evidence_paths_hash": "sha256:51886291bcfdda5a0e899fe1989650abd9d355b34364637d3a83f34043c64c6a"
+          },
+          "attempted_remedy_hash": "sha256:fa0a9efccf3ac53b59081e6d65dd8966c4b301ab67fe2b07e1d2667d3797b21d"
         }
       ]
     }

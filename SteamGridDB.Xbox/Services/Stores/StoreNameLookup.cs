@@ -88,45 +88,65 @@ namespace SteamGridDB.Xbox.Services.Stores
         }
 
         /// <summary>
-        /// Resolves a GOG game's name, using the cached value when one is on file. An empty cached
-        /// value is treated the same as a miss and retried - the cache is only ever written on a
-        /// successful fetch below, so this only matters if that invariant is ever relaxed.
-        ///
-        /// The re-check inside the gate is the same double-checked shape
-        /// <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/> uses: two callers can both pass the first,
-        /// unlocked check while a fetch for the same ID is already in flight, and only the second
-        /// caller's own re-check under the gate stops it from fetching and writing the same key again.
+        /// Resolves a GOG game's name, using the cached value when one is on file. See
+        /// <see cref="GetOrFetchNameAsync"/> for the shared check-then-populate shape.
         /// </summary>
         /// <param name="gogId">The GOG game ID.</param>
         /// <returns>Game name, or null when GOG has none for it.</returns>
-        internal static async Task<string> GetOrFetchGogNameAsync(string gogId)
+        internal static Task<string> GetOrFetchGogNameAsync(string gogId)
         {
-            if (gogNameCache.TryGetValue(gogId, out string cached) && !string.IsNullOrEmpty(cached))
+            return GetOrFetchNameAsync(gogNameCache, gogNameGate, gogId, () => GetGogGameNameAsync(gogId));
+        }
+
+        /// <summary>
+        /// Shared check-then-populate skeleton for <see cref="GetOrFetchGogNameAsync"/> and
+        /// <see cref="GetOrFetchEpicNameAsync"/>: try the cache unlocked, await the store's own gate,
+        /// re-check under the gate, fetch, and cache only a non-empty result. An empty cached value is
+        /// treated the same as a miss and retried - the cache is only ever written on a successful
+        /// fetch here, so this only matters if that invariant is ever relaxed.
+        ///
+        /// The re-check inside the gate is the same double-checked shape
+        /// <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/> uses: two callers can both pass the first,
+        /// unlocked check while a fetch for the same key is already in flight, and only the second
+        /// caller's own re-check under the gate stops it from fetching and writing the same key again.
+        ///
+        /// <see cref="FindGameByNameAsync"/> is deliberately NOT routed through this: its cached value
+        /// is an int where 0 is a valid, cacheable "genuine miss" - folding it in here would risk
+        /// caching a failed request the same way a genuine miss is cached, or vice versa.
+        /// </summary>
+        /// <param name="cache">The store's own name cache.</param>
+        /// <param name="gate">The store's own dedicated gate.</param>
+        /// <param name="key">Cache key.</param>
+        /// <param name="fetch">Fetches the name when neither check finds a cached value.</param>
+        /// <returns>Cached or freshly fetched name, or null when neither has one.</returns>
+        private static async Task<string> GetOrFetchNameAsync(Dictionary<string, string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch)
+        {
+            if (cache.TryGetValue(key, out string cached) && !string.IsNullOrEmpty(cached))
             {
                 return cached;
             }
 
-            await gogNameGate.WaitAsync();
+            await gate.WaitAsync();
 
             try
             {
-                if (gogNameCache.TryGetValue(gogId, out cached) && !string.IsNullOrEmpty(cached))
+                if (cache.TryGetValue(key, out cached) && !string.IsNullOrEmpty(cached))
                 {
                     return cached;
                 }
 
-                string name = await GetGogGameNameAsync(gogId);
+                string name = await fetch();
 
                 if (!string.IsNullOrEmpty(name))
                 {
-                    gogNameCache[gogId] = name;
+                    cache[key] = name;
                 }
 
                 return name;
             }
             finally
             {
-                gogNameGate.Release();
+                gate.Release();
             }
         }
 
@@ -235,45 +255,20 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <summary>
         /// Resolves an Epic game's name, using the cached value when one is on file. Tries Epic's own
         /// install manifests first, then the community database, matching the order
-        /// LoadGameEntriesAsync used inline before this fold. An empty cached value is treated the
-        /// same as a miss and retried - the cache is only ever written on a successful fetch below.
+        /// LoadGameEntriesAsync used inline before this fold. See <see cref="GetOrFetchNameAsync"/> for
+        /// the shared check-then-populate shape.
         /// </summary>
         /// <param name="appName">Epic app name - the last segment of the Xbox entry ID. Also the cache key.</param>
         /// <param name="catalogItemId">Epic catalog item ID - the third segment, or null when absent.</param>
         /// <returns>Game name, or null when neither source has it.</returns>
-        internal static async Task<string> GetOrFetchEpicNameAsync(string appName, string catalogItemId)
+        internal static Task<string> GetOrFetchEpicNameAsync(string appName, string catalogItemId)
         {
-            if (epicNameCache.TryGetValue(appName, out string cached) && !string.IsNullOrEmpty(cached))
-            {
-                return cached;
-            }
-
-            await epicNameGate.WaitAsync();
-
-            try
-            {
-                if (epicNameCache.TryGetValue(appName, out cached) && !string.IsNullOrEmpty(cached))
-                {
-                    return cached;
-                }
-
-                // Epic's own install manifests first: they are local, they carry the real title, and
-                // they cover games the online database does not. The database is keyed by catalog item
-                // ID, not by the appName SteamGridDB wants.
-                string name = await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
-                    ?? await GetEpicGameNameAsync(catalogItemId ?? appName);
-
-                if (!string.IsNullOrEmpty(name))
-                {
-                    epicNameCache[appName] = name;
-                }
-
-                return name;
-            }
-            finally
-            {
-                epicNameGate.Release();
-            }
+            // Epic's own install manifests first: they are local, they carry the real title, and they
+            // cover games the online database does not. The database is keyed by catalog item ID, not
+            // by the appName SteamGridDB wants.
+            return GetOrFetchNameAsync(epicNameCache, epicNameGate, appName, async () =>
+                await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
+                    ?? await GetEpicGameNameAsync(catalogItemId ?? appName));
         }
 
         /// <summary>
