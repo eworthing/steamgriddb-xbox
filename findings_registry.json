@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 15,
+  "next_serial": 16,
   "entries": [
     {
       "stable_id": "F-001",
@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 10,
+      "last_seen_loop": 1,
       "occurrences": [
         {
           "loop": 7,
@@ -616,6 +616,18 @@
             "evidence_paths_hash": "sha256:22d8cd1708dbd9bca8b75d61abd4ce3ecbbcb93af581a1353806712e4fc837c2"
           },
           "attempted_remedy_hash": "sha256:f4c2f86323473f695a8bf1ec1842abc0a2acea44605e8f79302f29d51ab26207"
+        },
+        {
+          "loop": 1,
+          "loop_local_id": "F5",
+          "status": "open",
+          "sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
+          "note": "loop 1 of the run following the 2026-08-05 --reset. Independently re-derived from source before reading this registry (direct read of LoadGameEntriesAsync's per-entry loop, unchanged). Still blocked by the STANDING USER CONSTRAINT (no behavioural oracle for per-game network-call ordering/concurrency changes against SteamGridDB/GOG/Epic/Ubisoft), re-confirmed per the run's carried-forward instruction not to re-litigate this as newly actionable. Named per Backlog Prioritization Pass criterion 0 (blocker stated in the accounting sentence) rather than placed in the strict 1-3-item backlog, which this loop fills with three unblocked items (F-014, F-013, F-015).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:09e1eea0f93ca5b96f3b9a2577fc159a8085dffcbc5cbd8d2bc6088ee8014dcc",
+            "evidence_paths_hash": "sha256:ada13e302356a1c561f4b526ec8d81316b527cf85af46727003e76c7f2c5188d"
+          },
+          "attempted_remedy_hash": "sha256:d5faf9a21c4fa8f747439172bc8c2d8bdcfb95915e49eadcb04c9a932799333f"
         }
       ]
     },
@@ -629,7 +641,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 10,
+      "last_seen_loop": 1,
       "occurrences": [
         {
           "loop": 8,
@@ -666,6 +678,18 @@
             "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
           },
           "attempted_remedy_hash": "sha256:dcb0d0377a9893698e0a342be8843b49b1e28db92130fdcf5c713b7d55c1607a"
+        },
+        {
+          "loop": 1,
+          "loop_local_id": "F4",
+          "status": "open",
+          "sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
+          "note": "loop 1 of the run following the 2026-08-05 --reset. Independently re-derived from source before reading this registry (independent re-derivation reached the identical evidence_paths_hash as every prior occurrence - same two file:line citations - a cross-run consistency check). Still Cosmetic, still no live harm; carried as an open Finding, not a backlog item this loop (F-014/F-013/F-015 fill the top-3 slots on severity/distance-to-target), consistent with loops 8-10's own disposition.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:d8e3387364db40ffa330c10a06544b727ab2b44e9d617df649fbfcce641bf4c7",
+            "evidence_paths_hash": "sha256:00d4176a5b4d214a4af17dac621b53bb358faf91ab10de1ff0ddcde0315398d1"
+          },
+          "attempted_remedy_hash": "sha256:d773788c671675e050b27f8c48a5ad8fc4bc7d14a84d0491b5083ad5f42d0bac"
         }
       ]
     },
@@ -679,7 +703,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
       "first_seen_sha": "f60a9bfdb839c42a7ce4bc6c413f41a90977428c",
-      "last_seen_loop": 10,
+      "last_seen_loop": 1,
       "occurrences": [
         {
           "loop": 9,
@@ -704,6 +728,18 @@
             "evidence_paths_hash": "sha256:f5c660fe7afd57e17ad79b8e42a7f9ad713b426713a64fc269ac0fdb63287393"
           },
           "attempted_remedy_hash": "sha256:2523ff942e999f1137cc12dd5fe048b3b35fbdef12bdc805c39b3de95ec22841"
+        },
+        {
+          "loop": 1,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
+          "note": "loop 1 of the run following the 2026-08-05 --reset. Independently re-derived from source before reading this registry; re-confirmed unchanged (PrimaryWidget.xaml.cs's only edit this loop, F-014's guard extension at GridImage_Click/RestoreBackup_Click, sits well outside these three methods' bodies; ReplaceImageCoreAsync and RestoreAllChangesAsync's line ranges are untouched, RestoreBackupCoreAsync shifted down by the inserted doc comments/guard above it but its own body is byte-identical). Text independently re-derived this loop (own wording, not copied verbatim from loop 10's registry note), which is why the fingerprint differs from loop 10's despite the underlying claim/evidence/remedy being unchanged in substance. Outranked this loop by F-014 (now resolved, was Priority 1) and stays Priority 2 - the highest-priority still-open item in this loop's backlog.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:2684ca0fcf23955c56a887b20abfccb9dfb68a7ad5b8bed6e27b5f914d05f4d9",
+            "evidence_paths_hash": "sha256:9e3ca9d748d580923f3e3bc925617665bbea23024da3e0ede0c3448c29e72b9c"
+          },
+          "attempted_remedy_hash": "sha256:ced7d3114a8fc4fe12bf142a9fa38d9b52edc7e830ec0eedc44059db76beafe9"
         }
       ]
     },
@@ -717,7 +753,7 @@
       "severity": "Serious deduction",
       "first_seen_loop": 10,
       "first_seen_sha": "5769177a9abe1e531576c3d8a1ea04428880aea6",
-      "last_seen_loop": 10,
+      "last_seen_loop": 1,
       "occurrences": [
         {
           "loop": 10,
@@ -730,6 +766,44 @@
             "evidence_paths_hash": "sha256:03711edf12afa823af8b58f0a32a47c0452f2e7c9a4c46348097f9c004681a4b"
           },
           "attempted_remedy_hash": "sha256:eb7a2ec5b74141cbc62fb4da1f377ad411c5a6e00c97b0937038406b5a738b75"
+        },
+        {
+          "loop": 1,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "loop 1 of the run following the 2026-08-05 --reset (findings_registry.json + REVIEW_HISTORY.json preserved across the reset; this is the 11th loop of continuous history, numbered 1 under the new run's own cap). Independently re-derived from source before reading this registry, per the run's blind-critic ordering; re-confirmed the gap by direct reads of IsLibraryOperationBlocking/TryBeginLibraryOperation/EndLibraryOperation, GridImage_Click, RestoreBackup_Click, RestoreBackupCoreAsync and LoadGameEntriesAsync's GameEntries.Clear/Add, converging on the same claim loop 10's helper sweep found. Fixed this loop: extended TryBeginLibraryOperation()/EndLibraryOperation() to GridImage_Click's DownloadAndReplaceImageAsync call and RestoreBackup_Click's RestoreBackupAsync call - the two entry points that started an unguarded single-game write. ReplaceImageCoreAsync/DownloadAndReplaceImageCoreAsync deliberately left unwrapped: both are also reached from FixLibraryAsync's bulk loop, already running under the same non-reentrant guard via ConfirmAndRunAsync, and a second acquire inside the shared helper would have rejected the bulk operation's own per-game writes against its own outer guard. One file changed (PrimaryWidget.xaml.cs): the isLibraryOperationRunning field comment, and both click handlers' doc comments and bodies. Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass, explicitly verifying the double-acquire self-block concern was correctly avoided and no third unguarded write path exists.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:9ee6d484158f666ef08e04a2868f210c3cd6278a5e727d3e7c8b18a24f039708",
+            "evidence_paths_hash": "sha256:bf5ea663f06c8dc59b1c1257ceb60455abe1d05b379133a9498fa5ff67a0ee29"
+          },
+          "attempted_remedy_hash": "sha256:cac45af71d4f84d599bb46d20ceb507cef570af9abaf7164b65230261038411f"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-015",
+      "title": "StoreNameLookup's GOG and Epic name caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
+      "category_hint": "unsynchronized-cache/concurrency-inconsistency",
+      "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
+      "primary_evidence_lines": [29, 222],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 1,
+      "first_seen_sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
+      "last_seen_loop": 1,
+      "occurrences": [
+        {
+          "loop": 1,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "05d06a97305b96dc069d32ec6792ba471fcaf128",
+          "note": "New finding this loop (loop 1 of the run following the 2026-08-05 --reset). Surfaced by an independently-briefed helper sweep of Services/Stores + Services/SteamGridDB, cross-checked and confirmed by this loop's own direct reads of StoreNameLookup.cs, AsyncLazyCache.cs and SteamGridDbClient.cs; two adjacent helper claims (a Custom-platform mapping gap, an AppliedArtworkStore gate-discipline speculation) were investigated and rejected as false positives on direct re-read (the Custom case is deliberately routed through name-based lookup at PrimaryWidget.xaml.cs's own !string.IsNullOrEmpty(platformString) gate; AppliedArtworkStore's gate discipline had no source-backed harm cited). Not implemented this loop (F-014 was this loop's one refactor, higher severity); queued Priority 3.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:0a890ad1bef8e5d5fae955668dd7b6714855034a815b4606b9ce5bb9266c8738",
+            "evidence_paths_hash": "sha256:a5985145128745081600d53beed08fc5500f6dadc0a20a1eb664ef0e299df3c7"
+          },
+          "attempted_remedy_hash": "sha256:4adbed385dee68c6866cf112cbe2a67347164dc002a9a2ccb846233a6701e768"
         }
       ]
     }

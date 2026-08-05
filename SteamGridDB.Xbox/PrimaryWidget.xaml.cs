@@ -58,8 +58,11 @@ namespace SteamGridDB.Xbox
 
         private Button lastFocusedButton;
 
-        // Guards the library-wide operations against each other: they all rewrite the same files and
-        // rebuild the same collection, so overlapping runs duplicate entries or race on disk.
+        // Guards the library-wide operations against each other - they all rewrite the same files and
+        // rebuild the same collection, so overlapping runs duplicate entries or race on disk - AND
+        // against a single-game write (GridImage_Click, RestoreBackup_Click): those also write files a
+        // library-wide reload can be mid-rebuild of, and TryBeginLibraryOperation/EndLibraryOperation
+        // wrap both kinds of caller identically so the two block each other.
         private bool isLibraryOperationRunning;
 
         // Incremented every time the artwork picker is (re)populated - by EditGameImage_Click,
@@ -1487,12 +1490,34 @@ namespace SteamGridDB.Xbox
         /// so CurrentSelectedGame may no longer be the game this tile belongs to. Silently doing nothing
         /// is correct here - the tile is already gone from the panel a moment later once the newer
         /// session's population clears it, so there is no missed action to explain to the user.
+        ///
+        /// Claims the library-operation guard for the download-and-replace write below: opening the
+        /// picker and browsing it does not, so a library-wide reload (Refresh/Fix Library/Restore
+        /// Changes/Revert Defaults) can still start while the panel is open, but must not start once
+        /// this write is in flight - DownloadAndReplaceImageAsync's own <see cref="CurrentSelectedGame"/>
+        /// capture and its post-download <see cref="EntriesSharingImage"/> lookup both predate this
+        /// guard and would otherwise land on whatever a concurrent reload just rebuilt
+        /// <see cref="GameEntries"/> with, not the game the click was actually about. A bulk operation
+        /// already in flight when the tile is clicked declines the click the same way
+        /// <see cref="TryBeginLibraryOperation"/>'s other callers do (busy status text, no download).
         /// </summary>
         private async void GridImage_Click(object sender, ItemClickEventArgs e)
         {
             if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanelSessionId)
             {
-                await DownloadAndReplaceImageAsync(gridItem);
+                if (!TryBeginLibraryOperation())
+                {
+                    return;
+                }
+
+                try
+                {
+                    await DownloadAndReplaceImageAsync(gridItem);
+                }
+                finally
+                {
+                    EndLibraryOperation();
+                }
             }
         }
 
@@ -1852,20 +1877,36 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Handle restore backup button click
+        /// Handle restore backup button click.
+        ///
+        /// Claims the library-operation guard for the restore below, the same way
+        /// <see cref="RefreshButton_Click"/> and <see cref="ConfirmAndRunAsync"/>'s callers already do -
+        /// RestoreBackupCoreAsync holds the clicked button's tagged game across its own await and, after
+        /// it, looks the game's entries back up by image path (<see cref="EntriesSharingImage"/>); a
+        /// library-wide reload that rebuilds <see cref="GameEntries"/> while that await is pending would
+        /// otherwise have this restore's result land on the freshly-loaded entries instead of the ones
+        /// the click was about. A bulk operation already in flight declines the click (busy status text,
+        /// no restore) rather than let the two race.
         /// </summary>
         private async void RestoreBackup_Click(object sender, RoutedEventArgs e)
         {
-            if (IsLibraryOperationBlocking())
+            if (!TryBeginLibraryOperation())
             {
                 return;
             }
 
-            Button button = sender as Button;
-
-            if (button?.Tag is GameEntry gameEntry)
+            try
             {
-                await RestoreBackupAsync(gameEntry);
+                Button button = sender as Button;
+
+                if (button?.Tag is GameEntry gameEntry)
+                {
+                    await RestoreBackupAsync(gameEntry);
+                }
+            }
+            finally
+            {
+                EndLibraryOperation();
             }
         }
 
