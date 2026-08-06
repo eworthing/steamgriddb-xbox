@@ -594,85 +594,19 @@ namespace SteamGridDB.Xbox
                                     string externalPlatformId = identity.ExternalPlatformId;
                                     string epicCatalogItemId = identity.EpicCatalogItemId;
 
-                                    bool hasSteamGridDBMatch = false;
-                                    string officialCapsuleUrl = null;
-                                    int steamGridDbGameId = 0;
+                                    // The SGDB platform-ID match attempt, GOG/Epic/Ubisoft store-name
+                                    // dispatch, and SGDB name-search fallback for this not-yet-matched
+                                    // entry live in GameMatchResolver, so the platform-to-store dispatch
+                                    // decision and the FixLog line format are testable directly instead
+                                    // of only by inspection here. Every network call still runs in
+                                    // exactly the order, count and condition it always did.
+                                    GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
+                                        sgdbClient, canQuerySteamGridDb, platform, externalPlatformId, epicCatalogItemId, entryId, gameName, unknownName);
 
-                                    // Try to fetch game name from SteamGridDB API
-                                    try
-                                    {
-                                        string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(platform);
-
-                                        if (canQuerySteamGridDb && !string.IsNullOrEmpty(platformString))
-                                        {
-                                            SteamGridDbGame gameInfo = await sgdbClient.GetGameByPlatformIdAsync(platformString, externalPlatformId);
-
-                                            if (gameInfo != null && !string.IsNullOrEmpty(gameInfo.Name))
-                                            {
-                                                gameName = gameInfo.Name;
-                                                hasSteamGridDBMatch = true;
-
-                                                // Comes back on this same lookup; see the official-artwork gate
-                                                officialCapsuleUrl = gameInfo.OfficialCapsuleUrl;
-                                            }
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        // Log but don't fail - game name is optional, default is "Unknown"
-                                        System.Diagnostics.Debug.WriteLine($"Could not fetch game name for {entryId} from SteamGridDB: {ex.Message}");
-                                    }
-
-                                    if (!hasSteamGridDBMatch)
-                                    {
-                                        if (platform == GamePlatform.GOG)
-                                        {
-                                            string gogName = await StoreNameLookup.GetOrFetchGogNameAsync(externalPlatformId);
-
-                                            if (!string.IsNullOrEmpty(gogName))
-                                            {
-                                                gameName = gogName;
-                                            }
-                                        }
-                                        else if (platform == GamePlatform.Epic)
-                                        {
-                                            string epicName = await StoreNameLookup.GetOrFetchEpicNameAsync(externalPlatformId, epicCatalogItemId);
-
-                                            if (!string.IsNullOrEmpty(epicName))
-                                            {
-                                                gameName = epicName;
-                                            }
-                                        }
-                                        else if (platform == GamePlatform.Ubisoft)
-                                        {
-                                            string ubisoftName = await StoreNameLookup.GetUbisoftGameNameAsync(externalPlatformId);
-
-                                            if (!string.IsNullOrEmpty(ubisoftName))
-                                            {
-                                                gameName = ubisoftName;
-                                            }
-                                        }
-                                        else if (platform == GamePlatform.EA)
-                                        {
-                                            // TODO: Implement EA App name fetching if possible
-                                        }
-
-                                        // A name is enough to find the game even when no store ID
-                                        // matches - SteamGridDB has entries linked to no store at all.
-                                        // Custom entries are included deliberately, despite being the
-                                        // one kind that made no store request before: someone adding a
-                                        // shortcut by hand wants artwork for it more than most, not
-                                        // less. The result cache keeps the cost to once per name.
-                                        if (canQuerySteamGridDb && gameName != unknownName)
-                                        {
-                                            steamGridDbGameId = await StoreNameLookup.FindGameByNameAsync(sgdbClient, gameName);
-                                            hasSteamGridDBMatch = steamGridDbGameId > 0;
-                                        }
-
-                                        FixLog.Write($"unmatched {platform}/{externalPlatformId}"
-                                            + (platform == GamePlatform.Epic ? $" catalog={epicCatalogItemId ?? "none"} epic=[{EpicLibrary.LoadSummary}]" : string.Empty)
-                                            + $" name={gameName} sgdbId={steamGridDbGameId}");
-                                    }
+                                    gameName = match.GameName;
+                                    bool hasSteamGridDBMatch = match.HasSteamGridDbMatch;
+                                    string officialCapsuleUrl = match.OfficialCapsuleUrl;
+                                    int steamGridDbGameId = match.SteamGridDbGameId;
 
                                     // Add to temporary list instead of directly to GameEntries
                                     tmpGameList.Add(new GameEntry

@@ -124,6 +124,7 @@
     <Compile Include="Services\Artwork\TileImage.cs" />
     <Compile Include="Services\AsyncLazyCache.cs" />
     <Compile Include="Services\Library\GameImages.cs" />
+    <Compile Include="Services\Library\GameMatchResolver.cs" />
     <Compile Include="Services\Library\LibraryOperationGuard.cs" />
     <Compile Include="Services\Library\ManifestEntryIdentity.cs" />
     <Compile Include="Services\Library\ManifestEntryImage.cs" />

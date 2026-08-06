@@ -4160,3 +4160,157 @@ Extracted the per-manifest-entry image-location-resolution logic (Custom-vs-stan
 
 ## Retired Findings (this loop)
 None.
+
+--- Loop 11 (UTC 2026-08-06T01:10:38Z) ---
+
+### Loop Counter
+Loop 11 of 15 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+Good app, but not top-tier yet
+
+This loop, resumed after the user bumped the cap from 10 to 15, continued the sequenced PrimaryWidget.xaml.cs decomposition with its own second slice - LoadGameEntriesAsync's SteamGridDB match/name orchestration moved into a new, tested `GameMatchResolver` class, and PrimaryWidget.xaml.cs shrank again (2092 -> 2026 lines). `architecture_quality` moved UP for the second loop in a row. This loop also re-derived, rather than re-cited, the prior loop's own tentative claim about the next slice (bulk-operation report/status glue) and found it genuinely thin on direct inspection - a real negative result, not a stall. `architecture_quality` (8.5) and `data_flow` (7.5) remain the two dimensions capping this below top-tier.
+
+## Scorecard (1-10)
+
+- Architecture quality: 8.5 | UP | Second real, reviewer-approved, tested extraction out of `LoadGameEntriesAsync`: SteamGridDB platform-ID match, GOG/Epic/Ubisoft store-name dispatch, name-search fallback, and FixLog audit-line construction moved into `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs`, matching the `ManifestEntryIdentity`/`ManifestEntryImage` pattern. Deletion test passes. PrimaryWidget.xaml.cs shrank 2092 -> 2026 lines (net -66). Five co-located concerns remain (down from six); this loop's own investigation of the next candidate (bulk-operation glue) found it thin, so the score moves 0.5, not more.
+- State management and runtime ownership: 10 | SAME | Fresh field census this loop confirms the same field set as loop 10, all above the edited range. `GameMatchResolver.cs` declares zero mutable state.
+- Domain modeling: 9.5 | SAME | `GameEntry.cs` unchanged. Adversarial Pass re-run against the relocated-but-identical parallel-fields shape: no new alternative fix. Residual accepted.
+- Data flow and dependency design: 7.5 | SAME | 11th consecutive loop SAME. `GameMatchResolver.cs` confirmed stateless; scattered caches untouched. Stalled-Dimension Sweep: explicit clean.
+- Framework / platform best practices: 9.5 | SAME | `App.xaml.cs` unchanged. Residual re-confirmed SPT-rejected.
+- Concurrency and runtime safety: 9.5 | SAME | Await order/count/gating preserved exactly, independently verified by the reviewer's line-by-line comparison against the deleted code. Residual unchanged.
+- Code simplicity and clarity: 10 | SAME | `GameMatchResolver.cs` matches the established no-ceremony pattern; Func-delegate injection deliberately rejected as ceremony. No counter-example found.
+- Test strategy and regression resistance: 8.5 | SAME | 12 new tests at two pure Interfaces. G24 Authority-Map cross-check run before considering >= 9: multiple presentation-state concerns (session IDs, currentSelectedGame, GameEntries, header/focus state) still lack direct test files - only `LibraryOperationGuard` has one. 9-anchor not met; score held. 178 -> 190 tests passing.
+- Overall implementation credibility: 10 | SAME | Reviewer independently verified doc-comment claims against code and against the deleted inline code. One reviewer-flagged item (claimed unused using) checked and confirmed a false positive.
+
+## Authority Map
+(Not re-emitted this loop: no authority finding was Priority 1. A targeted, non-exhaustive Authority-Map cross-check WAS run this loop to gate `test_strategy`'s score per G24 - see that dimension's proof above.)
+
+## Strengths That Matter
+- This loop's own extraction (`GameMatchResolver`) is `architecture_quality`'s second consecutive upward move - a real, reviewer-approved, deletion-test-passing Module with 12 new tests at two genuinely pure new Interfaces.
+- This loop ran the Authority-Map test-surface cross-check `test_strategy`'s own 9-anchor requires (G24) before considering a score above 9, rather than assuming new tests automatically cross the threshold, and held the score when the anchor wasn't met.
+- This loop investigated rather than re-cited the prior loop's tentative claim about the next decomposition slice and found it genuinely thin - a real negative result recorded honestly.
+
+## Findings
+
+### Finding #1: PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class
+
+**Why it matters** — It is the top-churn file by roughly 5x (38 edits/6mo vs 8 for the next file) and `architecture_quality` was stuck at 7.5 across 19 critic passes across two runs before this run's own loops 10-11 started landing sequenced slices out of it.
+
+**What is wrong** — `PrimaryWidget.xaml.cs` still mixes six genuinely distinct concerns in one class after this loop's slice: UI event handling, file I/O and backup/restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding. The per-manifest-entry image-location-resolution and SteamGridDB match/name-orchestration concerns that made seven at loop 10 are now extracted (`ManifestEntryImage` in loop 10, `GameMatchResolver` this loop).
+
+**Evidence** — SteamGridDB.Xbox/PrimaryWidget.xaml.cs (2092 lines before this loop's edit, 2026 after); Discovery churn_top20: PrimaryWidget.xaml.cs at 38 edits/6mo, ~5x the next file
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — Each future PrimaryWidget change has to be read and safely edited inside the same large class regardless of which of the six remaining concerns it targets; this loop's slice lets the SteamGridDB match/name orchestration be read, tested, and changed on its own from now on.
+
+**Locality impact** — This loop's own slice is now contained to Services/Library/GameMatchResolver.cs and its 12 tests; the remaining six co-located concerns stay in PrimaryWidget.xaml.cs, though this loop's own investigation found the most likely next candidate (bulk-operation glue) already at its honest floor.
+
+**Metric signal, if any** — churn_top20: 38 edits/6mo, ~5x the next-highest file
+
+**Why this weakens submission** — `architecture_quality`'s own 9-anchor requires that a senior reviewer cannot identify a structural improvement that preserves behavior and improves Leverage or Locality - this loop identified and landed exactly such an improvement for the second consecutive loop; the remaining six co-located concerns keep the file below that anchor.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Sequenced, multi-loop decomposition. Loop 10: extracted image-location-resolution into `ManifestEntryImage.cs`. This loop: extracted the SteamGridDB match/name orchestration into `GameMatchResolver.cs`, with 12 new tests at two genuinely pure new Interfaces. Next slice, investigated this loop and found thin: `FixLibraryAsync`/`RevertAllToDefaultAsync`/`RestoreAllChangesAsync`'s per-game bodies already delegate counting/status entirely to the existing, tested `OperationReport` - no further pure decision logic separable from the real I/O calls. After `GameMatchResolver`, the remaining lines are the honest XAML-bound floor.
+
+**Blast radius** — Change: PrimaryWidget.xaml.cs's panel/search navigation methods (next candidate slice to investigate fresh - unconfirmed this loop). Avoid: PrimaryWidget.xaml.cs's UI event-handler surface and the already-investigated-and-thin bulk-operation glue.
+
+### Finding #2: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `LoadGameEntriesAsync`'s per-entry loop (PrimaryWidget.xaml.cs:411-682) awaits each entry's SteamGridDB platform-ID lookup, store name-fetch and SteamGridDB name search in strict sequence. This loop's own edit relocated this sequence into `GameMatchResolver.ResolveAsync` but did not change its sequential network-call shape.
+
+**Evidence** — PrimaryWidget.xaml.cs:411-682; SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs:108-201
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — None currently actionable - see blocker.
+
+**Locality impact** — Now fully contained to `GameMatchResolver.ResolveAsync` if unblocked, rather than spread across a 2000-line UI-bound method.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint means this loop cannot land a change altering observable call ordering/concurrency/count without a product decision this loop cannot make.
+
+**Severity** — Noticeable weakness
+
+**ADR conflicts** — none
+
+**Minimal correction path** — BLOCKED this loop; named for continuity per Backlog Prioritization Pass criterion 0. Now genuinely isolated in one place rather than inline in a 2000-line UI-bound method.
+
+**Blast radius** — Change: none (blocked). Avoid: GameMatchResolver.cs (no change while blocked).
+
+### Finding #3: GameEntry's SteamGridDB-match fields (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId) admit a combination LoadGameEntriesAsync never actually constructs
+
+**Why it matters** — A reader of GameEntry's type alone cannot tell that `HasSteamGridDBMatch == false` combined with `SteamGridDbGameId > 0` never happens in practice.
+
+**What is wrong** — `HasSteamGridDBMatch`, `OfficialCapsuleUrl` and `SteamGridDbGameId` are three independently publicly-settable properties (GameEntry.cs:113-145, unchanged this loop). `GameMatchResolver.ResolveAsync`'s `Result` only ever produces three of the four representable combinations, exactly as the inline code did before.
+
+**Evidence** — SteamGridDB.Xbox/Models/GameEntry.cs:113-145; SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs (Result struct and ResolveAsync's construction of it)
+
+**Architectural test failed** — n/a
+
+**Dependency category** — n/a
+
+**Leverage impact** — A caller reading GameEntry's type signature alone cannot recover which combinations are real without reading control flow.
+
+**Locality impact** — Contained to GameEntry.cs and its one construction site.
+
+**Metric signal, if any** — none
+
+**Why this weakens submission** — An impossible-in-practice state remains representable, but the harm is narrow and every proposed fix trades today's permissiveness for a comparably-sized new ceremony burden.
+
+**Severity** — Cosmetic for contest
+
+**ADR conflicts** — none
+
+**Minimal correction path** — Not fixed this loop (accepted residual, re-tested this loop's Adversarial Pass against the same underlying shape - no new alternative fix identified beyond the two already rejected in loop 9).
+
+**Blast radius** — Change: none this loop (accepted residual). If ever queued: GameEntry.cs, GameMatchResolver.cs's construction site.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Extracting the SteamGridDB platform-ID match attempt, store-name dispatch, name-search fallback, and FixLog audit-line construction into `GameMatchResolver.ResolveAsync` - passes the deletion test. |
+| New seam justified | false (no protocol/port added - a plain static class) |
+| Helpful simplification | `LoadGameEntriesAsync`'s block shrinks from a 79-line inline sequence to an 8-line delegating block. |
+| Should NOT be done | Partial-class line-shuffling; a helper taking the whole PrimaryWidget as a parameter; a protocol/interface with one production implementation; Func-delegate injection purely for testability (ceremony, fails SPT Q2); extracting panel/search navigation state or UI event handlers. |
+| Tests after fix | 12 new `[Fact]`/`[Theory]` tests in `GameMatchResolverTests.cs`. `ResolveAsync` itself deliberately not directly tested (real network I/O). Full build + full test suite (178 -> 190) re-run; independent implementation review approved on first pass. |
+
+## Improvement Backlog
+1. F-022 — Continue PrimaryWidget.xaml.cs's monolith decomposition; next slice not yet identified with confidence. Kind: structural. Rank: needed for winning. Score impact: architecture_quality +0.5.
+2. F-011 — Parallelize LoadGameEntriesAsync's per-entry network resolution. Kind: structural. Rank: needed for winning. BLOCKED by the standing user constraint. Score impact: concurrency +0.5.
+
+## Deepening Candidates
+None this loop - see Findings/minimal_correction_path for the bulk-operation glue investigation that ruled out the previously-assumed candidate.
+
+## Builder Notes
+- A network-bound orchestration block can be extracted for Locality even when its main async body cannot get direct unit tests - pull out only the genuinely pure sub-decisions and test those directly.
+- Before crediting new tests with pushing a test-coverage score across a stated threshold, walk the threshold's own stated requirement against current source rather than assuming more tests always move the needle.
+- When a prior loop names a candidate next step as tentative, the honest move for the next loop is to actually go look, not to either silently re-execute the same tentative plan or silently drop it.
+
+→ REVIEW_HISTORY.json `loops[20].builder_notes` for full notes (0-indexed, 21st entry overall counting pre-reset history; this is loop 11 of this run)
+
+## Final Judge Narrative
+This loop, resumed after the user bumped the loop cap from 10 to 15, continued the sequenced PrimaryWidget.xaml.cs decomposition the standing directive named as Priority 1: LoadGameEntriesAsync's SteamGridDB platform-ID match attempt, store-name dispatch, name-search fallback, and FixLog audit-line construction moved into a new, tested GameMatchResolver class, and PrimaryWidget.xaml.cs shrank for the second consecutive loop (2092 -> 2026 lines, -66, a larger reduction than loop 10's own -33). architecture_quality moved UP for the second loop in a row. This loop also took the standing directive's re-derive-don't-re-cite mandate seriously in two concrete ways: it ran a fresh Authority-Map test-surface cross-check before considering whether test_strategy's new coverage crossed the 9-threshold (finding it does not), and it actually investigated rather than re-cited loop 10's own tentative next-slice candidate, finding it genuinely thin on direct source inspection. state_management, simplicity and credibility (all at 10) were freshly re-checked against this loop's own new code and held with no counter-example. domain_modeling, framework_idioms and concurrency (all 9.5, accepted residuals) held unchanged against byte-identical source. data_flow (7.5) remains untouched for an 11th consecutive loop and, alongside architecture_quality's remaining distance to 9, is the honest reason this stays short of a top-tier verdict. The loop is not claiming the monolith is solved: F-022 stays open, carried forward, with an honestly uncertain next step - this loop deliberately did not name a specific next slice with the same confidence loop 10 named this one, because the most likely candidate turned out to be a dead end and no replacement candidate was verified this loop. Future work risks nothing from this loop's own fix (behavior-preserving, independently line-by-line verified by the reviewer, full build and full test suite green both before and after); the risk to watch for a resumed run is the opposite of complacency - loop 12 needs its own honest investigation of panel/search navigation and the library-operation-guard calling convention before committing to a target, not an assumption that the decomposition sequence has an obvious next slice just because the last two loops each found one.
+
+## Loop 11 Result
+Extracted LoadGameEntriesAsync's SteamGridDB platform-ID match attempt, GOG/Epic/Ubisoft store-name dispatch, SteamGridDB name-search fallback, and FixLog audit-line construction out of PrimaryWidget.xaml.cs into a new stateless static class, `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs` (203 lines: readonly `Result` struct, `StoreNameLookupTarget` enum, pure `SelectStoreNameLookupTarget`/`BuildUnmatchedLogLine` functions, and one async `ResolveAsync` orchestration), with 12 new tests at the two pure Interfaces in `SteamGridDB.Xbox.Tests/GameMatchResolverTests.cs`. PrimaryWidget.xaml.cs's `LoadGameEntriesAsync` now calls `GameMatchResolver.ResolveAsync` and unpacks its `Result` instead of inlining the ~79-line branching sequence; `SteamGridDB.Xbox.csproj` got one new `<Compile Include>` line for the new app-project file. **PrimaryWidget.xaml.cs line count: 2092 -> 2026 (net -66), verified via `(Get-Content SteamGridDB.Xbox/PrimaryWidget.xaml.cs).Count`.** Full build (msbuild, exit 0) and full test suite (run-tests.ps1) both re-run before and after: 178 passed/0 failed before, 190 passed/0 failed after (12 new tests, zero regressions). The implementation reviewer independently re-derived, via its own line-by-line comparison against the deleted inline code, that every network call preserves identical order, count and gating condition, specifically checking the standing user constraint on per-game network-call ordering. Finding F1 (stable_id F-022) is **carried_forward** - this loop's slice is real, tested, and reviewer-approved progress, but the finding's broader claim (six remaining co-located concerns) is not resolved, and this loop's own investigation of the most likely next slice found it thin, leaving the next actionable target genuinely open for loop 12. Independent implementation review (separate subagent, read-only, briefed cold on the finding, the diff, TESTING.md, and the standing network-call-ordering constraint) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass; its one flagged item (a claimed unused using directive) was checked directly this loop and confirmed a false positive. No unintended scorecard regression observed; `architecture_quality` moved UP as a direct consequence; `state_management`/`simplicity`/`credibility` (unaffected by this loop's own code change) were independently re-verified fresh against this loop's own new code with zero counter-examples; `test_strategy` was deliberately held SAME after a fresh G24 Authority-Map cross-check found the 9-anchor genuinely not yet met.
+
+## Retired Findings (this loop)
+None.
