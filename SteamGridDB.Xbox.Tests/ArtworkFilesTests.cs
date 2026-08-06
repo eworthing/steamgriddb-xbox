@@ -295,5 +295,182 @@ namespace SteamGridDB.Xbox.Tests
                 Assert.True(await ArtworkFiles.HasBackupAsync(temp.Folder, image));
             }
         }
+
+        // ---- Sidecars held away from the image ----
+        //
+        // First-party tiles live in a cache the Xbox app owns and prunes: it removes files it did not
+        // put there, so a .bak left beside the image would be deleted and the original lost for good.
+        // Those sidecars go into this app's own storage instead. The guarantees above have to hold
+        // identically across that split - the same original-survives-everything rules, plus one the
+        // same-folder path never had to think about, that a rename cannot move between folders.
+
+        [Fact]
+        public async Task Apply_puts_the_backup_in_the_sidecar_folder_and_nothing_beside_the_image()
+        {
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, xboxOriginal);
+
+                bool hasBackup = await ArtworkFiles.ApplyEncodedAsync(
+                    images.Folder, image, vault.Folder, TestImages.Bytes("artwork"));
+
+                Assert.True(hasBackup);
+                Assert.Equal(xboxOriginal, await vault.ReadAsync(backup));
+                Assert.Equal("artwork", await vault.ReadAsync(customised));
+
+                // Anything this app leaves in the Xbox app's cache is a file the Xbox app will delete
+                Assert.Equal(new[] { image }, images.FileNames());
+            }
+        }
+
+        [Fact]
+        public async Task Applying_a_second_time_keeps_the_first_backup_in_the_sidecar_folder()
+        {
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, xboxOriginal);
+
+                await ArtworkFiles.ApplyEncodedAsync(images.Folder, image, vault.Folder, TestImages.Bytes("first"));
+                await ArtworkFiles.ApplyEncodedAsync(images.Folder, image, vault.Folder, TestImages.Bytes("second"));
+
+                Assert.Equal(xboxOriginal, await vault.ReadAsync(backup));
+                Assert.Equal("second", await images.ReadAsync(image));
+            }
+        }
+
+        [Fact]
+        public async Task ApplyEncoded_writes_the_bytes_it_was_given_without_converting_them()
+        {
+            // The whole reason it is separate from ApplyAsync: a first-party tile has to stay the exact
+            // JPEG of the exact size the caller encoded, where a third-party one is forced to PNG to
+            // match the name the Xbox app gave it
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                IBuffer jpeg = await TestImages.JpegAsync();
+
+                await ArtworkFiles.ApplyEncodedAsync(images.Folder, image, vault.Folder, jpeg);
+
+                Assert.Equal(TestImages.ToArray(jpeg), images.ReadBytes(image));
+                Assert.False(TestImages.IsPng(images.ReadBytes(image)));
+            }
+        }
+
+        [Fact]
+        public async Task Restore_moves_the_original_back_out_of_the_sidecar_folder()
+        {
+            // Rename cannot leave a folder, so this path has to move instead - and if it silently did
+            // nothing, the customisation would stay on the tile and the button would report success
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, "customised");
+                await vault.WriteAsync(backup, xboxOriginal);
+                await vault.WriteAsync(customised, "customised");
+
+                ArtworkFiles.RestoreOutcome outcome = await ArtworkFiles.RestoreOriginalAsync(
+                    images.Folder, image, vault.Folder);
+
+                Assert.Equal(ArtworkFiles.RestoreOutcome.Restored, outcome);
+                Assert.Equal(xboxOriginal, await images.ReadAsync(image));
+                Assert.Empty(vault.FileNames());
+            }
+        }
+
+        [Fact]
+        public async Task Restore_from_a_sidecar_folder_with_no_backup_changes_nothing()
+        {
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, "customised");
+                await vault.WriteAsync(customised, "customised");
+
+                ArtworkFiles.RestoreOutcome outcome = await ArtworkFiles.RestoreOriginalAsync(
+                    images.Folder, image, vault.Folder);
+
+                Assert.Equal(ArtworkFiles.RestoreOutcome.BackupMissing, outcome);
+                Assert.Equal("customised", await images.ReadAsync(image));
+
+                // The saved customisation is the only way back if the Xbox app overwrites the tile, so
+                // a restore that found no backup must not have consumed it on the way
+                Assert.Equal("customised", await vault.ReadAsync(customised));
+            }
+        }
+
+        [Fact]
+        public async Task Restore_puts_the_original_back_even_when_the_xbox_app_deleted_the_tile()
+        {
+            // The Xbox app evicts cached images on its own schedule, and a revert has to work
+            // afterwards rather than leaving the backup stranded in the vault forever
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await vault.WriteAsync(backup, xboxOriginal);
+
+                Assert.Equal(
+                    ArtworkFiles.RestoreOutcome.Restored,
+                    await ArtworkFiles.RestoreOriginalAsync(images.Folder, image, vault.Folder));
+
+                Assert.Equal(xboxOriginal, await images.ReadAsync(image));
+            }
+        }
+
+        [Fact]
+        public async Task Reapply_writes_the_saved_customisation_from_the_sidecar_folder()
+        {
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, "what the xbox app re-downloaded");
+                await vault.WriteAsync(customised, "the artwork that was applied");
+
+                ArtworkFiles.ReapplyOutcome outcome = await ArtworkFiles.ReapplyCustomisationAsync(
+                    images.Folder, image, vault.Folder);
+
+                Assert.Equal(ArtworkFiles.ReapplyOutcome.Reapplied, outcome);
+                Assert.Equal("the artwork that was applied", await images.ReadAsync(image));
+
+                // Kept, not consumed - the Xbox app can overwrite the same tile again next month
+                Assert.Equal("the artwork that was applied", await vault.ReadAsync(customised));
+            }
+        }
+
+        [Fact]
+        public async Task Reapply_from_a_sidecar_folder_with_nothing_saved_changes_nothing()
+        {
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync(image, xboxOriginal);
+
+                Assert.Equal(
+                    ArtworkFiles.ReapplyOutcome.NothingSaved,
+                    await ArtworkFiles.ReapplyCustomisationAsync(images.Folder, image, vault.Folder));
+
+                Assert.Equal(xboxOriginal, await images.ReadAsync(image));
+            }
+        }
+
+        [Fact]
+        public async Task Sidecars_keep_the_image_name_so_two_games_never_collide()
+        {
+            // Every first-party tile's sidecars share one folder, which only works because the Xbox app
+            // names cached files by a hash that is unique across its whole cache
+            using (var images = new TempFolder())
+            using (var vault = new TempFolder())
+            {
+                await images.WriteAsync("4590615919437530241", "first game's tile");
+                await images.WriteAsync("6261343673410584925", "second game's tile");
+
+                await ArtworkFiles.ApplyEncodedAsync(images.Folder, "4590615919437530241", vault.Folder, TestImages.Bytes("a"));
+                await ArtworkFiles.ApplyEncodedAsync(images.Folder, "6261343673410584925", vault.Folder, TestImages.Bytes("b"));
+
+                Assert.Equal("first game's tile", await vault.ReadAsync("4590615919437530241.bak"));
+                Assert.Equal("second game's tile", await vault.ReadAsync("6261343673410584925.bak"));
+            }
+        }
     }
 }

@@ -1,0 +1,215 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Windows.Data.Json;
+using Windows.Storage;
+
+namespace SteamGridDB.Xbox.Services.Xbox
+{
+    /// <summary>
+    /// Remembers which cached images belong to which first-party game.
+    ///
+    /// This is not a cache that can be rebuilt. Renditions are discovered by comparing the cached
+    /// images against the artwork the Store says the tile came from - so the moment a rendition is
+    /// overwritten with someone's chosen art, it stops resembling what would find it, and the game
+    /// becomes undiscoverable. The record written here is the only way back to those files, which is
+    /// why it is saved the instant discovery succeeds and before any bytes are applied.
+    ///
+    /// It also carries the backups. The Xbox app enumerates its own cache folder and removes files it
+    /// did not put there, so the .bak and .new siblings cannot sit beside the images the way they do
+    /// for third-party tiles; <see cref="VaultFolderAsync"/> is where they go instead. Their names are
+    /// unchanged, because the app names cached files by a hash that is unique across the whole cache.
+    /// </summary>
+    internal static class XboxTileStore
+    {
+        private const string fileName = "xbox-tiles.json";
+
+        /// <summary>Folder holding the .bak and .new siblings of every first-party tile.</summary>
+        private const string vaultFolderName = "XboxTiles";
+
+        // Same shape and the same reasoning as AppliedArtworkStore's gate: writes are rare, but a bulk
+        // fix and a per-row button can both reach here, and a half-written record loses the only route
+        // back to a game's renditions.
+        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
+
+        private static AsyncLazyCache<Dictionary<string, List<string>>> tileCache =
+            new AsyncLazyCache<Dictionary<string, List<string>>>(gate, LoadMapFromDiskAsync);
+
+        private static StorageFolder recordFolder;
+
+        /// <summary>
+        /// Where the record and the vault are kept. Defaults to the widget's own local data.
+        ///
+        /// Settable for the same reason <see cref="Artwork.AppliedArtworkStore.RecordFolder"/> is:
+        /// ApplicationData.Current only resolves inside an app container, and that is the only thing
+        /// stopping this type being exercised outside one.
+        /// </summary>
+        internal static StorageFolder RecordFolder
+        {
+            get => recordFolder ?? ApplicationData.Current.LocalFolder;
+
+            set
+            {
+                recordFolder = value;
+                tileCache = new AsyncLazyCache<Dictionary<string, List<string>>>(gate, LoadMapFromDiskAsync);
+            }
+        }
+
+        /// <summary>
+        /// The folder holding first-party backups, created on first use.
+        /// </summary>
+        internal static async Task<StorageFolder> VaultFolderAsync()
+        {
+            return await RecordFolder.CreateFolderAsync(vaultFolderName, CreationCollisionOption.OpenIfExists);
+        }
+
+        /// <summary>
+        /// The cached images known to be this game's tile, largest first, or null when it has never
+        /// been discovered.
+        /// </summary>
+        /// <param name="storeId">The game's Microsoft Store product ID.</param>
+        internal static async Task<IReadOnlyList<string>> GetAsync(string storeId)
+        {
+            if (string.IsNullOrEmpty(storeId))
+            {
+                return null;
+            }
+
+            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
+
+            await gate.WaitAsync();
+
+            try
+            {
+                return map.TryGetValue(storeId, out List<string> renditions) ? renditions : null;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        /// <summary>
+        /// Records the cached images making up a game's tile.
+        /// </summary>
+        /// <param name="storeId">The game's Microsoft Store product ID.</param>
+        /// <param name="renditionFileNames">Cache file names, largest first.</param>
+        internal static async Task SetAsync(string storeId, IEnumerable<string> renditionFileNames)
+        {
+            if (string.IsNullOrEmpty(storeId))
+            {
+                return;
+            }
+
+            List<string> renditions = renditionFileNames?.Where(n => !string.IsNullOrEmpty(n)).ToList()
+                ?? new List<string>();
+
+            if (renditions.Count == 0)
+            {
+                return;
+            }
+
+            await UpdateAsync(map => map[storeId] = renditions);
+        }
+
+        /// <summary>
+        /// Forgets a game, for when its renditions no longer exist and it has to be discovered again.
+        /// </summary>
+        /// <param name="storeId">The game's Microsoft Store product ID.</param>
+        internal static async Task ClearAsync(string storeId)
+        {
+            if (string.IsNullOrEmpty(storeId))
+            {
+                return;
+            }
+
+            await UpdateAsync(map => map.Remove(storeId));
+        }
+
+        private static async Task<Dictionary<string, List<string>>> LoadMapFromDiskAsync()
+        {
+            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            try
+            {
+                StorageFile file = await RecordFolder.GetFileAsync(fileName);
+                string json = await FileIO.ReadTextAsync(file);
+
+                if (JsonObject.TryParse(json, out JsonObject root))
+                {
+                    foreach (var pair in root)
+                    {
+                        if (pair.Value.ValueType != JsonValueType.Array)
+                        {
+                            continue;
+                        }
+
+                        List<string> renditions = pair.Value.GetArray()
+                            .Where(v => v.ValueType == JsonValueType.String)
+                            .Select(v => v.GetString())
+                            .ToList();
+
+                        if (renditions.Count > 0)
+                        {
+                            map[pair.Key] = renditions;
+                        }
+                    }
+                }
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                // Nothing discovered yet
+            }
+            catch (Exception ex)
+            {
+                // A damaged record costs the discoveries it held, which can be made again as long as
+                // nothing has been applied over them - not a failed library load
+                System.Diagnostics.Debug.WriteLine($"Could not read the Xbox tile record: {ex.Message}");
+            }
+
+            return map;
+        }
+
+        private static async Task UpdateAsync(Action<Dictionary<string, List<string>>> change)
+        {
+            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
+
+            await gate.WaitAsync();
+
+            try
+            {
+                change(map);
+
+                var root = new JsonObject();
+
+                foreach (var pair in map)
+                {
+                    var renditions = new JsonArray();
+
+                    foreach (string name in pair.Value)
+                    {
+                        renditions.Add(JsonValue.CreateStringValue(name));
+                    }
+
+                    root[pair.Key] = renditions;
+                }
+
+                StorageFile file = await RecordFolder.CreateFileAsync(
+                    fileName, CreationCollisionOption.ReplaceExisting);
+
+                await FileIO.WriteTextAsync(file, root.Stringify());
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not save the Xbox tile record: {ex.Message}");
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+    }
+}

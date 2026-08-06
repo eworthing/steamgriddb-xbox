@@ -137,6 +137,31 @@ namespace SteamGridDB.Xbox.Tests
             });
         }
 
+        /// <summary>
+        /// A square image split into four flat quadrants, light and dark on opposite corners.
+        ///
+        /// Scale-invariant on purpose: the same picture rendered at 72px and at 329px reduces to the
+        /// same signature, which is exactly the property tile matching relies on - a reference fetched
+        /// at one size has to match cached renditions at half a dozen others. A fine texture such as a
+        /// one-pixel checkerboard does not have it: it averages away to flat grey at high resolution
+        /// and survives at low, so the "same" image scores as two different ones.
+        /// </summary>
+        /// <param name="size">Width and height.</param>
+        /// <param name="inverted">Swaps light for dark, giving a different picture built from the same palette.</param>
+        internal static Task<IBuffer> QuadrantPngAsync(int size, bool inverted = false)
+        {
+            byte dark = inverted ? (byte)235 : (byte)20;
+            byte light = inverted ? (byte)20 : (byte)235;
+
+            return FromPixelsAsync(size, size, (x, y) =>
+            {
+                bool topLeftOrBottomRight = (x < size / 2) == (y < size / 2);
+                byte level = topLeftOrBottomRight ? dark : light;
+
+                return (B: level, G: level, R: level, A: (byte)255);
+            });
+        }
+
         /// <summary>Builds a PNG from an explicit per-pixel BGRA function, bypassing the encoder's own
         /// (opaque-black or fully-transparent) default fill so tests can control alpha and colour exactly.</summary>
         private static async Task<IBuffer> FromPixelsAsync(int width, int height, Func<int, int, (byte B, byte G, byte R, byte A)> pixelAt)

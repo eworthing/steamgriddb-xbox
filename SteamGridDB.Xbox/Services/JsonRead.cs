@@ -54,5 +54,15 @@ namespace SteamGridDB.Xbox.Services
 
             return value?.ValueType == JsonValueType.String ? value.GetString() : null;
         }
+
+        /// <summary>
+        /// A member as a number, or <paramref name="fallback"/> when it is absent, null or another type.
+        /// </summary>
+        public static double Number(JsonObject source, string name, double fallback = 0)
+        {
+            IJsonValue value = Value(source, name);
+
+            return value?.ValueType == JsonValueType.Number ? value.GetNumber() : fallback;
+        }
     }
 }

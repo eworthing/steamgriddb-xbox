@@ -66,6 +66,24 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
+        public void Reads_a_number()
+        {
+            Assert.Equal(1080, JsonRead.Number(Parse(@"{""Width"":1080}"), "Width"));
+        }
+
+        [Fact]
+        public void Falls_back_rather_than_throwing_for_a_number_that_is_not_one()
+        {
+            // The Store catalogue's image dimensions go through here, and a product whose Width came
+            // back as a string would otherwise throw mid-parse and cost the whole response
+            Assert.Equal(0, JsonRead.Number(Parse(@"{""Width"":null}"), "Width"));
+            Assert.Equal(0, JsonRead.Number(Parse(@"{""Width"":""1080""}"), "Width"));
+            Assert.Equal(0, JsonRead.Number(Parse(@"{}"), "Width"));
+            Assert.Equal(0, JsonRead.Number(null, "Width"));
+            Assert.Equal(-1, JsonRead.Number(Parse(@"{}"), "Width", -1));
+        }
+
+        [Fact]
         public void Reads_nested_members()
         {
             JsonObject steam = JsonRead.Object(Parse(@"{""platforms"":{""steam"":{""id"":""440""}}}"), "platforms");

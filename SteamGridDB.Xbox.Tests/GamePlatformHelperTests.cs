@@ -47,7 +47,22 @@ namespace SteamGridDB.Xbox.Tests
         [Fact]
         public void FromXboxDirectory_returns_Unknown_for_null()
         {
+            // Load-bearing since Xbox joined the table with a null folder name - it has no
+            // ThirdPartyLibraries folder at all. Without the null check ahead of the table walk, the
+            // row's null would match a null argument and every unreadable folder name would come back
+            // as a first-party game.
             Assert.Equal(GamePlatform.Unknown, GamePlatformHelper.FromXboxDirectory(null));
+        }
+
+        [Fact]
+        public void FromXboxDirectory_never_returns_Xbox()
+        {
+            // Xbox games are enumerated from what is installed, never read out of a folder, so no
+            // folder name should ever resolve to them
+            foreach (string folderName in new[] { "xbox", "gamingapp", "microsoft", string.Empty, "  " })
+            {
+                Assert.NotEqual(GamePlatform.Xbox, GamePlatformHelper.FromXboxDirectory(folderName));
+            }
         }
 
         [Fact]
@@ -74,6 +89,14 @@ namespace SteamGridDB.Xbox.Tests
             // Custom is a real row (it has an Xbox folder name), but SteamGridDB has no "custom
             // library" store to search - distinct from Unknown below, which is not a row at all.
             Assert.Null(GamePlatformHelper.GamePlatformToSGDBApiString(GamePlatform.Custom));
+        }
+
+        [Fact]
+        public void GamePlatformToSGDBApiString_returns_null_for_Xbox()
+        {
+            // SteamGridDB carries no Microsoft Store platform, so first-party games are matched by
+            // name - which is the path a null api string selects
+            Assert.Null(GamePlatformHelper.GamePlatformToSGDBApiString(GamePlatform.Xbox));
         }
 
         [Fact]

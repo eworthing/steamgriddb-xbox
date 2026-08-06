@@ -115,6 +115,12 @@
 
   <Capabilities>
     <rescap:Capability Name="broadFileSystemAccess" />
+    <!--
+      Lists installed packages, which is how games the Xbox app installed as plain MSIX are found -
+      they have no XboxGames folder to sweep. Only each package's install folder is read, and only to
+      look for the MicrosoftGame.config that identifies it as a game.
+    -->
+    <rescap:Capability Name="packageQuery" />
     <Capability Name="internetClient" />
   </Capabilities>
 </Package>

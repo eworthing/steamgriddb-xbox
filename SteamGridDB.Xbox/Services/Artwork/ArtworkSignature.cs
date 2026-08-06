@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 
+using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
 
 namespace SteamGridDB.Xbox.Services.Artwork
@@ -37,16 +38,28 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageBytes">Encoded image, or null.</param>
         public static async Task<ArtworkSignature> CreateAsync(IBuffer imageBytes)
         {
-            return await TileImage.WithDecoderAsync<ArtworkSignature>(imageBytes, async decoder =>
-            {
-                double[] histogram = ColourHistogram(
-                    await TileImage.CentreSquarePixelsAsync(decoder, colourGridSize));
+            return await TileImage.WithDecoderAsync(imageBytes, FromDecoderAsync, null, "Could not build artwork signature");
+        }
 
-                double[] grid = LayoutGrid(
-                    await TileImage.CentreSquarePixelsAsync(decoder, layoutGridSize));
+        /// <summary>
+        /// Builds a signature from an already-open decoder, for callers that need something else from
+        /// the same decode.
+        ///
+        /// Standing up a decoder is most of the cost of signing an image, and the Xbox app's image cache
+        /// holds hundreds of files that have to be both measured and signed to be matched against a
+        /// game's artwork. Going through <see cref="CreateAsync"/> for the signature and opening a
+        /// second decoder for the dimensions would double the work for every one of them.
+        /// </summary>
+        /// <param name="decoder">Decoder for the image.</param>
+        public static async Task<ArtworkSignature> FromDecoderAsync(BitmapDecoder decoder)
+        {
+            double[] histogram = ColourHistogram(
+                await TileImage.CentreSquarePixelsAsync(decoder, colourGridSize));
 
-                return new ArtworkSignature(histogram, grid);
-            }, null, "Could not build artwork signature");
+            double[] grid = LayoutGrid(
+                await TileImage.CentreSquarePixelsAsync(decoder, layoutGridSize));
+
+            return new ArtworkSignature(histogram, grid);
         }
 
         private static double[] ColourHistogram(byte[] pixels)

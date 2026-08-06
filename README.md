@@ -6,15 +6,17 @@ Xbox Game Bar widget to customise Xbox PC app game artwork with images from [Ste
 
 Automatically detects correct artwork for Steam games and most popular GOG titles through SteamGridDB's platform ID matching. For all other games use the built-in search feature to manually select the correct game - game names will be pre-populated where possible by using other external APIs.
 
-Battle.net is unlikely to be ever supported because the Xbox app does not store images for Battle.net games in the same way as the other stores, and games from Battle.net usually already have high-quality cover art in the Xbox app.
+Games installed from the Xbox app itself (Game Pass and Microsoft Store titles) are supported too, and appear under their own heading in the list. They work differently from third-party games: the Xbox app renders those tiles from a cache of its own, refreshes it on its own schedule, and can overwrite a customisation at any time - so the widget puts the artwork back on every library load rather than writing it once.
 
-The widget requires user to enable File system access under ***Settings > Privacy & security > File system > Let apps access your file system***, because by default it runs in a sandboxed environment where it is not allowed to access data of the other apps such as the Xbox app - this is the only way to enable such functionality. The only files being accessed are the Xbox app images downloaded for games installed from the third-party libraries.
+The widget requires user to enable File system access under ***Settings > Privacy & security > File system > Let apps access your file system***, because by default it runs in a sandboxed environment where it is not allowed to access data of the other apps such as the Xbox app - this is the only way to enable such functionality. The only files being accessed are the Xbox app images downloaded for games installed from the third-party libraries, the Xbox app's own image cache, and the `MicrosoftGame.config` each installed game writes beside its executable.
 
 ### Currently known issues and/or limitations
 - Demos are not supported for automatic matching, even from Steam - their ID is different from the main game, but their artwork can still be changed with manual search.
 - The widget is specifically looking for square grids (512x512 or 1024x1024) or icons (which are always square), because the Xbox app is designed to show square artwork. That is why results from SteamGridDB are filtered and do not show all available images.
 - Freshly uploaded SteamGridDB artwork might not show up in the widget immediately due to SteamGridDB API caching.
-- Currently, there is no source to resolve names for games from the EA App.
+- EA App names are read from each installed game's own `installerdata.xml`, so only installed EA games resolve a name — EA's public catalogue API has shut down and there is no online fallback.
+- A first-party game only appears once the Xbox app has actually rendered its tile at least once, because that is what puts the artwork into the cache the widget matches against. If one is missing, open your Xbox app library, scroll to it, and refresh the widget.
+- Battle.net games are still not supported. Unlike the other third-party stores they resolve to Microsoft Store products, so the same mechanism that covers first-party games would cover them — but mapping a Battle.net entry to its Store product needs the Xbox app's own database, which the widget does not read.
 - Sometimes the Xbox app leaves behind manifest entries for removed games, causing them to appear in the widget. Conversely, some installed games can be missing from the manifest and not show up in the widget. To solve this, delete the `ThirdPartyLibraries` folder (located in `C:\Users\{yourWindowsUsername}\AppData\Local\Packages\Microsoft.GamingApp_8wekyb3d8bbwe\LocalState\`) or the manifest files (in `ThirdPartyLibraries` subfolders for corresponding stores) — the Xbox app will recreate them correctly.
 - Only first 50 square grids and first 50 icons are loaded from SteamGridDB (paging is not implemented yet).
 

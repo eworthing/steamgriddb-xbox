@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 
 using Windows.Graphics.Imaging;
@@ -20,6 +21,11 @@ namespace SteamGridDB.Xbox.Services.Artwork
         // The image is reduced to this many columns before its rows are measured for detail. Small
         // enough that a full-size grid costs nothing to profile, large enough to see a title.
         private const int cropProfileWidth = 64;
+
+        // Quality first-party tiles are re-encoded at. The Store's own cached renditions land between
+        // 20KB and 45KB at these sizes; this matches them, and the artefacts of anything lower show
+        // plainly on a tile that is only a few hundred pixels across.
+        private const double tileJpegQuality = 0.92;
 
         /// <summary>
         /// Decodes an image and hands the decoder to <paramref name="read"/>, returning
@@ -158,6 +164,69 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
                 return encoded;
             }
+        }
+
+        /// <summary>
+        /// Encodes a bitmap as JPEG.
+        /// </summary>
+        /// <param name="bitmap">Bitmap to encode.</param>
+        /// <param name="quality">Encoder quality, 0 to 1.</param>
+        public static async Task<IBuffer> EncodeJpegAsync(SoftwareBitmap bitmap, double quality)
+        {
+            using (var target = new InMemoryRandomAccessStream())
+            {
+                var options = new BitmapPropertySet
+                {
+                    { "ImageQuality", new BitmapTypedValue(quality, Windows.Foundation.PropertyType.Single) }
+                };
+
+                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, target, options);
+
+                encoder.SetSoftwareBitmap(bitmap);
+
+                await encoder.FlushAsync();
+                target.Seek(0);
+
+                var encoded = new Windows.Storage.Streams.Buffer((uint)target.Size);
+
+                await target.ReadAsync(encoded, (uint)target.Size, InputStreamOptions.None);
+
+                return encoded;
+            }
+        }
+
+        /// <summary>
+        /// Re-encodes artwork as a JPEG of exactly <paramref name="pixels"/> square.
+        ///
+        /// This is what a first-party tile has to be. The Xbox app renders those from its own image
+        /// cache, whose files it downloaded from the Store's CDN at a fixed size each - and it keeps no
+        /// record of what it downloaded beyond the file itself, so a replacement is only ever noticed if
+        /// it does not decode to the size the layout expects. JPEG rather than PNG for the same reason:
+        /// match what the app put there rather than rely on the decoder sniffing content.
+        ///
+        /// Artwork that is not already square is centre-cropped, so a tall SteamGridDB grid gives its
+        /// middle to the tile instead of being squashed.
+        /// </summary>
+        /// <param name="imageBytes">Encoded artwork in any format the platform can decode.</param>
+        /// <param name="pixels">Width and height the result must have.</param>
+        /// <returns>JPEG bytes, or null when the artwork cannot be decoded.</returns>
+        public static async Task<IBuffer> EncodeSquareJpegAsync(IBuffer imageBytes, int pixels)
+        {
+            if (imageBytes == null || pixels <= 0)
+            {
+                return null;
+            }
+
+            return await WithDecoderAsync(imageBytes, async decoder =>
+            {
+                byte[] square = await CentreSquarePixelsAsync(decoder, (uint)pixels);
+
+                using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(
+                    square.AsBuffer(), BitmapPixelFormat.Bgra8, pixels, pixels, BitmapAlphaMode.Ignore))
+                {
+                    return await EncodeJpegAsync(bitmap, tileJpegQuality);
+                }
+            }, null, $"Could not encode a {pixels}px tile");
         }
 
         /// <summary>

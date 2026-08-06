@@ -24,6 +24,7 @@ using SteamGridDB.Xbox.Services.Library;
 using SteamGridDB.Xbox.Services.SteamGridDB;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
 using SteamGridDB.Xbox.Services.Stores;
+using SteamGridDB.Xbox.Services.Xbox;
 
 namespace SteamGridDB.Xbox
 {
@@ -32,14 +33,31 @@ namespace SteamGridDB.Xbox
     /// </summary>
     public sealed partial class PrimaryWidget : Page, INotifyPropertyChanged
     {
+        /// <summary>
+        /// Every row in the library, flat. This is what all the logic works from - deduplicating by
+        /// image, choosing which games a bulk run visits, stamping a written image onto the rows that
+        /// share it - because none of that cares which section a row is displayed under.
+        /// </summary>
         public ObservableCollection<GameEntry> GameEntries
         {
             get; set;
         }
 
+        /// <summary>
+        /// The same rows, grouped for display. Holds the identical <see cref="GameEntry"/> instances
+        /// rather than copies, so everything the logic changes on a row reaches the UI on its own and
+        /// only the initial fill has to touch both collections.
+        /// </summary>
+        public ObservableCollection<GameEntrySection> GameSections
+        {
+            get; set;
+        }
+
+        private readonly GameEntrySection xboxSection = new GameEntrySection("Xbox app library");
+        private readonly GameEntrySection thirdPartySection = new GameEntrySection("Third-party libraries");
+
         private readonly string steamGridDbApiKey = Environment.GetEnvironmentVariable("STEAMGRIDDB_API_KEY");
-        private readonly string thirdPartyLibrariesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            @"AppData\Local\Packages\Microsoft.GamingApp_8wekyb3d8bbwe\LocalState\ThirdPartyLibraries");
+        private readonly string thirdPartyLibrariesPath = XboxAppData.ThirdPartyLibrariesPath;
         private const string unknownName = "Unknown";
         private const string imageExtension = ".png";
         private const string manifestFileExtension = ".manifest";
@@ -164,6 +182,12 @@ namespace SteamGridDB.Xbox
         {
             InitializeComponent();
             GameEntries = new ObservableCollection<GameEntry>();
+
+            // Xbox app games first: they are the shorter half of the list, and the one whose artwork the
+            // Xbox app can undo on its own, so it is the half worth having in view
+            GameSections = new ObservableCollection<GameEntrySection> { xboxSection, thirdPartySection };
+            GroupedGameEntries.Source = GameSections;
+
             Loaded += PrimaryWidget_Loaded;
         }
 
@@ -432,6 +456,8 @@ namespace SteamGridDB.Xbox
                     // Clear here rather than in the callers so that a repeated load can never append
                     // a second copy of the library to the list
                     GameEntries.Clear();
+                    xboxSection.Clear();
+                    thirdPartySection.Clear();
 
                     FixLog.Start("Library load", "last-load.log");
 
@@ -482,6 +508,10 @@ namespace SteamGridDB.Xbox
                 // Manifest entries the Xbox app left behind for removed games: no image and no backup,
                 // so there is nothing to show and nothing any of the buttons could act on
                 int staleEntryCount = 0;
+
+                // The Xbox app's own games, which come from somewhere else entirely - see
+                // LoadXboxGameEntriesAsync
+                List<GameEntry> xboxGames = new List<GameEntry>();
 
                 // Without an API key the library still loads - names stay "Unknown" and artwork cannot be
                 // fetched, but the list, the backups and the restore/revert buttons all keep working
@@ -654,25 +684,48 @@ namespace SteamGridDB.Xbox
                             System.Diagnostics.Debug.WriteLine($"Error processing {folder.Name}: {ex.Message}");
                         }
                     }
+
+                    // Sort games alphabetically by name, with "Unknown" at the end
+                    List<GameEntry> sortedGames = tmpGameList
+                        .OrderBy(g => g.Name == unknownName ? 1 : 0)
+                        .ThenBy(g => g.Name)
+                        .ToList();
+
+                    // Shown before the first-party pass rather than after it. That pass has to ask the
+                    // Store's CDN about each game it has not seen before, which is the one genuinely
+                    // slow part of a load and happens only once per game - but on a first run it is
+                    // long enough that holding back a library that is already sitting in memory makes
+                    // the whole widget look stuck.
+                    await OnUiThreadAsync(() =>
+                    {
+                        foreach (GameEntry game in sortedGames)
+                        {
+                            GameEntries.Add(game);
+                            thirdPartySection.Add(game);
+                        }
+
+                        StatusText.Text = $"Found {sortedGames.Count} game{(sortedGames.Count == 1 ? string.Empty : "s")}"
+                            + " - looking for Xbox app games...";
+                    });
+
+                    // Runs inside the same try so it shares the one SteamGridDB client the whole load
+                    // uses, and after the third-party walk so a first-party failure cannot cost the
+                    // library its main half
+                    xboxGames = await LoadXboxGameEntriesAsync(sgdbClient, canQuerySteamGridDb);
                 }
                 finally
                 {
                     sgdbClient?.Dispose();
                 }
 
-                // Sort games alphabetically by name, with "Unknown" at the end
-                List<GameEntry> sortedGames = tmpGameList
-                    .OrderBy(g => g.Name == unknownName ? 1 : 0)
-                    .ThenBy(g => g.Name)
-                    .ToList();
-
                 await FixLog.SaveAsync();
 
                 await OnUiThreadAsync(() =>
                 {
-                    foreach (GameEntry game in sortedGames)
+                    foreach (GameEntry game in xboxGames)
                     {
                         GameEntries.Add(game);
+                        xboxSection.Add(game);
                     }
 
                     string summary = $"Found {GameEntries.Count} game{(GameEntries.Count == 1 ? string.Empty : "s")}";
@@ -694,6 +747,101 @@ namespace SteamGridDB.Xbox
             {
                 await SetStatusAsync($"Error: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// The Xbox app's own games as library rows.
+        ///
+        /// The third-party half of the load reads a manifest that names every game and points at a file
+        /// per game. There is no equivalent for the games the Xbox app installed itself: they are found
+        /// by enumerating what is installed, asking the Store what each one is, and locating its tiles
+        /// in the app's image cache by what they look like. All of that lives in
+        /// <see cref="XboxLibrary"/>; what is left here is the same shape as the per-entry work above -
+        /// thumbnail, SteamGridDB match, row - plus putting back any customisation the Xbox app has
+        /// overwritten since the last load, which for these is routine rather than a repair.
+        ///
+        /// Nothing here can fail the library load. A machine with no Store games, an unreachable
+        /// catalogue and an Xbox app that has never rendered a tile all produce an empty list, which is
+        /// simply an empty section.
+        /// </summary>
+        /// <param name="sgdbClient">The load's SteamGridDB client, or null when there is no API key.</param>
+        /// <param name="canQuerySteamGridDb">Whether SteamGridDB can be queried at all.</param>
+        private async Task<List<GameEntry>> LoadXboxGameEntriesAsync(SteamGridDbClient sgdbClient, bool canQuerySteamGridDb)
+        {
+            List<GameEntry> entries = new List<GameEntry>();
+
+            try
+            {
+                StorageFolder cacheFolder = await ImageCacheIndex.GetCacheFolderAsync();
+
+                if (cacheFolder == null)
+                {
+                    return entries;
+                }
+
+                await SetStatusAsync("Looking for Xbox app games...");
+
+                List<XboxLibrary.Game> games = await XboxLibrary.LoadAsync(cacheFolder);
+
+                FixLog.Write($"Xbox app library: {XboxLibrary.LoadSummary}");
+
+                foreach (XboxLibrary.Game game in games)
+                {
+                    // Before the thumbnail is decoded, so the row shows what is actually on the tile
+                    await XboxTiles.ReapplyOverwrittenAsync(cacheFolder, game.RenditionFileNames);
+
+                    string primaryFileName = game.PrimaryFileName;
+                    BitmapImage image = null;
+
+                    try
+                    {
+                        image = await CreateThumbnailAsync(await cacheFolder.GetFileAsync(primaryFileName));
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Could not decode the tile for {game.Title}: {ex.Message}");
+                    }
+
+                    // GamePlatform.Xbox has no SteamGridDB platform of its own, so this always takes the
+                    // name-search path - which is the good one here, because unlike the ID-derived names
+                    // the third-party manifests give, the Store's title is the game's actual title
+                    GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
+                        sgdbClient,
+                        canQuerySteamGridDb,
+                        GamePlatform.Xbox,
+                        game.StoreId,
+                        null,
+                        game.StoreId,
+                        string.IsNullOrEmpty(game.Title) ? unknownName : game.Title,
+                        unknownName);
+
+                    entries.Add(new GameEntry
+                    {
+                        Name = match.GameName,
+                        ExternalPlatformId = game.StoreId,
+                        ImageFileName = primaryFileName,
+                        ImageFilePath = Path.Combine(cacheFolder.Path, primaryFileName),
+                        ImageFolder = cacheFolder,
+                        Platform = GamePlatform.Xbox,
+                        Image = image,
+                        XboxRenditions = game.RenditionFileNames,
+                        HasBackup = await XboxTiles.HasBackupAsync(game.RenditionFileNames),
+                        HasSteamGridDBMatch = match.HasSteamGridDbMatch,
+                        OfficialCapsuleUrl = match.OfficialCapsuleUrl,
+                        SteamGridDbGameId = match.SteamGridDbGameId
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                FixLog.Write($"Xbox app library could not be read: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Could not load Xbox app games: {ex.Message}");
+            }
+
+            return entries
+                .OrderBy(g => g.Name == unknownName ? 1 : 0)
+                .ThenBy(g => g.Name)
+                .ToList();
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -1044,7 +1192,14 @@ namespace SteamGridDB.Xbox
                     {
                         await SetStatusAsync(report.Step(gameName));
 
-                        if (await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName) == ArtworkFiles.ReapplyOutcome.NothingSaved)
+                        // A first-party game has one saved customisation per rendition, and any of them
+                        // could be the one the Xbox app overwrote, so all are checked
+                        bool reapplied = game.IsXboxTile
+                            ? await XboxTiles.ReapplyOverwrittenAsync(game.ImageFolder, game.XboxRenditions) > 0
+                            : await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName)
+                                == ArtworkFiles.ReapplyOutcome.Reapplied;
+
+                        if (!reapplied)
                         {
                             noArtworkCount++;
                             System.Diagnostics.Debug.WriteLine($"Skipping {gameName} for restoration: corresponding .new file not found");
@@ -1108,8 +1263,25 @@ namespace SteamGridDB.Xbox
             try
             {
                 string imageFileName = Path.GetFileName(game.ImageFilePath);
+                bool backupExists;
 
-                bool backupExists = await ArtworkFiles.ApplyAsync(game.ImageFolder, imageFileName, imageBytes);
+                if (game.IsXboxTile)
+                {
+                    // One first-party game is several cached images, one per surface the Xbox app shows
+                    // it on, and the tile only changes everywhere when all of them do
+                    (int written, bool hasBackup) = await XboxTiles.ApplyAsync(game.ImageFolder, game.XboxRenditions, imageBytes);
+
+                    if (written == 0)
+                    {
+                        return false;
+                    }
+
+                    backupExists = hasBackup;
+                }
+                else
+                {
+                    backupExists = await ArtworkFiles.ApplyAsync(game.ImageFolder, imageFileName, imageBytes);
+                }
 
                 // Nothing on disk says which artwork a tile came from, so remember it
                 await AppliedArtworkStore.SetAsync(game.ImageFilePath, appliedArtworkId);
@@ -1888,7 +2060,11 @@ namespace SteamGridDB.Xbox
 
             try
             {
-                if (await ArtworkFiles.RestoreOriginalAsync(game.ImageFolder, imageFileName) == ArtworkFiles.RestoreOutcome.BackupMissing)
+                ArtworkFiles.RestoreOutcome outcome = game.IsXboxTile
+                    ? await XboxTiles.RestoreAsync(game.ImageFolder, game.XboxRenditions)
+                    : await ArtworkFiles.RestoreOriginalAsync(game.ImageFolder, imageFileName);
+
+                if (outcome == ArtworkFiles.RestoreOutcome.BackupMissing)
                 {
                     if (updateStatusText)
                     {

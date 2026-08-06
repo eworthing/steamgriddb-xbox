@@ -11,6 +11,7 @@ namespace SteamGridDB.Xbox.Models
         BattleNet,
         EA,
         Custom,
+        Xbox,
         Unknown
     }
 
@@ -25,6 +26,11 @@ namespace SteamGridDB.Xbox.Models
         ///
         /// Custom has no SteamGridDB API identifier (SteamGridDB does not carry a "custom library"
         /// store) - null here, matching <see cref="GamePlatformToSGDBApiString"/>'s original default.
+        ///
+        /// Xbox is null in both columns. It has no ThirdPartyLibraries folder at all - those games come
+        /// from the Microsoft Store catalog and the Xbox app renders them from its own image cache, so
+        /// they are enumerated rather than read out of a manifest - and SteamGridDB carries no Microsoft
+        /// Store platform, so like Custom they are matched by name instead of by store ID.
         /// </summary>
         private static readonly (GamePlatform Platform, string XboxDirectory, string SGDBApiString)[] platforms =
         {
@@ -35,6 +41,7 @@ namespace SteamGridDB.Xbox.Models
             (GamePlatform.BattleNet, "battlenet", "bnet"),
             (GamePlatform.EA, "ea", "origin"),
             (GamePlatform.Custom, "customlibrarymanagement", null),
+            (GamePlatform.Xbox, null, null),
         };
 
         /// <summary>
@@ -55,8 +62,16 @@ namespace SteamGridDB.Xbox.Models
         /// </summary>
         public static GamePlatform FromXboxDirectory(string platformString)
         {
+            // Checked before the table is walked, not folded into it: Xbox's XboxDirectory is null
+            // because those games have no ThirdPartyLibraries folder, so a null argument would match
+            // that row and quietly turn every unreadable folder name into an Xbox game
+            if (platformString == null)
+            {
+                return GamePlatform.Unknown;
+            }
+
             // Invariant casing: the folder names are fixed ASCII identifiers, not user text
-            string normalised = platformString?.ToLowerInvariant();
+            string normalised = platformString.ToLowerInvariant();
 
             foreach (var row in platforms)
             {
@@ -66,7 +81,7 @@ namespace SteamGridDB.Xbox.Models
                 }
             }
 
-            if (normalised != null && legacyXboxDirectoryAliases.TryGetValue(normalised, out GamePlatform legacyPlatform))
+            if (legacyXboxDirectoryAliases.TryGetValue(normalised, out GamePlatform legacyPlatform))
             {
                 return legacyPlatform;
             }

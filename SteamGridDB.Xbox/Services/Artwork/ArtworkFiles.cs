@@ -17,6 +17,13 @@ namespace SteamGridDB.Xbox.Services.Artwork
     /// <item>.new - a copy of the applied artwork, so a customisation the Xbox app overwrites can be put back</item>
     /// </list>
     ///
+    /// The two sidecars do not have to live beside the image. First-party tiles are held in the Xbox
+    /// app's own image cache, which it enumerates and prunes - it deleted an unmanaged file placed in
+    /// one of its folders during this feature's investigation, and its binary carries the eviction code
+    /// to do it - so for those the sidecars go into this app's own storage instead, and every method
+    /// here takes an optional folder for them. The sidecars keep the image's name either way, because
+    /// the Xbox app's file names are hashes and unique across the whole cache.
+    ///
     /// Separate from the widget because these are the operations that can destroy artwork the user
     /// cannot recover, and inside a UI file they could only ever be checked by running the app and
     /// looking. Every argument here is a folder and a file name rather than a GameEntry, so the whole
@@ -105,6 +112,27 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <returns>Whether a backup of the Xbox app's original now exists.</returns>
         internal static async Task<bool> ApplyAsync(StorageFolder folder, string imageFileName, IBuffer artworkBytes)
         {
+            // The Xbox app names every third-party tile .png and we cannot rename its files, so anything
+            // that is not already a PNG is re-encoded rather than written under a lying extension
+            return await ApplyEncodedAsync(folder, imageFileName, folder, await TileImage.EnsurePngAsync(artworkBytes));
+        }
+
+        /// <summary>
+        /// Writes already-encoded bytes over a game's image, preserving the Xbox app's original the
+        /// first time.
+        ///
+        /// Separate from <see cref="ApplyAsync"/> because the caller has to have chosen the encoding
+        /// before it gets here: third-party tiles must be PNG to match the name the Xbox app gave them,
+        /// first-party tiles must be a JPEG of one exact size to match what the app cached. Neither
+        /// choice can be made from a folder and a file name.
+        /// </summary>
+        /// <param name="imageFolder">The folder holding the image itself.</param>
+        /// <param name="imageFileName">The image's name, which the Xbox app owns and this never changes.</param>
+        /// <param name="sidecarFolder">Where the .bak and .new go. The image's own folder for third-party tiles.</param>
+        /// <param name="tileBytes">The exact bytes to write.</param>
+        /// <returns>Whether a backup of the Xbox app's original now exists.</returns>
+        internal static async Task<bool> ApplyEncodedAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder, IBuffer tileBytes)
+        {
             string backupFileName = BackupNameFor(imageFileName);
             string newFileName = CustomisedNameFor(imageFileName);
 
@@ -116,7 +144,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             try
             {
-                await folder.GetFileAsync(backupFileName);
+                await sidecarFolder.GetFileAsync(backupFileName);
 
                 backupExists = true;
             }
@@ -124,9 +152,9 @@ namespace SteamGridDB.Xbox.Services.Artwork
             {
                 try
                 {
-                    StorageFile existingImageFile = await folder.GetFileAsync(imageFileName);
+                    StorageFile existingImageFile = await imageFolder.GetFileAsync(imageFileName);
 
-                    StorageFile backupFile = await folder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
+                    StorageFile backupFile = await sidecarFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
                     IBuffer existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
 
                     await FileIO.WriteBufferAsync(backupFile, existingBuffer);
@@ -139,14 +167,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 }
             }
 
-            // The Xbox app names every tile .png and we cannot rename its files, so anything that
-            // is not already a PNG is re-encoded rather than written under a lying extension
-            IBuffer tileBytes = await TileImage.EnsurePngAsync(artworkBytes);
-
-            StorageFile imageFile = await folder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
+            StorageFile imageFile = await imageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBufferAsync(imageFile, tileBytes);
 
-            StorageFile newFile = await folder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
+            StorageFile newFile = await sidecarFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBufferAsync(newFile, tileBytes);
 
             return backupExists;
@@ -159,12 +183,24 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageFileName">The image's name.</param>
         internal static async Task<RestoreOutcome> RestoreOriginalAsync(StorageFolder folder, string imageFileName)
         {
+            return await RestoreOriginalAsync(folder, imageFileName, folder);
+        }
+
+        /// <summary>
+        /// Puts the Xbox app's own artwork back and drops the customisation, with the sidecars held
+        /// somewhere other than beside the image.
+        /// </summary>
+        /// <param name="imageFolder">The folder holding the image itself.</param>
+        /// <param name="imageFileName">The image's name.</param>
+        /// <param name="sidecarFolder">Where the .bak and .new live.</param>
+        internal static async Task<RestoreOutcome> RestoreOriginalAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder)
+        {
             StorageFile backupFile;
 
             // Locate the backup first so a missing backup never leaves the game without an image
             try
             {
-                backupFile = await folder.GetFileAsync(BackupNameFor(imageFileName));
+                backupFile = await sidecarFolder.GetFileAsync(BackupNameFor(imageFileName));
             }
             catch (FileNotFoundException)
             {
@@ -173,7 +209,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             try
             {
-                StorageFile newImageFile = await folder.GetFileAsync(CustomisedNameFor(imageFileName));
+                StorageFile newImageFile = await sidecarFolder.GetFileAsync(CustomisedNameFor(imageFileName));
 
                 await newImageFile.DeleteAsync();
             }
@@ -182,10 +218,20 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 // Saved customisation doesn't exist, that's okay
             }
 
-            // Rename rather than copy-then-delete: ReplaceExisting overwrites the current image in one
+            // Move rather than copy-then-delete: ReplaceExisting overwrites the current image in one
             // step, so the image is never absent in between. A copy that failed half way would leave
             // the game with a truncated tile and the backup already gone.
-            await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
+            //
+            // Rename cannot leave a folder, so it only serves the case where the sidecars sit beside
+            // the image. That is the third-party path, and it keeps the call it has always made.
+            if (string.Equals(sidecarFolder.Path, imageFolder.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                await backupFile.RenameAsync(imageFileName, NameCollisionOption.ReplaceExisting);
+            }
+            else
+            {
+                await backupFile.MoveAsync(imageFolder, imageFileName, NameCollisionOption.ReplaceExisting);
+            }
 
             return RestoreOutcome.Restored;
         }
@@ -198,11 +244,28 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageFileName">The image's name.</param>
         internal static async Task<ReapplyOutcome> ReapplyCustomisationAsync(StorageFolder folder, string imageFileName)
         {
+            return await ReapplyCustomisationAsync(folder, imageFileName, folder);
+        }
+
+        /// <summary>
+        /// Puts a saved customisation back as the image, with the sidecars held somewhere other than
+        /// beside it.
+        ///
+        /// This is the routine path for first-party tiles rather than a repair: the Xbox app re-downloads
+        /// a cached image whenever the file goes missing, its ninety-day lifetime runs out, or the Store
+        /// changes the artwork - and it keeps no record that would let it notice a replacement, so the
+        /// only way a customisation survives is to put it back.
+        /// </summary>
+        /// <param name="imageFolder">The folder holding the image itself.</param>
+        /// <param name="imageFileName">The image's name.</param>
+        /// <param name="sidecarFolder">Where the .bak and .new live.</param>
+        internal static async Task<ReapplyOutcome> ReapplyCustomisationAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder)
+        {
             StorageFile newFile;
 
             try
             {
-                newFile = await folder.GetFileAsync(CustomisedNameFor(imageFileName));
+                newFile = await sidecarFolder.GetFileAsync(CustomisedNameFor(imageFileName));
             }
             catch (FileNotFoundException)
             {
@@ -211,7 +274,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             IBuffer imageBytes = await FileIO.ReadBufferAsync(newFile);
 
-            StorageFile imageFile = await folder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
+            StorageFile imageFile = await imageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
 
             await FileIO.WriteBufferAsync(imageFile, imageBytes);
 

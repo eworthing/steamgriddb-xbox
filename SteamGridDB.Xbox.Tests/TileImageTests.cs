@@ -126,6 +126,76 @@ namespace SteamGridDB.Xbox.Tests
             Assert.True(await ContainsDetailAsync(cropped));
         }
 
+        // ---- First-party tiles: an exact-size JPEG rather than a PNG of whatever size arrived ----
+
+        [Theory]
+        [InlineData(72)]
+        [InlineData(224)]
+        [InlineData(329)]
+        public async Task EncodeSquareJpeg_produces_exactly_the_requested_size(int pixels)
+        {
+            // The Xbox app renders a cached image at the size it downloaded it, and keeps no record of
+            // what that was beyond the file - so a replacement of the wrong size is the one way a
+            // replacement gets noticed
+            IBuffer tile = await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(512, 512), pixels);
+
+            Assert.Equal(((uint)pixels, (uint)pixels), await SizeOfAsync(tile));
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_produces_a_jpeg_not_a_png()
+        {
+            IBuffer tile = await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(64, 64), 72);
+
+            Assert.False(TestImages.IsPng(TestImages.ToArray(tile)));
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_squares_portrait_artwork_rather_than_squashing_it()
+        {
+            // SteamGridDB grids are not all square, and a tile that is has to come from somewhere -
+            // the centre, so the subject survives
+            IBuffer tile = await TileImage.EncodeSquareJpegAsync(
+                await TestImages.PortraitWithDetailBandAsync(width: 64, totalHeight: 256, checkerboardOnTop: true), 128);
+
+            Assert.Equal((128u, 128u), await SizeOfAsync(tile));
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_upscales_artwork_smaller_than_the_tile()
+        {
+            IBuffer tile = await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(32, 32), 329);
+
+            Assert.Equal((329u, 329u), await SizeOfAsync(tile));
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_returns_null_rather_than_writing_junk()
+        {
+            // Nothing decodable means nothing to write. Returning the original bytes - which is what
+            // EnsurePngAsync does - would put a non-image into the Xbox app's cache under a name it
+            // expects to be able to render.
+            Assert.Null(await TileImage.EncodeSquareJpegAsync(TestImages.Bytes("not an image"), 224));
+            Assert.Null(await TileImage.EncodeSquareJpegAsync(null, 224));
+        }
+
+        [Theory]
+        [InlineData(0)]
+        [InlineData(-1)]
+        public async Task EncodeSquareJpeg_refuses_a_size_that_is_not_a_size(int pixels)
+        {
+            Assert.Null(await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(64, 64), pixels));
+        }
+
+        private static Task<(uint Width, uint Height)> SizeOfAsync(IBuffer image)
+        {
+            return TileImage.WithDecoderAsync(
+                image,
+                decoder => Task.FromResult((decoder.PixelWidth, decoder.PixelHeight)),
+                (0u, 0u),
+                "decode failed");
+        }
+
         /// <summary>
         /// True when the image is not a single flat colour - i.e. the crop landed on
         /// <see cref="TestImages.PortraitWithDetailBandAsync"/>'s checkerboard band rather than its flat

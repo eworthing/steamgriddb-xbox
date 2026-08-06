@@ -12,6 +12,13 @@
     mc:Ignorable="d">
 
     <Page.Resources>
+        <!--
+            Groups the library into its Xbox app and third-party halves. IsSourceGrouped needs a source
+            of groups that are themselves collections, which is what GameEntrySection is - the rows
+            inside are the same GameEntry instances the widget works with everywhere else.
+        -->
+        <CollectionViewSource x:Name="GroupedGameEntries" IsSourceGrouped="True" />
+
         <!--  Modern Button Style  -->
         <Style x:Key="FluentIconButton" TargetType="Button">
             <Setter Property="Background" Value="#2D2D2D" />
@@ -177,8 +184,22 @@
                     Padding="8,0"
                     Background="Transparent"
                     IsItemClickEnabled="False"
-                    ItemsSource="{x:Bind GameEntries}"
+                    ItemsSource="{Binding Source={StaticResource GroupedGameEntries}}"
                     SelectionMode="None">
+                    <ListView.GroupStyle>
+                        <GroupStyle HidesIfEmpty="True">
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate x:DataType="models:GameEntrySection">
+                                    <TextBlock
+                                        Margin="0,8,0,4"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="#9A9A9A"
+                                        Text="{x:Bind Title}" />
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListView.GroupStyle>
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -290,8 +311,7 @@
                                         <Run Text="{x:Bind Platform, Mode=OneWay}" />
                                         <Run Text=" • " />
                                         <Run Text="{x:Bind ExternalPlatformId, Mode=OneWay}" />
-                                        <Run Text=" • " />
-                                        <Run Text="{x:Bind AddedDateFormatted, Mode=OneWay}" />
+                                        <Run Text="{x:Bind AddedDateSuffix, Mode=OneWay}" />
                                     </TextBlock>
                                 </StackPanel>
 
@@ -632,8 +652,7 @@
                                 <Run Text="{x:Bind CurrentSelectedGame.Platform, Mode=OneWay}" />
                                 <Run Text=" • " />
                                 <Run Text="{x:Bind CurrentSelectedGame.ExternalPlatformId, Mode=OneWay}" />
-                                <Run Text=" • " />
-                                <Run Text="{x:Bind CurrentSelectedGame.AddedDateFormatted, Mode=OneWay}" />
+                                <Run Text="{x:Bind CurrentSelectedGame.AddedDateSuffix, Mode=OneWay}" />
                             </TextBlock>
                         </StackPanel>
                     </Grid>

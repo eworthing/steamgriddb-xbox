@@ -75,6 +75,17 @@ moving the saved-customisation delete ahead of the backup lookup fails
 `Restore_with_no_backup_keeps_the_saved_customisation`, and making the progress counter zero-based
 fails three of the `OperationReport` tests. Worth repeating for any new test that passes first time.
 
+The first-party tile paths were checked the same way: making the cross-folder restore use `RenameAsync`
+- which cannot leave a folder, so it silently restores nothing - fails
+`Restore_moves_the_original_back_out_of_the_sidecar_folder` and
+`Restore_puts_the_original_back_even_when_the_xbox_app_deleted_the_tile`, and dropping the layout half
+of the tile match fails `Does_not_match_a_different_picture_built_from_the_same_palette`.
+
+`TileRenditionMatcher`'s thresholds are the one thing in the suite chosen from measurement rather than
+reasoning: eight installed games scored against a real 805-image cache, where every true match reached
+0.9995 on layout agreement and the strongest false match reached 0.8751. The tests pin the behaviour
+around the threshold, not the number - re-measure rather than re-derive if the signature ever changes.
+
 ## Known build wrinkle, unrelated to tests
 
 `msbuild` on the app project with bundling enabled fails in `MakeAppx`: the arm64 and x64 manifests

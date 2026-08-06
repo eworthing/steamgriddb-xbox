@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -78,11 +79,24 @@ namespace SteamGridDB.Xbox.Models
                     addedDate = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(AddedDateFormatted));
+                    OnPropertyChanged(nameof(AddedDateSuffix));
                 }
             }
         }
 
         public string AddedDateFormatted => AddedDate.ToString();
+
+        /// <summary>
+        /// The date for the platform line, separator included, or nothing when there is no date to
+        /// show.
+        ///
+        /// Third-party entries carry the date the Xbox app added them to its manifest. First-party
+        /// games have no equivalent - they are enumerated from what is installed, and the only
+        /// timestamps near them belong to the cached tile, which this app rewrites - so rather than
+        /// print an unset DateTime as "1/1/0001" the segment is left out entirely. The separator lives
+        /// here because the line is built from Runs, which cannot be collapsed individually.
+        /// </summary>
+        public string AddedDateSuffix => AddedDate == default ? string.Empty : $" • {AddedDateFormatted}";
 
         public string ImageFileName
         {
@@ -143,6 +157,24 @@ namespace SteamGridDB.Xbox.Models
         {
             get; set;
         }
+
+        /// <summary>
+        /// For a first-party game, every cached image in the Xbox app's image cache that makes up its
+        /// tile, largest first. Null for third-party games, which are one file each.
+        ///
+        /// The Xbox app fetched a game's artwork once per surface it shows it on and cached each size
+        /// separately, so a tile only changes everywhere when all of them do.
+        /// <see cref="ImageFilePath"/> names the largest, which stands in for the game everywhere one
+        /// path is needed - deduplicating rows, recording which artwork was applied, decoding the
+        /// thumbnail - while the writes fan out across this list.
+        /// </summary>
+        public IReadOnlyList<string> XboxRenditions
+        {
+            get; set;
+        }
+
+        /// <summary>Whether this row is a first-party game backed by the Xbox app's image cache.</summary>
+        public bool IsXboxTile => XboxRenditions != null && XboxRenditions.Count > 0;
 
         // Edit button visible when there is a match
         public Visibility EditButtonVisibility => HasSteamGridDBMatch ? Visibility.Visible : Visibility.Collapsed;

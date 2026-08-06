@@ -110,6 +110,7 @@
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Models\GameEntry.cs" />
+    <Compile Include="Models\GameEntrySection.cs" />
     <Compile Include="Models\GamePlatform.cs" />
     <Compile Include="PrimaryWidget.xaml.cs">
       <DependentUpon>PrimaryWidget.xaml</DependentUpon>
@@ -139,7 +140,16 @@
     <Compile Include="Services\SteamGridDB\SteamGridDbClient.cs" />
     <Compile Include="Services\Stores\EaLibrary.cs" />
     <Compile Include="Services\Stores\EpicLibrary.cs" />
+    <Compile Include="Services\Stores\StoreCatalog.cs" />
     <Compile Include="Services\Stores\StoreNameLookup.cs" />
+    <Compile Include="Services\Stores\XboxGameConfig.cs" />
+    <Compile Include="Services\Stores\XboxInstalledGames.cs" />
+    <Compile Include="Services\Xbox\ImageCacheIndex.cs" />
+    <Compile Include="Services\Xbox\XboxAppData.cs" />
+    <Compile Include="Services\Xbox\TileRenditionMatcher.cs" />
+    <Compile Include="Services\Xbox\XboxLibrary.cs" />
+    <Compile Include="Services\Xbox\XboxTiles.cs" />
+    <Compile Include="Services\Xbox\XboxTileStore.cs" />
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
