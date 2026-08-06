@@ -4617,3 +4617,172 @@ Independently verified, then adopted, an orphaned draft left by a loop-13 execut
 **Verdict: approved** (all three checks passed, first pass, no re-spawn needed). Reason: "The inline combine/fallback logic cited by F-022's Finding #1 is verifiably gone from PopulateGridSelectionPanelAsync and replaced by GridSelectionItems.BuildOrdered, a stateless extraction that is behaviorally identical to the original code, carries no new Seam, and is covered by 16 tests that assert real observable output at the new Interface." No regressions flagged; no conditions.
 
 
+
+--- Loop 14 (UTC 2026-08-06T02:44:29Z) ---
+
+### Discovery
+see Loop 1 Discovery
+
+### Loop Counter
+Loop 14 of 15 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+Good app, but not top-tier yet
+
+This loop closed the exact duplication loop 13's own fresh sweep named and left unconsolidated: `HideGridPanelAsync` and `HideSearchPanelAsync`'s byte-near-identical panel-lifecycle ceremony is now one shared private `HidePanelAsync`. `PrimaryWidget.xaml.cs` shrank 1992 -> 1988 lines. The same investigation surfaced a small, real, previously-unnamed `simplicity` residual (F-024), correcting that dimension from an unexamined 10 down to an honestly-residualed 9.5. `data_flow` (7.5) was re-derived fully fresh per the standing directive rather than re-cited, and holds with materially stronger evidence.
+
+## Scorecard (1-10)
+
+- Architecture quality: 9.0 | SAME | This loop's fix (`HidePanelAsync`, `PrimaryWidget.xaml.cs:1553-1595`) is a private-method dedup inside `PrimaryWidget` itself, not a new tested Module in `Services/` - matching the `RunUnderLibraryOperationGuardAsync` precedent (loop 12), which was credited to `simplicity`, not `architecture_quality`. Module graph unchanged this loop. Residual (queued, F-022): `PrimaryWidget.xaml.cs` (1988 lines) still co-locates network orchestration, file I/O/backup-restore invocation, and bulk-operation loops alongside UI event handling and panel navigation.
+- State management and runtime ownership: 10 | SAME | `HidePanelAsync` introduces zero new fields; it operates on the existing session/guard/focus-restore-target fields via delegate parameters, each still owned and written exactly where it was before. Field census unchanged from loop 13.
+- Domain modeling: 9.5 | SAME | `GameEntry.cs` unchanged this loop. Residual accepted, unchanged from loop 12's Adversarial Pass.
+- Data flow and dependency design: 7.5 | SAME | Re-derived fresh this loop per the standing directive rather than re-citing prior loops' "four scattered-cache sites." Current source shows FIVE classes holding deliberate, documented, process-lifetime static ambient state: `StoreNameLookup.cs:34-50` (four caches), `EpicLibrary.cs:41-44`, `AppliedArtworkStore.cs:30-35,54` (reassigned, not just read), `FixLog.cs:28-34`, and `SteamGridDbClient.cs` (own comment confirms a matching cache). That exceeds the 9-anchor's "one or two documented" allowance, so the anchor is genuinely not met. Not a valid backlog item: single-instance desktop-widget process with no multi-tenancy need; DI conversion would fail SPT Q2 and Q5.
+- Framework / platform best practices: 9.5 | SAME | `App.xaml.cs` unchanged. `HidePanelAsync`'s delegate-based generalization is itself idiomatic C#, matching the established precedent exactly. Residual re-confirmed SPT-rejected on Q5.
+- Concurrency and runtime safety: 9.5 | SAME | `HidePanelAsync`'s session-capture/await/recheck sequence is a mechanical parameterization of the exact prior guard logic, verified line-by-line against the pre-diff code. No new lock/actor-isolation/`#if` boundary crossed. `risk_boundary_evidence: null`. Residual re-tested, still SPT-rejected on Q5.
+- Code simplicity and clarity: 9.5 | DOWN | This loop both fixed one duplication (now `HidePanelAsync`) and, in the course of the deeper read that finding required, surfaced a further one: `RestoreBackupAsync`/`RestoreBackupCoreAsync` each independently re-derive `DisplayName`'s exact fallback ternary instead of calling it. Loop 13's own "10, SAME" carried this gap forward unnamed - its own Scorecard humility check flagged the risk. Correcting to 9.5 with the newly-named residual (F-024, queued) per G6.
+- Test strategy and regression resistance: 8.5 | SAME | `HidePanelAsync` is XAML-bound, untestable-by-design matching its three siblings' established carve-out - no new tests, none owed. 206 tests unchanged. The Authority-Map gap held at 8.5 across loops 11-14.
+- Overall implementation credibility: 10 | SAME | `HidePanelAsync`'s doc comment accurately describes the shared sequence; `HideSearchPanelAsync`'s remaining doc comment correctly preserves the `SearchResult_Click` focus-handoff nuance. No stale reference found.
+
+## Authority Map
+(Not re-emitted this loop: no authority/state-ownership finding was Priority 1 this loop. See loop 8's archive for the last full Authority Map.)
+
+## Strengths That Matter
+- This loop's fresh read of `RestoreBackupAsync`/`RestoreBackupCoreAsync` while investigating the standing directive's candidate (b) surfaced a real, previously-unnoted duplication (`backupGameName` re-deriving `DisplayName`) that thirteen prior critic passes over this exact file had not named.
+- `HidePanelAsync`'s delegate-parameter design reads the live field on every call rather than snapshotting it, so the exact reentrancy-guard timing is preserved byte-for-byte against the pre-fix code - verified by direct side-by-side comparison, not by trusting the refactor's own shape.
+- The Hide-panel consolidation is the second consecutive loop (after loop 13's `GridSelectionItems`) to act on a specifically-named prior-loop candidate rather than starting a fresh sweep from zero.
+
+## Findings
+
+### Finding #1: PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class
+
+**Why it matters** — Top-churn file by roughly 5x (38 edits/6mo vs 8 for the next file); `architecture_quality` was stuck at 7.5 across 19 critic passes before loops 10-13 started landing sequenced slices out of it.
+
+**What is wrong** — `PrimaryWidget.xaml.cs` still mixes UI event handling, file I/O/backup-restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding after loops 10-13's extractions. This loop closed the specific duplication loop 13's own fresh sweep found and left unconsolidated: `HideGridPanelAsync` and `HideSearchPanelAsync`'s byte-near-identical guard-acquire/session-capture/animate-out/session-recheck/teardown/guard-release sequence is now one shared private `HidePanelAsync` helper both delegate to.
+
+**Evidence** —
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` pre-fix (loop-13 HEAD, 1992 lines): `HideGridPanelAsync` (1543-1586) and `HideSearchPanelAsync` (1788-1828) each independently implemented the identical guard/session/animate/recheck/teardown sequence over their own fields.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` post-fix (1988 lines): `HidePanelAsync` (1553-1595, new) owns the shared sequence; both original methods now delegate to it.
+- `git diff --stat`: 63 insertions(+), 67 deletions(-); net -4 lines (1992 -> 1988).
+- Full build (msbuild, exit 0) and full test suite (206 passed/0 failed, unchanged) both re-run before and after.
+
+**Architectural test failed** — Deletion test.
+
+**Dependency category** — n/a.
+
+**Leverage impact** — The guard/session/animate/recheck/teardown sequence is now defined once; cannot diverge between the grid and search pickers the way `SlidePanelAsync`'s own doc comment documents once happening.
+
+**Locality impact** — Contained to `PrimaryWidget.xaml.cs`'s own panel-lifecycle methods; the remaining monolith concerns are unaffected.
+
+**Metric signal** — churn_top20: 38 edits/6mo, ~5x the next-highest file (unchanged this loop).
+
+**Why this weakens submission** — `architecture_quality`'s own 9-anchor requires that a senior reviewer cannot identify a structural improvement that preserves behavior and improves Leverage or Locality; network orchestration, file I/O/backup-restore, and bulk-operation loops remain co-located.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — Sequenced, multi-loop decomposition continues. Loop 15 should investigate: (a) whether `ReplaceImageCoreAsync`/`RestoreBackupCoreAsync`'s remaining file I/O sequences have any further extractable decision logic beyond F-024; (b) whether `FixLibraryAsync`'s grid/portrait/icon fallback chain has a pure decision separable from its I/O calls.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`. Avoid: everything else.
+
+---
+
+### Finding #2: RestoreBackupAsync and RestoreBackupCoreAsync each independently re-derive DisplayName's exact name-fallback rule instead of calling it
+
+**Why it matters** — `DisplayName(GameEntry)` already owns the fallback rule; two other methods re-implementing the identical ternary is exactly the kind of independent-copy drift this codebase has already paid for once.
+
+**What is wrong** — `RestoreBackupAsync` (line 1863) and `RestoreBackupCoreAsync` (line 1888) both compute `string backupGameName = game.Name != unknownName ? game.Name : imageFileName;`, the exact value `DisplayName(GameEntry)` (line 421) already returns. Neither call site calls `DisplayName`.
+
+**Evidence** —
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:421-424` — `DisplayName(GameEntry game)` owns this exact fallback rule.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1860-1863` — `RestoreBackupAsync` re-derives the identical ternary.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:1885-1888` — `RestoreBackupCoreAsync` re-derives the identical ternary, independently.
+
+**Architectural test failed** — n/a.
+
+**Dependency category** — n/a.
+
+**Leverage impact** — None yet - calling `DisplayName(game)` removes the second independent copy.
+
+**Locality impact** — Fully contained to `RestoreBackupAsync` and `RestoreBackupCoreAsync`.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — A real, source-backed reuse gap; a future change to the fallback rule would need to be made in three places instead of one.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — Replace the inline ternary in both methods with `DisplayName(game)` - a two-line, zero-risk change.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` (`RestoreBackupAsync`, `RestoreBackupCoreAsync` only). Avoid: everything else.
+
+---
+
+### Finding #3: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `GameMatchResolver.ResolveAsync`'s per-entry network sequence runs in strict sequence across entries, even though the awaits are independent across entries. Unchanged this loop.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:426-697` (unchanged this loop); `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs`.
+
+**Architectural test failed** — n/a.
+
+**Dependency category** — n/a.
+
+**Leverage impact** — None currently actionable - see blocker.
+
+**Locality impact** — Fully contained to `GameMatchResolver.ResolveAsync`.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — A real, linearly-scaling latency cost, but BLOCKED by the recorded standing user constraint.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — BLOCKED this loop; named for continuity per Backlog Prioritization Pass criterion 0.
+
+**Blast radius** — Change: none (blocked). Avoid: `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs` while blocked.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Consolidating `HideGridPanelAsync`'s and `HideSearchPanelAsync`'s byte-near-identical guard/session/animate/recheck/teardown sequence into `HidePanelAsync` - passes the deletion test. |
+| New seam justified | false - no protocol/interface introduced (plain private method with delegate parameters). |
+| Helpful simplification | `HideGridPanelAsync`'s body shrank from ~35 lines to 10; `HideSearchPanelAsync`'s body shrank from ~31 lines to 8. `PrimaryWidget.xaml.cs`: 1992 -> 1988 lines (net -4). |
+| Should NOT be done | Also consolidating `ShowGridPanelAsync`/`ShowSearchPanelAsync` - not the same shape, would fail SPT Q3. Also not fixing F-024 in the same diff - queued instead to keep the diff scoped to one Finding. |
+| Tests after fix | No new tests. `HidePanelAsync` stays XAML-bound and untestable-by-design, matching established carve-out. Verification: full build and full test suite (206 passed/0 failed) both re-run before and after; independent implementation review returned approved, all three checks passed, first pass. |
+
+## Improvement Backlog
+1. **[F-022]** Continue `PrimaryWidget.xaml.cs`'s monolith decomposition - structural, needed for winning. Loop 15 has two unconfirmed candidates. Score impact: architecture_quality +0.5.
+2. **[F-024]** Route `RestoreBackupAsync`/`RestoreBackupCoreAsync`'s name-fallback computation through `DisplayName` - simplification, nice to have. Small, real, ready to land. Score impact: simplicity +0.5.
+3. **[F-011]** Parallelize `LoadGameEntriesAsync`'s per-entry network resolution - structural, needed for winning. BLOCKED by the standing user constraint. Score impact: concurrency +0.5.
+
+## Deepening Candidates
+None this loop.
+
+## Builder Notes
+- Pattern 1: A prior loop's own fresh-grep finding can sit unconsolidated for exactly one more loop before someone verifies and lands it. → REVIEW_HISTORY.json `loops[13].builder_notes` for full notes.
+- Pattern 2: Investigating a named candidate honestly, even when too thin for the main slice, can surface a smaller-but-real adjacent finding worth naming separately. → REVIEW_HISTORY.json `loops[13].builder_notes` for full notes.
+- Pattern 3: A dimension held at a clean 10 across several loops is worth re-testing with a fresh, skeptical read specifically when that loop's own work just demonstrated a same-shaped fix was still available. → REVIEW_HISTORY.json `loops[13].builder_notes` for full notes.
+
+**Scorecard humility check.** Three claims this loop's critic is least confident about: (1) `data_flow`'s 7.5 SAME - re-derived fresh with five named static-cache classes, but a stricter critic could argue `AppliedArtworkStore`'s cache (reassigned, not just read) deserves separate accounting from the read-mostly caches. (2) `simplicity`'s correction to 9.5 - a stricter critic could argue this loop should have just fixed F-024 in the same diff rather than queuing it. (3) `architecture_quality` staying at 9.0 SAME rather than crediting `HidePanelAsync` - the precedent is followed, but a stricter critic could argue a Module this shaped deserves a small nudge too.
+
+## Final Judge Narrative
+Place, not win. This loop picked up loop 13's own named next step rather than starting a fresh sweep, and verified - not assumed - that the claimed duplication was real before touching any code. Runtime ownership and concurrency both stayed trustworthy: no new field, no new lock, no new await ordering, and the reentrancy-guard timing was checked byte-for-byte against the pre-fix code. The more consequential move this loop made was smaller and less flattering to report: investigating the standing directive's second named candidate turned out mostly too thin to be this loop's main slice, but the same close read surfaced a real duplication no prior loop had named (F-024). That finding forced a correction: `simplicity` had sat at a clean 10 for three loops running despite loop 13's own Scorecard humility check flagging the risk that 10 was premature - this loop's own fresh work proved the flag right, and the honest response is a downward correction to 9.5 with the new residual named and queued, not a quiet re-affirmation of the old ceiling. `data_flow` was re-derived fully fresh this loop rather than re-cited: current source shows five classes (not four) holding deliberate, documented, process-lifetime static ambient state, which exceeds the 9-anchor's allowance and legitimately caps the dimension; converting to instance-based DI would fail the Simplify Pressure Test for a single-instance desktop-widget process with no real multi-tenancy need. The risk to watch for loop 15 (the cap loop): F-022's remaining candidates are both named but neither is confirmed - loop 15 should investigate both honestly and say so plainly if neither passes the Simplify Pressure Test rather than manufacturing an extraction; F-024 is small, safe, and ready to land.
+
+## Loop 14 Result
+Consolidated `PrimaryWidget.xaml.cs`'s `HideGridPanelAsync` and `HideSearchPanelAsync` - previously each hand-implementing the identical guard-acquire/session-capture/animate-out/session-recheck/teardown/guard-release sequence over their own fields - into one shared private `HidePanelAsync(LibraryOperationGuard, Func<int>, TranslateTransform, UIElement, ItemsControl, Func<Button>, Action<Button>, Action)` helper; both call sites now delegate to it, preserving each site's exact prior control flow and ordering. `PrimaryWidget.xaml.cs` line count: 1992 -> 1988 (net -4), verified via `(Get-Content SteamGridDB.Xbox/PrimaryWidget.xaml.cs).Count`. Full build (exit 0) and full test suite (206 passed/0 failed, unchanged) both re-run before and after. Finding F1 (stable_id F-022) is **carried_forward**. Finding F2 (stable_id F-024, new) is **carried_forward** (queued to backlog, not fixed this loop, by design). No unintended scorecard regression.
+
+## Loop 14 Implementation Review
+**Verdict: approved** (all three checks passed, first pass, no re-spawn needed). Reason: "HideGridPanelAsync and HideSearchPanelAsync now both delegate to a single shared private HidePanelAsync method that preserves the exact original guard/session/animate/recheck/teardown order and per-side field wiring, with no new seam and no stale-capture reentrancy hazard introduced." No regressions flagged; no conditions.
