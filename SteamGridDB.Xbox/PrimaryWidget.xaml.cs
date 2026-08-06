@@ -1859,8 +1859,7 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async Task RestoreBackupAsync(GameEntry game)
         {
-            string imageFileName = Path.GetFileName(game.ImageFilePath);
-            string backupGameName = game.Name != unknownName ? game.Name : imageFileName;
+            string backupGameName = DisplayName(game);
 
             try
             {
@@ -1885,7 +1884,7 @@ namespace SteamGridDB.Xbox
         private async Task<RestoreBackupResult> RestoreBackupCoreAsync(GameEntry game, bool updateStatusText = true)
         {
             string imageFileName = Path.GetFileName(game.ImageFilePath);
-            string backupGameName = game.Name != unknownName ? game.Name : imageFileName;
+            string backupGameName = DisplayName(game);
 
             try
             {

@@ -600,7 +600,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 14,
+      "last_seen_loop": 15,
       "occurrences": [
         {
           "loop": 7,
@@ -816,6 +816,18 @@
             "evidence_paths_hash": "sha256:3a15aab944acfb772b738ffc2f51924868497440b95a9a37f9888d502cdf0cc8"
           },
           "attempted_remedy_hash": "sha256:adc968c23f2bbc6350bfaa0ba1a93f3811f90201ebffc9c15270c1d4e9b7869f"
+        },
+        {
+          "loop": 15,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Run's final loop (cap 15). Independently re-verified unchanged by direct read (LoadGameEntriesAsync/GameMatchResolver.ResolveAsync untouched - this loop's own edit is entirely inside RestoreBackupAsync/RestoreBackupCoreAsync). Still blocked by the STANDING USER CONSTRAINT - this is the run's last loop, so the blocker is surfaced plainly in the halt_handoff as a decision for the user rather than silently carried into a future run. Priority 2 in this loop's backlog (below F-022's Priority 1).",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:592bb3a3fcbabf5cb5fff461992135a27c4c3ec2f934a28eb6cb4a96b7c11954",
+            "evidence_paths_hash": "sha256:09c5bf31d7b74ef8545549f10cdfe04bd03ca78605f158b187a513b311238593"
+          },
+          "attempted_remedy_hash": "sha256:63a6072d9c04ee66163f916f24a61259222070029b7d8ec4e4c77b2ab2ba27e0"
         }
       ]
     },
@@ -1368,13 +1380,13 @@
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
       "primary_evidence_lines": [
         1,
-        1988
+        1987
       ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 10,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 14,
+      "last_seen_loop": 15,
       "occurrences": [
         {
           "loop": 10,
@@ -1434,6 +1446,18 @@
             "evidence_paths_hash": "sha256:4a28c9646175bdab2ca235412cc116e7a5bdabccb3e2e242d7d60a8c1562d535"
           },
           "attempted_remedy_hash": "sha256:5972c0329a75e79aec986bcd7ca5087609b9e60e144ebcc0bcae2f644ba49c87"
+        },
+        {
+          "loop": 15,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Run's final loop (cap 15). Both of loop 14's named candidates investigated fresh against current source and both rejected on SPT grounds: (a) ReplaceImageCoreAsync/RestoreBackupCoreAsync re-confirmed as I/O orchestration with no separable decision logic; (b) FixLibraryAsync's grid/portrait/icon fallback chain investigated for the first time - three shape-different, sequentially network-gated branches (different download primitives for grid vs icon; portrait already its own extracted method) that would fail SPT Q3 if forced into one helper, the same reasoning loop 14 applied to ShowGridPanelAsync/ShowSearchPanelAsync. No same-loop slice found. Disposition: kept as a genuine backlog item (not promoted to accepted residual) - the concrete remedy (a GameRecord/view-model split separating GameEntry's BitmapImage/Visibility members from a plain domain record) is real but multi-loop scope, named explicitly in this loop's handoff rather than left as a line-count guess. Run ends at HALT_LOOP_CAP with this finding carried forward.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:247e919b047bdfb42978bab5b4d252463fc6c836d7f095c8cd4e1749672d4005",
+            "evidence_paths_hash": "sha256:22d01fc450b7600734fe634f737adfb8ad346e93b096c10a38830e360954cc39"
+          },
+          "attempted_remedy_hash": "sha256:8b7c899a4b30ac970e7251426388d085f32a1a8b01db25a9ec38719ecb7df3c1"
         }
       ]
     },
@@ -1479,7 +1503,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 14,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 14,
+      "last_seen_loop": 15,
       "occurrences": [
         {
           "loop": 14,
@@ -1492,6 +1516,18 @@
             "evidence_paths_hash": "sha256:9a3142b2ee43dbb63741946e874c38e1ead91dceba053a4379307e4d787ee49b"
           },
           "attempted_remedy_hash": "sha256:8b721136669ed651f92d49d3777787cbfec92dbe92e3f764b16348fc5f597d83"
+        },
+        {
+          "loop": 15,
+          "loop_local_id": "F2",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Fixed this loop (Priority 1, the run's final loop): RestoreBackupAsync and RestoreBackupCoreAsync both now call DisplayName(game) instead of independently re-deriving its ternary. RestoreBackupAsync's imageFileName local, which was only ever used to feed the old ternary, was deleted as a bonus; RestoreBackupCoreAsync's own imageFileName local was kept (still feeds three other calls). Net -1 line (1988 -> 1987; 2 insertions, 3 deletions). Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass, explicitly confirming the two local-variable dispositions (deleted vs kept) were each correct.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:7e4697cbd88ff1475fac1651666c162a1ae32c3b7762aa994e9907741e344af8",
+            "evidence_paths_hash": "sha256:0f5af1c09a50be3b1f5dd7b8d51dc84f840c007eabe7b18e516d463292ca63f2"
+          },
+          "attempted_remedy_hash": "sha256:166530050d4211b4aeb1d62c96aab917c695cdecfe2008cbd2d5823e2f1d525e"
         }
       ]
     }
