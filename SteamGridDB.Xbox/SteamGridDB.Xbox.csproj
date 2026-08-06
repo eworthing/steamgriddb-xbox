@@ -137,6 +137,7 @@
     <Compile Include="Services\JsonRead.cs" />
     <Compile Include="Services\SteamGridDB\ArtworkSource.cs" />
     <Compile Include="Services\SteamGridDB\SteamGridDbClient.cs" />
+    <Compile Include="Services\Stores\EaLibrary.cs" />
     <Compile Include="Services\Stores\EpicLibrary.cs" />
     <Compile Include="Services\Stores\StoreNameLookup.cs" />
   </ItemGroup>

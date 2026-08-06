@@ -39,7 +39,7 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
-        public void EA_platform_selects_the_Ea_target_even_though_nothing_fetches_it_yet()
+        public void EA_platform_selects_the_Ea_target()
         {
             Assert.Equal(GameMatchResolver.StoreNameLookupTarget.Ea, GameMatchResolver.SelectStoreNameLookupTarget(GamePlatform.EA));
         }
@@ -57,10 +57,10 @@ namespace SteamGridDB.Xbox.Tests
         // ---- BuildUnmatchedLogLine: the FixLog audit line's exact shape ----
 
         [Fact]
-        public void Non_Epic_platforms_omit_the_catalog_and_epic_load_summary_segment()
+        public void Platforms_with_no_local_manifest_read_omit_the_store_segment()
         {
             string line = GameMatchResolver.BuildUnmatchedLogLine(
-                GamePlatform.GOG, "gog:1234", epicCatalogItemId: null, epicLoadSummary: "not read yet", gameName: "Halo", steamGridDbGameId: 0);
+                GamePlatform.GOG, "gog:1234", epicCatalogItemId: null, storeLoadSummary: null, gameName: "Halo", steamGridDbGameId: 0);
 
             Assert.Equal("unmatched GOG/gog:1234 name=Halo sgdbId=0", line);
         }
@@ -69,7 +69,7 @@ namespace SteamGridDB.Xbox.Tests
         public void Epic_platform_includes_the_catalog_item_id_and_epic_load_summary()
         {
             string line = GameMatchResolver.BuildUnmatchedLogLine(
-                GamePlatform.Epic, "epic:Sugar", epicCatalogItemId: "abc123", epicLoadSummary: "4 manifests from C:\\Epic", gameName: "Sugar", steamGridDbGameId: 42);
+                GamePlatform.Epic, "epic:Sugar", epicCatalogItemId: "abc123", storeLoadSummary: "4 manifests from C:\\Epic", gameName: "Sugar", steamGridDbGameId: 42);
 
             Assert.Equal("unmatched Epic/epic:Sugar catalog=abc123 epic=[4 manifests from C:\\Epic] name=Sugar sgdbId=42", line);
         }
@@ -78,9 +78,20 @@ namespace SteamGridDB.Xbox.Tests
         public void Epic_platform_with_no_catalog_item_id_shows_none()
         {
             string line = GameMatchResolver.BuildUnmatchedLogLine(
-                GamePlatform.Epic, "epic:Sugar", epicCatalogItemId: null, epicLoadSummary: "not read yet", gameName: "Sugar", steamGridDbGameId: 0);
+                GamePlatform.Epic, "epic:Sugar", epicCatalogItemId: null, storeLoadSummary: "not read yet", gameName: "Sugar", steamGridDbGameId: 0);
 
             Assert.Equal("unmatched Epic/epic:Sugar catalog=none epic=[not read yet] name=Sugar sgdbId=0", line);
+        }
+
+        [Fact]
+        public void EA_platform_includes_its_load_summary_but_no_catalog_item_id()
+        {
+            // EA entries carry one identifier, not Epic's two - but the same "did the launcher's own
+            // manifests get read at all" question, which is otherwise invisible
+            string line = GameMatchResolver.BuildUnmatchedLogLine(
+                GamePlatform.EA, "194814", epicCatalogItemId: null, storeLoadSummary: "3 content ids from C:\\Program Files\\EA Games", gameName: "Unknown", steamGridDbGameId: 0);
+
+            Assert.Equal("unmatched EA/194814 ea=[3 content ids from C:\\Program Files\\EA Games] name=Unknown sgdbId=0", line);
         }
 
         // ---- Result: a plain readonly carrier, no behavior of its own ----
