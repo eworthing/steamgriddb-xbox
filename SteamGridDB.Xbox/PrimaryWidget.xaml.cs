@@ -553,67 +553,34 @@ namespace SteamGridDB.Xbox
                                         timestamp = parsedTimestamp;
                                     }
 
-                                    string imageFilePath;
-                                    StorageFolder imageFolder;
+                                    // The platform-dependent half of this entry's on-disk location -
+                                    // Custom's full-path/folder-resolution branch, the standard
+                                    // from-ID path construction, and the missing-image/has-backup
+                                    // "Not found" placeholder shape - lives in ManifestEntryImage so it
+                                    // can be tested directly instead of only by inspection here. Returns
+                                    // null for every stale-entry reason (see its own doc comment); this
+                                    // loop's own accounting (staleEntryCount) stays here because it is a
+                                    // caller-local summary, not part of the resolution itself.
+                                    ManifestEntryImage.Result? imageLocation = await ManifestEntryImage.ResolveAsync(
+                                        entryObject, platform, entryId, folder, thirdPartyLibrariesPath, imageExtension);
 
-                                    if (platform == GamePlatform.Custom) // Custom contains full path for the image filename
+                                    if (imageLocation == null)
                                     {
-                                        imageFilePath = JsonRead.String(entryObject, "imagePath");
+                                        staleEntryCount++;
 
-                                        if (string.IsNullOrEmpty(imageFilePath))
-                                        {
-                                            // Same outcome as the folder-resolution failure below - no
-                                            // path means nothing on disk this entry could point at
-                                            staleEntryCount++;
-
-                                            continue;
-                                        }
-
-                                        try
-                                        {
-                                            imageFolder = await StorageFolder.GetFolderFromPathAsync(Path.GetDirectoryName(imageFilePath));
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            // Folder of a removed custom game - skip this entry, not the whole manifest
-                                            System.Diagnostics.Debug.WriteLine($"Skipping custom entry {entryId}: {ex.Message}");
-
-                                            staleEntryCount++;
-
-                                            continue;
-                                        }
-                                    }
-                                    else // Image filename is based on ID
-                                    {
-                                        imageFilePath = Path.Combine(thirdPartyLibrariesPath, folder.Name, entryId.Replace(":", "_") + imageExtension);
-                                        imageFolder = folder;
+                                        continue;
                                     }
 
-                                    string imageFileName = Path.GetFileName(imageFilePath);
+                                    string imageFilePath = imageLocation.Value.ImageFilePath;
+                                    StorageFolder imageFolder = imageLocation.Value.ImageFolder;
+                                    string imageFileName = imageLocation.Value.ImageFileName;
+                                    bool hasBackup = imageLocation.Value.HasBackup;
 
                                     BitmapImage image = null;
-                                    bool hasBackup = await ArtworkFiles.HasBackupAsync(imageFolder, imageFileName);
 
-                                    try
+                                    if (imageLocation.Value.ExistingImageFile != null)
                                     {
-                                        StorageFile imageFile = await imageFolder.GetFileAsync(imageFileName);
-
-                                        image = await CreateThumbnailAsync(imageFile);
-                                    }
-                                    catch (FileNotFoundException)
-                                    {
-                                        if (!hasBackup)
-                                        {
-                                            // Nothing on disk for this entry: either a game the Xbox app removed but
-                                            // left in the manifest, or one of the legacy store folders it abandoned
-                                            // (their images use a different naming scheme and it no longer reads them)
-                                            staleEntryCount++;
-
-                                            continue;
-                                        }
-
-                                        // Image is gone but the backup is not - keep the row so it can be restored
-                                        imageFileName = "Not found";
+                                        image = await CreateThumbnailAsync(imageLocation.Value.ExistingImageFile);
                                     }
 
                                     // The store's own game ID, as SteamGridDB knows it, and the default

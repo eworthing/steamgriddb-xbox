@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 22,
+  "next_serial": 23,
   "entries": [
     {
       "stable_id": "F-001",
@@ -567,7 +567,7 @@
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 7,
@@ -724,6 +724,18 @@
             "evidence_paths_hash": "sha256:71940a9780079288d62977d789af3c2d2c31923296f113dab991d708a160dead"
           },
           "attempted_remedy_hash": "sha256:b50b9d363758e69ae4db5406ea16d6cc70c702e7bd82d4b0e6528749ae68b6d4"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop (PrimaryWidget.xaml.cs:411-748, current line numbers post this loop's own F-022 extraction, which relocated but did not remove the sequential per-entry network awaits). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop - F-022's own next slice (match/name orchestration extraction) is a step toward eventually unblocking this, but does not itself change call ordering. Outranked this loop by F-022 (Priority 1, per the user's explicit tier-3 directive); stays Priority 2 for continuity per Backlog Prioritization Pass criterion 0.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:88d635072c603544cb104ea302b77ef8efe9a3619c38076bf8148cab1c84428a",
+            "evidence_paths_hash": "sha256:b40abf7d52b87cd653e9f990b748c0438655cec484fdcdac5982b554c6d1efb1"
+          },
+          "attempted_remedy_hash": "sha256:267afa1fbc2ba8f475bdc5c760327077c7cc64485f2a72ab9ff3c8107d6db801"
         }
       ]
     },
@@ -1199,7 +1211,7 @@
       "severity": "Cosmetic for contest",
       "first_seen_loop": 9,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 9,
+      "last_seen_loop": 10,
       "occurrences": [
         {
           "loop": 9,
@@ -1212,6 +1224,44 @@
             "evidence_paths_hash": "sha256:51886291bcfdda5a0e899fe1989650abd9d355b34364637d3a83f34043c64c6a"
           },
           "attempted_remedy_hash": "sha256:fa0a9efccf3ac53b59081e6d65dd8966c4b301ab67fe2b07e1d2667d3797b21d"
+        },
+        {
+          "loop": 10,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of GameEntry.cs (untouched by this loop's own F-022 edit, confined to PrimaryWidget.xaml.cs/ManifestEntryImage.cs/the csproj/one new test file). Adversarial Pass re-run against the identical source: no new alternative fix identified beyond the two already rejected in loop 9. Disposition unchanged: accepted residual, not queued to backlog - domain_modeling score stays 9.5.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:c54290b6132a1fdc39fc43d7cb8268109a4c179a52497e7e4398069a6be32f01",
+            "evidence_paths_hash": "sha256:67e95ea21e6af42e72d3dc8622a8d78ddb3e30bf30f1af6bfe2ccad13babf0ba"
+          },
+          "attempted_remedy_hash": "sha256:343dcd639debfe952a1da83859b4231881a0903d49410b5743db6f5e1ec5bc14"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-022",
+      "title": "PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class",
+      "category_hint": "monolith/low-cohesion",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [1, 2092],
+      "test_failed": "n/a",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 10,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 10,
+      "occurrences": [
+        {
+          "loop": 10,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "First formally registered this loop per an explicit tier-3 user directive naming PrimaryWidget.xaml.cs's monolith nature as the run's primary architectural concern and requiring a stable_id even though a full multi-loop remedy is not complete. This loop's own slice (ManifestEntryImage extraction) is real, tested, reviewer-approved progress - PrimaryWidget.xaml.cs shrank 2125->2092 lines, architecture_quality moved UP for the first time in 19 loops - but six more co-located concerns remain, so the finding stays open (not resolved). minimal_correction_path sequences the remaining slices explicitly so a resumed run can continue.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:9b07cf742a18b28ab0cfd6fdf925f5877cd8b6187ed6e0043365d5bed8c44bb4",
+            "evidence_paths_hash": "sha256:258491a97cf7bbc1cba2fd70383fb2a6602c42de0738312e5274970937271088"
+          },
+          "attempted_remedy_hash": "sha256:3a0257299ca54b537bbce56fdf64f05812697c5ced81921d4a68432b48f97af1"
         }
       ]
     }

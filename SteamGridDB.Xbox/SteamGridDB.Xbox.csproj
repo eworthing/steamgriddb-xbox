@@ -126,6 +126,7 @@
     <Compile Include="Services\Library\GameImages.cs" />
     <Compile Include="Services\Library\LibraryOperationGuard.cs" />
     <Compile Include="Services\Library\ManifestEntryIdentity.cs" />
+    <Compile Include="Services\Library\ManifestEntryImage.cs" />
     <Compile Include="Services\Library\OperationReport.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbGrid.cs" />
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbResponse.cs" />
