@@ -121,6 +121,7 @@
     <Compile Include="Services\Artwork\ArtworkRanker.cs" />
     <Compile Include="Services\Artwork\ArtworkSignature.cs" />
     <Compile Include="Services\Artwork\FixLog.cs" />
+    <Compile Include="Services\Artwork\GridSelectionItems.cs" />
     <Compile Include="Services\Artwork\TileImage.cs" />
     <Compile Include="Services\AsyncLazyCache.cs" />
     <Compile Include="Services\Library\GameImages.cs" />

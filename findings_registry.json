@@ -7,7 +7,10 @@
       "title": "Grid picker writes artwork to whichever game is currently selected at click time, not the game the picker was opened for",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1234, 1501],
+      "primary_evidence_lines": [
+        1234,
+        1501
+      ],
       "test_failed": "n/a",
       "severity": "Likely disqualifier",
       "first_seen_loop": 1,
@@ -32,7 +35,10 @@
       "title": "Grid and search panel slide animations duplicate the same Storyboard ceremony four times",
       "category_hint": "duplicate-ceremony",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1548, 1842],
+      "primary_evidence_lines": [
+        1548,
+        1842
+      ],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
@@ -129,7 +135,10 @@
       "title": "Fix/Restore/Revert confirmation dialogs duplicate the same ContentDialog construction and guard-and-run ceremony three times",
       "category_hint": "duplicate-ceremony",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [742, 858],
+      "primary_evidence_lines": [
+        742,
+        858
+      ],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
@@ -238,7 +247,10 @@
       "title": "TileImage.FillsTileAsync's alpha and corner-count thresholds are untested at their exact boundary values",
       "category_hint": "test-coverage-gap",
       "primary_file": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs",
-      "primary_evidence_lines": [231, 265],
+      "primary_evidence_lines": [
+        231,
+        265
+      ],
       "test_failed": "n/a",
       "severity": "Cosmetic for contest",
       "first_seen_loop": 1,
@@ -370,7 +382,10 @@
       "title": "LoadGridSelectionAsync's panel-population step has no ownership check against a superseded picker session",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1295, 1448],
+      "primary_evidence_lines": [
+        1295,
+        1448
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 2,
@@ -396,7 +411,10 @@
       "title": "PerformGameSearchAsync's results-population step has no ownership check against a superseded search session",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1646, 1784],
+      "primary_evidence_lines": [
+        1646,
+        1784
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 3,
@@ -422,7 +440,10 @@
       "title": "PopulateGridSelectionPanelAsync's own await is not re-checked against a superseded picker session",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1428, 1489],
+      "primary_evidence_lines": [
+        1428,
+        1489
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 4,
@@ -448,7 +469,10 @@
       "title": "DownloadAndReplaceImageAsync's post-download UI mutations are not re-checked against a superseded picker session",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1523, 1613],
+      "primary_evidence_lines": [
+        1523,
+        1613
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 5,
@@ -474,7 +498,10 @@
       "title": "HideGridPanelAsync and HideSearchPanelAsync unconditionally mutated shared panel state after their own await, with no session recheck, reachable from ungated Close-button clicks",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1597, 1891],
+      "primary_evidence_lines": [
+        1597,
+        1891
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 6,
@@ -500,7 +527,10 @@
       "title": "StoreNameLookup's GOG and Epic name-fetch methods bypass the JsonRead helper that exists to prevent a documented JSON null-vs-missing bug",
       "category_hint": "reuse/data-correctness",
       "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
-      "primary_evidence_lines": [67, 190],
+      "primary_evidence_lines": [
+        67,
+        190
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 6,
@@ -562,12 +592,15 @@
       "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
       "category_hint": "efficiency-D2/sequential-network-io",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [426, 697],
+      "primary_evidence_lines": [
+        426,
+        697
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 12,
+      "last_seen_loop": 13,
       "occurrences": [
         {
           "loop": 7,
@@ -760,6 +793,17 @@
             "evidence_paths_hash": "sha256:2aff044de6371a44308772252e64a84cac664cbae0b73e82bbe6d3df9fce25b9"
           },
           "attempted_remedy_hash": "sha256:0c83e726ac908aba7b6fbc99383396d86876227001c4be432b36607d987c96b2"
+        },
+        {
+          "loop": 13,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:75d4d294aaae7bb06a57e300253066e603e31cedba75941757a9292ae16879f0",
+            "evidence_paths_hash": "sha256:995d96f90ac08b4d8100c7e94e8365200142ef8ed68fe4154a0144f5948d6643"
+          },
+          "attempted_remedy_hash": "sha256:0c83e726ac908aba7b6fbc99383396d86876227001c4be432b36607d987c96b2"
         }
       ]
     },
@@ -768,7 +812,10 @@
       "title": "GamePlatformHelper's Xbox-folder-name and SteamGridDB-API-string mappings are two independent switch statements over GamePlatform with no shared source of truth",
       "category_hint": "duplicate-abstraction",
       "primary_file": "SteamGridDB.Xbox/Models/GamePlatform.cs",
-      "primary_evidence_lines": [22, 67],
+      "primary_evidence_lines": [
+        22,
+        67
+      ],
       "test_failed": "n/a",
       "severity": "Cosmetic for contest",
       "first_seen_loop": 8,
@@ -902,7 +949,10 @@
       "title": "ReplaceImageCoreAsync, RestoreAllChangesAsync and RestoreBackupCoreAsync duplicate the same UI-thread entry-update loop three times",
       "category_hint": "leaf-module-duplication",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1101, 1937],
+      "primary_evidence_lines": [
+        1101,
+        1937
+      ],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 9,
@@ -964,7 +1014,10 @@
       "title": "Single-game artwork operations check IsLibraryOperationBlocking only at the click, never claim it, so a bulk operation can start and corrupt freshly-loaded entries mid-flight",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [191, 1950],
+      "primary_evidence_lines": [
+        191,
+        1950
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 10,
@@ -1002,7 +1055,10 @@
       "title": "StoreNameLookup's three hand-rolled caches perform unsynchronized check-then-populate writes, unlike the file's own Ubisoft cache three lines below",
       "category_hint": "unsynchronized-cache/concurrency-inconsistency",
       "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
-      "primary_evidence_lines": [29, 222],
+      "primary_evidence_lines": [
+        29,
+        222
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 1,
@@ -1052,7 +1108,10 @@
       "title": "PrimaryWidget's library-operation guard has no automated test, and the mutation-test gap it represents has been named on every loop of this project's history",
       "category_hint": "test-coverage-gap/deepening",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [66, 232],
+      "primary_evidence_lines": [
+        66,
+        232
+      ],
       "test_failed": "Shallow module",
       "severity": "Serious deduction",
       "first_seen_loop": 4,
@@ -1078,7 +1137,10 @@
       "title": "SteamGridDbClient.NoteCapsuleParse and FixLog perform unsynchronized check-then-populate/append writes on static mutable collections, the same defect class F-015 just fixed in StoreNameLookup",
       "category_hint": "unsynchronized-cache/concurrency-inconsistency",
       "primary_file": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs",
-      "primary_evidence_lines": [47, 55],
+      "primary_evidence_lines": [
+        47,
+        55
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 4,
@@ -1116,7 +1178,10 @@
       "title": "HideGridPanelAsync and HideSearchPanelAsync had no guard against running twice concurrently for the same session",
       "category_hint": "state-ownership/reentrancy",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1644, 1894],
+      "primary_evidence_lines": [
+        1644,
+        1894
+      ],
       "test_failed": "n/a",
       "severity": "Serious deduction",
       "first_seen_loop": 6,
@@ -1142,7 +1207,10 @@
       "title": "lastFocusedButton is written by both EditGameImage_Click and SearchGameImage_Click with no single owner, and is deliberately left uncleared across the SearchResult_Click -> grid-panel handoff",
       "category_hint": "state-ownership/undocumented-cross-module-contract",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [59, 1927],
+      "primary_evidence_lines": [
+        59,
+        1927
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
@@ -1180,7 +1248,10 @@
       "title": "StoreNameLookup's GOG and Epic name-fetch methods independently reimplement the same double-checked-locking skeleton",
       "category_hint": "leaf-module-duplication",
       "primary_file": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs",
-      "primary_evidence_lines": [102, 277],
+      "primary_evidence_lines": [
+        102,
+        277
+      ],
       "test_failed": "Shallow module",
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
@@ -1230,7 +1301,10 @@
       "title": "GameEntry's SteamGridDB-match fields (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId) admit a combination LoadGameEntriesAsync never actually constructs",
       "category_hint": "domain-modeling/parallel-fields",
       "primary_file": "SteamGridDB.Xbox/Models/GameEntry.cs",
-      "primary_evidence_lines": [113, 145],
+      "primary_evidence_lines": [
+        113,
+        145
+      ],
       "test_failed": "n/a",
       "severity": "Cosmetic for contest",
       "first_seen_loop": 9,
@@ -1280,12 +1354,15 @@
       "title": "PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class",
       "category_hint": "monolith/low-cohesion",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1, 1999],
+      "primary_evidence_lines": [
+        1,
+        1999
+      ],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 10,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 12,
+      "last_seen_loop": 13,
       "occurrences": [
         {
           "loop": 10,
@@ -1322,6 +1399,17 @@
             "evidence_paths_hash": "sha256:d5338be0a7bbc9bc5c4bcdf61e23004e2e4f7622263dcd0a8c63e004f6611ee2"
           },
           "attempted_remedy_hash": "sha256:8e2cddf0cc2b3a19356a4989963e8930d9a754aecaa5a32c2f644de2a68cb02a"
+        },
+        {
+          "loop": 13,
+          "loop_local_id": "F1",
+          "status": "open",
+          "sha": "<pending>",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:27f9ee65788cb27384cc2a00a5f8758d2c96afb7f7e776b8415416048ad50530",
+            "evidence_paths_hash": "sha256:936653e2c0ba54f9a7acd563fc64c578f622b0471956fbc760b2d58391cc9245"
+          },
+          "attempted_remedy_hash": "sha256:f72b5114b7487d71475f8ebeb97577e103987b8ff2b391bb3d7e1d4b836ae808"
         }
       ]
     },
@@ -1330,7 +1418,10 @@
       "title": "PrimaryWidget's TryBeginLibraryOperation/EndLibraryOperation guard-and-run ceremony was duplicated across five call sites, including inside the already-consolidated ConfirmAndRunAsync",
       "category_hint": "duplicate-ceremony",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [170, 761],
+      "primary_evidence_lines": [
+        170,
+        761
+      ],
       "test_failed": "Deletion test",
       "severity": "Noticeable weakness",
       "first_seen_loop": 12,

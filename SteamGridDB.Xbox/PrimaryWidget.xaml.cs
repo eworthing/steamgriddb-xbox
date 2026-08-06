@@ -1367,18 +1367,11 @@ namespace SteamGridDB.Xbox
                 return;
             }
 
-            // Combine grids and icons - ranked grids first (style, language, metadata), then icons
-            List<SteamGridDbGrid> sortedArtworks = new List<SteamGridDbGrid>();
-
-            if (grids != null && grids.Count > 0)
-            {
-                sortedArtworks.AddRange(ArtworkRanker.RankGrids(grids, CurrentSelectedGame?.Name));
-            }
-
-            if (icons != null && icons.Count > 0)
-            {
-                sortedArtworks.AddRange(ArtworkRanker.RankIcons(icons));
-            }
+            // Combine grids and icons (ranked grids first, then icons) and compute each tile's
+            // display fields - the fallback rules and the "already applied" check - in one pure,
+            // directly-tested pass. See GridSelectionItemsTests.cs.
+            List<GridSelectionItems.Result> sortedArtworks = GridSelectionItems.BuildOrdered(
+                grids, icons, CurrentSelectedGame?.Name, appliedArtworkId, sessionId, unknownName);
 
             if (sortedArtworks.Count == 0)
             {
@@ -1388,19 +1381,19 @@ namespace SteamGridDB.Xbox
             }
 
             // Add items to grid view
-            foreach (SteamGridDbGrid artwork in sortedArtworks)
+            foreach (GridSelectionItems.Result artwork in sortedArtworks)
             {
                 GridImagesView.Items.Add(new GridImageItem
                 {
                     Id = artwork.Id,
                     Url = artwork.Url,
-                    ThumbUrl = artwork.Thumb ?? artwork.Url,
-                    Author = artwork.Author?.Name ?? unknownName,
-                    Style = artwork.Style ?? "default",
+                    ThumbUrl = artwork.ThumbUrl,
+                    Author = artwork.Author,
+                    Style = artwork.Style,
                     Width = artwork.Width,
                     Height = artwork.Height,
-                    IsApplied = artwork.Id == appliedArtworkId,
-                    SessionId = sessionId
+                    IsApplied = artwork.IsApplied,
+                    SessionId = artwork.SessionId
                 });
             }
 

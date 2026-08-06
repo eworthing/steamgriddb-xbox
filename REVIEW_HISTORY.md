@@ -4481,3 +4481,139 @@ Extracted the shared `TryBeginLibraryOperation`/`EndLibraryOperation` acquire-tr
 ## Loop 12 Implementation Review
 **Verdict: approved** (all three checks passed, first pass, no re-spawn needed). Reason: "The five duplicated TryBeginLibraryOperation/EndLibraryOperation ceremonies are now expressed in exactly one place (RunUnderLibraryOperationGuardAsync), and each of the five call sites' exact prior control flow (including PrimaryWidget_Loaded's unconditional post-guard Focus, RestoreBackup_Click's guard-before-cast ordering, and ConfirmAndRunAsync's shouldRun short-circuit) is preserved with no touch to any network-calling code." No regressions flagged; no conditions.
 
+--- Loop 13 (UTC 2026-08-06T02:09:36Z) ---
+
+### Loop Counter
+Loop 13 of 15 (cap)
+
+### System Flag
+[STATE: CONTINUE]
+
+---
+
+## Contest Verdict
+Good app, but not top-tier yet
+
+This loop is a re-dispatch after the loop-13 executor died mid-flight (API error) with uncommitted, unverified work already in the working tree. Rather than discard it on principle, this loop independently verified it: full build green, full test suite green (206/206, 16 new), and a fresh read of both the new module and the diff against `PopulateGridSelectionPanelAsync`. It is exactly the next slice loop 12's own backlog named with the most specificity of any prior loop's F-022 candidate list ("whether `PopulateGridSelectionPanelAsync`'s `GridImageItem` list-construction has any pure sub-decision worth extracting on its own merits") - a real, tested, reviewer-approved extraction, not a costume layer. `PrimaryWidget.xaml.cs` shrank 1999 -> 1992 lines. `architecture_quality` moves up for the third time this run. `data_flow` (7.5) remains the dimension furthest from top-tier.
+
+## Discovery
+see Loop 1 Discovery
+
+## Scorecard (1-10)
+
+- Architecture quality: 9.0 | UP | New tested Module `SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs` (99 lines: `internal readonly struct Result` + `internal static List<Result> BuildOrdered(...)`) extracted from `PopulateGridSelectionPanelAsync`'s combine-and-populate block. Deletion test passes: delete the file and the grid/icon-combining, thumbnail/author/style-fallback, and applied-tile logic reappears inline exactly as it did before this loop. Matches the established pattern (`ManifestEntryIdentity`, `ManifestEntryImage`, `GameMatchResolver`): plain stateless static class, no protocol, real Interface with genuine Depth. `PrimaryWidget.xaml.cs` shrank 1999 -> 1992 lines (net -7). Third genuine class-extraction this run; score moves 0.5 per the established per-extraction increment.
+- State management and runtime ownership: 10 | SAME | `GridSelectionItems` is fully stateless: one `internal readonly struct Result` and one static pure function. Zero new fields on `PrimaryWidget`. Field census unchanged from loop 12.
+- Domain modeling: 9.5 | SAME | `GameEntry.cs` unchanged this loop. The parallel-fields residual is untouched. Residual accepted, unchanged from loop 12's Adversarial Pass.
+- Data flow and dependency design: 7.5 | SAME | Untouched this loop for the 13th consecutive loop of this run. `GridSelectionItems.BuildOrdered` is this loop's only new surface and it is fully stateless. Re-walked the same four scattered-cache sites named every prior loop; all already lock-protected, no candidate passes SPT Q2 - the same conclusion 13 consecutive independent checks have now reached.
+- Framework / platform best practices: 9.5 | SAME | `App.xaml.cs` unchanged this loop. This loop's own new file is itself idiomatic - no new pattern introduced. Residual re-confirmed SPT-rejected on Q5 against unchanged source.
+- Concurrency and runtime safety: 9.5 | SAME | This loop's fix crosses no risk boundary: `GridSelectionItems.BuildOrdered` is a synchronous, non-async pure function; the session-staleness guard is unchanged and still runs before the extraction's call site. `risk_boundary_evidence: null`. The accepted residual (discarded `Dispatcher.RunAsync` fire-and-forget) is untouched this loop and remains SPT-rejected on Q5.
+- Code simplicity and clarity: 10 | SAME | Matches the established precedent (loops 10-11): a genuine new-class extraction credits `architecture_quality`, not `simplicity`. No new ceremony, no duplicate layer introduced by this loop's own fix.
+- Test strategy and regression resistance: 8.5 | SAME | 16 new tests at the new Interface, directly exercising `GridSelectionItems.BuildOrdered`. 190 -> 206 tests passing. Real, source-backed progress, but the Authority-Map gap held at 8.5 across loops 11-12 (session IDs, `currentSelectedGame`, `GameEntries`, panel header/focus-restore state still untested) is unaffected. Full build and full test suite (206 passed/0 failed) re-run before and after.
+- Overall implementation credibility: 10 | SAME | `GridSelectionItems.cs`'s doc comment accurately describes what the class does and does not do - independently re-verified by the implementation reviewer against the actual code. No stale reference found.
+
+## Authority Map
+(Not re-emitted this loop: no authority/state-ownership finding was Priority 1 this loop - F-022 is a module-decomposition finding. See loop 8's archive for the last full Authority Map.)
+
+## Strengths That Matter
+- This loop independently verified an orphaned, unverified draft (left by a prior executor that died mid-flight) against the same bar a self-authored change would need to clear - full build, full test suite, and a from-scratch read of the diff and the new module - rather than either blindly committing it or reflexively discarding real, usable work.
+- The adopted extraction is the single most specifically-named F-022 candidate any prior loop's backlog has produced (loop 12: "whether `PopulateGridSelectionPanelAsync`'s `GridImageItem` list-construction ... has any pure sub-decision worth extracting on its own merits"), landed with 16 tests at the new Interface and zero new fields.
+- `GridSelectionItemsTests.cs` deliberately uses single-candidate lists to isolate the combining/mapping logic from `ArtworkRanker`'s own ordering behavior (already covered separately in `ArtworkRankerTests.cs`), avoiding a test suite where ranking noise could mask a mapping bug.
+
+## Findings
+
+### Finding #1: PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class
+
+**Why it matters** — Top-churn file by roughly 5x (38 edits/6mo vs 8 for the next file); `architecture_quality` was stuck at 7.5 across 19 critic passes before loops 10-12 started landing sequenced slices out of it.
+
+**What is wrong** — `PrimaryWidget.xaml.cs` still mixes UI event handling, file I/O/backup-restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding after loops 10-12's extractions. This loop narrowed the panel/search navigation concern further: `PopulateGridSelectionPanelAsync`'s grid/icon-combining and per-tile display-fallback decision logic is now `GridSelectionItems.BuildOrdered`, a pure, directly-tested function.
+
+**Evidence** —
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` pre-fix: `PopulateGridSelectionPanelAsync` (lines 1353-1404 at loop-12 HEAD) inlined the grid/icon combine and a `foreach` computing fallback fields per tile.
+- `SteamGridDB.Xbox/PrimaryWidget.xaml.cs` post-fix (1992 lines): the method now calls `GridSelectionItems.BuildOrdered(...)`.
+- `SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs` (new, 99 lines) and `SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs` (new, 207 lines, 16 tests).
+- `SteamGridDB.Xbox/SteamGridDB.Xbox.csproj`: one new `<Compile Include="Services\Artwork\GridSelectionItems.cs" />`.
+
+**Architectural test failed** — Deletion test (delete `GridSelectionItems.cs` and the identical combine/fallback logic reappears inline in `PopulateGridSelectionPanelAsync`, exactly as it did before this loop).
+
+**Dependency category** — n/a.
+
+**Leverage impact** — The grid/icon-combining and fallback-computation logic is now readable, changeable, and tested on its own, independent of XAML control state.
+
+**Locality impact** — Contained to `GridSelectionItems.cs` and its 16 tests; the remaining panel/search navigation ceremony stays in `PrimaryWidget.xaml.cs` and this loop's own fresh sweep found it structurally duplicated between the grid and search pickers.
+
+**Metric signal** — churn_top20: 38 edits/6mo, ~5x the next-highest file (unchanged this loop).
+
+**Why this weakens submission** — `architecture_quality`'s own 9-anchor requires that a senior reviewer cannot identify a structural improvement that preserves behavior and improves Leverage or Locality; panel/search session bookkeeping, close-guard ceremony, and focus-restore handoff remain co-located and structurally duplicated between the two pickers.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — Sequenced, multi-loop decomposition continues. This loop: extracted `PopulateGridSelectionPanelAsync`'s list-construction into `GridSelectionItems`. Loop 14 should investigate: (a) the near-identical session-ID/close-guard/focus-restore-target/header-property quadruple independently hand-copied between the grid picker and the search picker; (b) the decision logic inside `ReplaceImageCoreAsync`/`RestoreBackupCoreAsync`.
+
+**Blast radius** — Change: `SteamGridDB.Xbox/PrimaryWidget.xaml.cs`, `SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs` (new), `SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs` (new), `SteamGridDB.Xbox/SteamGridDB.Xbox.csproj`. Avoid: everything else.
+
+---
+
+### Finding #2: LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open
+
+**Why it matters** — On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.
+
+**What is wrong** — `GameMatchResolver.ResolveAsync`'s per-entry network sequence runs in strict sequence across entries, even though the awaits are independent across entries. Unchanged this loop.
+
+**Evidence** — `SteamGridDB.Xbox/PrimaryWidget.xaml.cs:426-697` (unchanged this loop); `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs`.
+
+**Architectural test failed** — n/a.
+
+**Dependency category** — n/a.
+
+**Leverage impact** — None currently actionable - see blocker.
+
+**Locality impact** — Fully contained to `GameMatchResolver.ResolveAsync`.
+
+**Metric signal** — none.
+
+**Why this weakens submission** — A real, linearly-scaling latency cost, but BLOCKED: the recorded standing user constraint means this loop cannot land a change altering observable call ordering/concurrency/count without a product decision this loop cannot make.
+
+**Severity** — Noticeable weakness.
+
+**ADR conflicts** — none.
+
+**Minimal correction path** — BLOCKED this loop; named for continuity per Backlog Prioritization Pass criterion 0.
+
+**Blast radius** — Change: none (blocked). Avoid: `SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs` while blocked.
+
+## Simplification Check
+
+| Field | Value |
+|---|---|
+| Structurally necessary | Extracting `PopulateGridSelectionPanelAsync`'s grid/icon-combining and per-tile display-fallback logic into `GridSelectionItems.BuildOrdered` - passes the deletion test. |
+| New seam justified | false - no protocol/interface introduced (plain `internal static class`). |
+| Helpful simplification | `PopulateGridSelectionPanelAsync`'s combine-and-map block shrinks from an ~30-line inline sequence to a 2-line delegating call. `PrimaryWidget.xaml.cs`: 1999 -> 1992 lines (net -7). |
+| Should NOT be done | Returning `GridImageItem` directly from `BuildOrdered` (would reintroduce the `Windows.UI.Xaml.Visibility` dependency); touching `ArtworkRanker.cs` or the surrounding panel-lifecycle ceremony without proven friction. |
+| Tests after fix | 16 new `[Fact]` tests in `GridSelectionItemsTests.cs` asserting observable output. Full build + full test suite (190 -> 206) re-run; independent implementation review approved on first pass. |
+
+## Improvement Backlog
+1. **[F-022]** Continue `PrimaryWidget.xaml.cs`'s monolith decomposition - structural, needed for winning. This loop's own fresh sweep named two concrete candidates for loop 14: the 2-way duplicated grid/search panel-lifecycle ceremony, and the decision logic inside `ReplaceImageCoreAsync`/`RestoreBackupCoreAsync`. Score impact: architecture_quality +0.5.
+2. **[F-011]** Parallelize `LoadGameEntriesAsync`'s per-entry network resolution - structural, needed for winning. BLOCKED by the standing user constraint. Score impact: concurrency +0.5.
+
+## Deepening Candidates
+None this loop.
+
+## Builder Notes
+- Pattern 1: A loop executor can die mid-flight after making real code changes but before any artifact records what happened - verify first (build + test + read), decide second (adopt or discard), commit third.
+- Pattern 2: The most specific F-022 candidate a backlog has ever named turned out to be exactly right, once someone actually tried it - narrowing from "investigate this area" to "investigate this specific sub-decision" is itself a signal of readiness.
+- Pattern 3: Fresh grep-based sweeps surface duplication shapes a line-by-line read can miss - before calling a decomposition candidate "thin," grep the file for the sibling of whatever you just extracted from.
+
+→ REVIEW_HISTORY.json `loops[24].builder_notes` for full notes (0-indexed; this is loop 13 of this run)
+
+## Final Judge Narrative
+Place, not win. This loop's defining decision was procedural, not architectural: a prior executor died mid-flight after writing real, plausible-looking code with zero recorded verification, and this loop treated "plausible-looking" as worthless without independently re-running the same gate any self-authored change would face - full build, full test suite, and a from-scratch read of both the new module and the method it came from. That verification held: the orphaned `GridSelectionItems` extraction is exactly the most specifically-named F-022 candidate any prior loop's backlog has produced, it is genuinely stateless and deletion-test-clean, and its 16 tests exercise real output rather than internal steps. `architecture_quality` moves up for the third time this run as a direct, source-backed consequence. `test_strategy` does not cross its own stated anchor this loop despite genuine new coverage, because the specific gap that has held it at 8.5 across three loops is untouched - an honest SAME rather than a generous nudge. The risk to watch for loop 14: this loop's own fresh sweep found the grid and search pickers independently maintain a near-identical four-field lifecycle-state quadruple, which is either the next real decomposition/dedup slice or a case where unifying two genuinely-different-enough things would trade real duplication for ceremony - loop 14 needs to prove friction fresh before committing to either read.
+
+## Loop 13 Result
+Independently verified, then adopted, an orphaned draft left by a loop-13 executor that died mid-flight (API error) after writing code but before any build, test run, or artifact write. Verification: full build (`msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never`, exit 0) and full test suite (`run-tests.ps1`: 206 passed/0 failed, up from 190 at loop 12) both run from a clean invocation against the working tree exactly as the prior executor left it; direct read of the diff and the two new files confirmed the extraction is real. `PrimaryWidget.xaml.cs` line count: 1999 -> 1992 (net -7), verified via `(Get-Content SteamGridDB.Xbox/PrimaryWidget.xaml.cs).Count`. Finding F1 (stable_id F-022) is **carried_forward** - this loop's slice is real, tested, and reviewer-approved progress, but the finding's broader claim (the monolith, now further narrowed) is not resolved. No unintended scorecard regression.
+
+## Loop 13 Implementation Review
+**Verdict: approved** (all three checks passed, first pass, no re-spawn needed). Reason: "The inline combine/fallback logic cited by F-022's Finding #1 is verifiably gone from PopulateGridSelectionPanelAsync and replaced by GridSelectionItems.BuildOrdered, a stateless extraction that is behaviorally identical to the original code, carries no new Seam, and is covered by 16 tests that assert real observable output at the new Interface." No regressions flagged; no conditions.
+
+

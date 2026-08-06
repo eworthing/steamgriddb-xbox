@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "loop": 12,
+  "loop": 13,
   "loop_cap": 15,
   "state": "CONTINUE",
   "halt_subtype": null,
@@ -11,10 +11,12 @@
   "dry_run": false,
   "strictness": "standard",
   "loop_metrics": null,
+
   "run_id": null,
   "source_rev": null,
   "candidate_fingerprint": null,
   "halt_success_challenge": null,
+
   "provider": "claude_code",
   "loop_model": "claude-sonnet-5",
   "loop_model_source": "default",
@@ -23,199 +25,82 @@
   "spawn_isolation": "subagent",
   "premium_dry_run": null,
   "premium_loop_override": false,
+
   "findings_registry_path": "./findings_registry.json",
+
   "discovery": {
     "source_roots": ["SteamGridDB.Xbox/", "SteamGridDB.Xbox.Tests/"],
     "test_command": "powershell -NoProfile -File ./run-tests.ps1",
     "build_command": "msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never /v:minimal /nologo (msbuild at 'C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe', resolvable via vswhere.exe)",
     "lens": "Generic",
-    "lenses_loaded": ["lens-generic.md", "lens-security.md", "lens-efficiency.md"],
     "adrs": [],
     "domain_terms": [],
-    "prior_audit_docs": [
-      {"path": "ARTWORK-SELECTION.md", "date": "2026-08-03"},
-      {"path": "CODE-REVIEW.md", "date": "2026-08-03"},
-      {"path": "TESTING.md", "date": "2026-08-03"}
-    ],
-    "churn_top20": [
-      {"path": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "edits": 38},
-      {"path": "SteamGridDB.Xbox/Services/SteamGridDB/SteamGridDbClient.cs", "edits": 8},
-      {"path": "SteamGridDB.Xbox/Services/Stores/StoreNameLookup.cs", "edits": 5},
-      {"path": "SteamGridDB.Xbox/Services/Artwork/AppliedArtworkStore.cs", "edits": 4},
-      {"path": "SteamGridDB.Xbox/Models/GridImageItem.cs", "edits": 4},
-      {"path": "SteamGridDB.Xbox/Models/GameEntry.cs", "edits": 4},
-      {"path": "SteamGridDB.Xbox/PrimaryWidget.xaml", "edits": 4},
-      {"path": "SteamGridDB.Xbox/Services/Artwork/ArtworkDownloader.cs", "edits": 3},
-      {"path": "SteamGridDB.Xbox/Services/Stores/EpicLibrary.cs", "edits": 3},
-      {"path": "SteamGridDB.Xbox/Services/Artwork/FixLog.cs", "edits": 3},
-      {"path": "SteamGridDB.Xbox.Tests/TestImages.cs", "edits": 3},
-      {"path": "SteamGridDB.Xbox.Tests/TileImageTests.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox/Services/Artwork/TileImage.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox.Tests/ArtworkRankerTests.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox/Models/GamePlatform.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox/Services/Artwork/ArtworkSignature.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox/Services/SteamGridDB/Models/SteamGridDbGrid.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox.Tests/JsonReadTests.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox.Tests/ArtworkDownloaderTests.cs", "edits": 2},
-      {"path": "SteamGridDB.Xbox/Services/Library/OperationReport.cs", "edits": 1}
-    ],
     "test_scope": "full",
     "test_filter": null,
     "working_tree_dirty_paths": []
   },
+
   "verdict": "Good app, but not top-tier yet",
-  "verdict_explanation": "This loop re-derived (not re-cited) loop 11's own tentative claim that the bulk-operation report/status glue is at its honest floor and independently confirmed it against GameImagesTests.cs/OperationReportTests.cs. No further PrimaryWidget-decomposition slice was found this loop, but a wider sweep found and fixed a real, separate, subtractive finding: five independent hand-rolled copies of the TryBeginLibraryOperation/EndLibraryOperation guard-and-run ceremony collapsed into one RunUnderLibraryOperationGuardAsync helper. PrimaryWidget.xaml.cs shrank 2026 -> 1999 lines. architecture_quality (8.5) and data_flow (7.5) remain the two dimensions capping this below top-tier.",
+  "verdict_explanation": "This loop is a re-dispatch after the loop-13 executor died mid-flight with uncommitted, unverified work already in the working tree. That work was independently verified (full build green, full test suite green 206/206) and adopted: it is the most specifically-named F-022 candidate any prior loop's backlog has produced, and it is a real, tested, reviewer-approved extraction. PrimaryWidget.xaml.cs shrank 1999 -> 1992 lines. architecture_quality moves up for the third time this run; data_flow (7.5) remains furthest from top-tier.",
+
   "scorecard": {
-    "architecture_quality": {
-      "score": 8.5,
-      "delta": "SAME",
-      "proof": "Fresh re-read this loop of the six co-located concerns F-022 names (UI event handling, file I/O/backup-restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, library-operation guarding) confirms none moved out of PrimaryWidget.xaml.cs - this loop's own fix (RunUnderLibraryOperationGuardAsync) tightened the calling convention for library-operation guarding but did not extract that concern into a new class, matching the established precedent that this class of in-file ceremony-consolidation (loop 7's SlidePanelAsync, loop 8's ConfirmAndRunAsync) credits simplicity, not architecture_quality - confirmed by re-checking those two loops' own scorecards in REVIEW_HISTORY.json (loop 7/8: architecture_quality SAME both loops, simplicity UP both loops). This loop's own investigation (direct re-read of RevertAllToDefaultAsync/FixLibraryAsync/RestoreAllChangesAsync, LoadGameEntriesAsync's remaining manifest-traversal glue, and the panel/search navigation methods) found no new decomposition-into-new-class candidate - see Finding F2 (F-022) for detail. Score holds; residual unchanged (six co-located concerns, no new slice confidently named).",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "state_management": {
-      "score": 10,
-      "delta": "SAME",
-      "proof": "This loop's own fix adds zero new fields: RunUnderLibraryOperationGuardAsync is a stateless private method (one Func<Task> action parameter, no fields, no new state), confirmed by direct read of the diff. TryBeginLibraryOperation/EndLibraryOperation themselves are unchanged - still delegate to the same libraryOperationGuard.TryBegin()/.End() calls they always did. Fresh field census (unchanged from loop 11): gridPanelFocusRestoreTarget, searchPanelFocusRestoreTarget, libraryOperationGuard, gridPanelSessionId, searchPanelSessionId, gridPanelCloseGuard, searchPanelCloseGuard, currentSelectedGame, gridPanelHeaderText, searchPanelHeaderText, GameEntries - identical set, no drift.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "domain_modeling": {
-      "score": 9.5,
-      "delta": "SAME",
-      "proof": "GameEntry.cs unchanged this loop (confirmed via git diff --stat: only PrimaryWidget.xaml.cs changed). The parallel-fields residual (HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId, lines 113-145) is untouched. Adversarial Pass re-run against the identical unchanged source: no new alternative fix beyond the two already rejected in loop 9 (readonly struct fails the two-way XAML data-binding requirement; enum+setter-methods trades permissiveness for a new forgot-to-call-the-setter failure class). Residual accepted, unchanged.",
-      "residual_blocking_10": "GameEntry.cs's OfficialCapsuleUrl/SteamGridDbGameId/HasSteamGridDBMatch parallel-fields case (properties 113-145) admits a combination (HasSteamGridDBMatch==false with SteamGridDbGameId>0) that no current construction site ever produces.",
-      "residual_disposition": "accepted",
-      "residual_rationale_or_backlog_ref": "Two alternatives fail SPT Q2 (smallest honest fix): a readonly struct with static factories cannot back GameEntry's two-way XAML data binding without a separate wrapper layer; a SteamGridDbMatchKind enum + SetMatchedByPlatform/SetMatchedByName factory methods turns the one flat object-initializer construction site into a two-step construct-then-call-one-setter protocol, trading today's permissiveness for a comparably-sized new 'forgot to call the setter' failure class. Re-confirmed unchanged this loop.",
-      "unverifiable_due_to_build_failure": false
-    },
-    "data_flow": {
-      "score": 7.5,
-      "delta": "SAME",
-      "proof": "Untouched this loop for the 12th consecutive loop of this run. RunUnderLibraryOperationGuardAsync (this loop's own new surface, the only plausible place a new consolidation opportunity could appear) touches no cache or static field - confirmed stateless. Stalled-Dimension Sweep (3+ SAME, applies from loop 4 on - this dimension has been SAME for all 12 loops of this run): explicit clean - re-walked the four scattered-cache sites (StoreNameLookup's three caches, SteamGridDbClient.capsuleParseNotes, FixLog's fields, AppliedArtworkStore's cache); all already lock-protected (F-015/F-017) and none consolidated - no candidate passes SPT Q2 for a single-instance widget with no multi-instance/test-injection need, the same conclusion 12 consecutive independent checks have now reached.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "framework_idioms": {
-      "score": 9.5,
-      "delta": "SAME",
-      "proof": "App.xaml.cs unchanged this loop. The //TODO: Load state from previously suspended application comment remains on the debug-only OnLaunched fallback path. Adversarial Pass re-run against the identical unchanged source: deleting the comment remains genuinely zero-behavioral-consequence - SPT-rejected on Q5, consistent with every prior loop's own fresh test against the same unchanged source. This loop's own fix is itself idiomatic: Func<Task> delegate-based guard wrapping matches the pattern ConfirmAndRunAsync already established, not a new idiom.",
-      "residual_blocking_10": "App.xaml.cs's unaddressed //TODO: Load state from previously suspended application, on the OnLaunched fallback path (debug/Start-menu launch only).",
-      "residual_disposition": "accepted",
-      "residual_rationale_or_backlog_ref": "Deleting the dead comment is a free, zero-risk subtractive change but has zero behavioral consequence (a stale comment on a debug-only fallback path) - genuinely Cosmetic regardless of what else is queued, re-confirmed against unchanged source this loop.",
-      "unverifiable_due_to_build_failure": false
-    },
-    "concurrency": {
-      "score": 9.5,
-      "delta": "SAME",
-      "proof": "This loop's own fix preserves the guard's exact acquire/release timing at all five call sites - verified by direct comparison of each site's control flow before and after, and independently re-verified by the implementation reviewer, which specifically checked PrimaryWidget_Loaded's unconditional post-guard Focus, RestoreBackup_Click's guard-before-cast ordering, and ConfirmAndRunAsync's shouldRun short-circuit are all preserved. No lock, actor-isolation, or #if-gated boundary crossed (risk_boundary_evidence: null - a plain code relocation inside a single UI-thread-bound class, no new async surface). The one accepted residual (PopulateGridSelectionPanelAsync's discarded var _ = Dispatcher.RunAsync(...), unchanged this loop) re-tested against the identical unchanged source and remains SPT-rejected on Q5: GridImagesView.UpdateLayout()/ContainerFromIndex(0) do not fail on a live GridView and Focus() is null-guarded via ?.",
-      "residual_blocking_10": "PopulateGridSelectionPanelAsync's discarded var _ = Dispatcher.RunAsync(...) call (PrimaryWidget.xaml.cs), an unstructured, undawaited UI-focus side effect with no error handling.",
-      "residual_disposition": "accepted",
-      "residual_rationale_or_backlog_ref": "SPT-rejected on Q5, re-tested against unchanged source this loop: GridImagesView.UpdateLayout()/ContainerFromIndex(0) do not fail on a live GridView and Focus() is null-guarded via ?., so the callback's only realistic failure mode remains an inert missed focus - not a nameable product improvement.",
-      "unverifiable_due_to_build_failure": false
-    },
-    "simplicity": {
-      "score": 10,
-      "delta": "SAME",
-      "proof": "This loop's own broader sweep (grepped all 14 catch (Exception ex) blocks and all TryBeginLibraryOperation/EndLibraryOperation call sites in the file, going beyond loop 11's narrower GameMatchResolver.cs-only check) found and fixed a genuine residual loop 11's narrower scope had not covered: five independent copies of the guard-and-run ceremony, now one RunUnderLibraryOperationGuardAsync helper (Finding F1/F-023). A second candidate from the same sweep - unifying the ~9 outer-level catch blocks that report errors to a status control - was evaluated and rejected: they clean up different UI state per call site (StatusText alone vs. GridPanelStatus.Text+GridLoadingRing.IsActive vs. SearchPanelStatus.Text+SearchLoadingRing.IsActive), so unifying them would need a cleanup-callback parameter that trades a few duplicated lines per site for real indirection - fails SPT Q2 (smallest honest fix) and Q3 (avoids duplicate layers, in the wrong direction). No protocol/interface introduced by this loop's fix (plain private method, Unified Seam Policy's two-adapter requirement does not apply). Post-fix, no further nameable residual survived this loop's sweep.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "test_strategy": {
-      "score": 8.5,
-      "delta": "SAME",
-      "proof": "This loop's fix touches zero test-relevant surface: RunUnderLibraryOperationGuardAsync stays XAML-bound (calls TryBeginLibraryOperation/EndLibraryOperation, which touch StatusText.Text and SetHeaderButtonsEnabled) and untestable-by-design, matching the already-accepted carve-out for ConfirmAndRunAsync/SlidePanelAsync (neither has direct tests either). No test files changed this loop (git diff --stat confirms). Authority-Map test-surface cross-check re-confirmed unchanged from loop 11: only the LibraryOperationGuard-shaped concern has a direct test file (LibraryOperationGuardTests.cs); the grid/search picker session IDs, currentSelectedGame, GameEntries, and panel header/focus-restore state remain untested by a direct file. Full build (exit 0) and full test suite (190 passed/0 failed, unchanged count) both re-run before and after.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    },
-    "credibility": {
-      "score": 10,
-      "delta": "SAME",
-      "proof": "Self-check this loop: every doc comment this loop touched or added (RunUnderLibraryOperationGuardAsync's new XML doc, ConfirmAndRunAsync's updated doc, RestoreBackup_Click's updated doc) was re-read against the code it describes and matches exactly - independently re-verified by the implementation reviewer, which explicitly confirmed the guard's exact acquire/release timing at all five sites and found no doc-comment-vs-code mismatch. No stale reference survived (the libraryOperationGuard field's own doc comment, unchanged, still accurately describes TryBeginLibraryOperation/EndLibraryOperation as the guard's UI-side wrapper). Reviewer verdict: approved, all three checks passed, first pass, zero regressions flagged.",
-      "residual_blocking_10": null,
-      "residual_disposition": null,
-      "residual_rationale_or_backlog_ref": null,
-      "unverifiable_due_to_build_failure": false
-    }
+    "architecture_quality": {"score": 9.0, "delta": "UP", "proof": "SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs (new, 99 lines: internal readonly struct Result + internal static List<Result> BuildOrdered) extracted from PopulateGridSelectionPanelAsync's combine-and-populate block; PrimaryWidget.xaml.cs 1999 -> 1992 lines; deletion test passes.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "state_management": {"score": 10, "delta": "SAME", "proof": "GridSelectionItems is fully stateless (one internal readonly struct, one static pure function); zero new fields on PrimaryWidget. Field census unchanged from loop 12.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "domain_modeling": {"score": 9.5, "delta": "SAME", "proof": "GameEntry.cs unchanged this loop (git diff HEAD --stat confirms only PrimaryWidget.xaml.cs, SteamGridDB.Xbox.csproj, and two new files changed).", "residual_blocking_10": "GameEntry.cs:113-145 HasSteamGridDBMatch/OfficialCapsuleUrl/SteamGridDbGameId admit a combination LoadGameEntriesAsync never constructs in practice.", "residual_disposition": "accepted", "residual_rationale_or_backlog_ref": "Adversarial Pass re-run at loop 12 against the identical unchanged shape found no new alternative fix beyond the two already rejected at loop 9 (readonly struct fails two-way XAML data-binding; enum+setter-methods trades permissiveness for a new forgot-to-call-the-setter failure class).", "unverifiable_due_to_build_failure": false},
+    "data_flow": {"score": 7.5, "delta": "SAME", "proof": "GridSelectionItems.BuildOrdered (this loop's only new surface) is fully stateless - six explicit parameters, no cache, no static field, no ambient scope touched.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "framework_idioms": {"score": 9.5, "delta": "SAME", "proof": "App.xaml.cs unchanged. GridSelectionItems.cs is a plain internal static class + internal readonly struct, matching the ManifestEntryImage/GameMatchResolver/ManifestEntryIdentity idiom exactly.", "residual_blocking_10": "App.xaml.cs's debug-only OnLaunched fallback path carries a stale '// TODO: Load state from previously suspended application' comment.", "residual_disposition": "accepted", "residual_rationale_or_backlog_ref": "Re-confirmed SPT-rejected on Q5 (zero behavioral consequence) against unchanged source, consistent with every prior loop's own fresh test.", "unverifiable_due_to_build_failure": false},
+    "concurrency": {"score": 9.5, "delta": "SAME", "proof": "GridSelectionItems.BuildOrdered is synchronous and non-async; PopulateGridSelectionPanelAsync's session-staleness guard (PrimaryWidget.xaml.cs:1356-1368) is unchanged and still runs before the extraction's call site. risk_boundary_evidence: null - no lock/actor-isolation/#if boundary touched.", "residual_blocking_10": "PopulateGridSelectionPanelAsync's discarded 'var _ = Dispatcher.RunAsync(...)' fire-and-forget UI-focus call.", "residual_disposition": "accepted", "residual_rationale_or_backlog_ref": "Re-tested against unchanged source: GridImagesView.UpdateLayout()/ContainerFromIndex(0) do not fail on a live GridView and Focus() is null-guarded via ?. - SPT-rejected on Q5.", "unverifiable_due_to_build_failure": false},
+    "simplicity": {"score": 10, "delta": "SAME", "proof": "Matches loops 10-11 precedent: a genuine new-class extraction credits architecture_quality, not simplicity. GridSelectionItems.cs is the simplest honest shape for its own concern; no new ceremony introduced.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "test_strategy": {"score": 8.5, "delta": "SAME", "proof": "GridSelectionItemsTests.cs: 16 new [Fact] tests at the new Interface (ordering, thumbnail/author/style fallback, IsApplied, session-id stamping, width/height passthrough). 190 -> 206 tests passing. Real Interface-level progress, but the Authority-Map gap held at 8.5 across loops 11-12 (gridPanelSessionId/searchPanelSessionId, currentSelectedGame, GameEntries, panel header/focus-restore state still have no direct test file) is unaffected by this loop's change.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false},
+    "credibility": {"score": 10, "delta": "SAME", "proof": "GridSelectionItems.cs's doc comment accurately describes the class's scope and its reason for returning plain data rather than GridImageItem; independently re-verified by the implementation reviewer against the actual code with no stale reference found.", "residual_blocking_10": null, "residual_disposition": null, "residual_rationale_or_backlog_ref": null, "unverifiable_due_to_build_failure": false}
   },
+
   "authority_map": [],
+
   "strengths": [
-    "This loop re-derived loop 11's 'bulk-operation glue is at the honest floor' claim from current source rather than citing it, and the independent re-derivation converged on the same answer with sharper evidence: GameImagesTests.cs and OperationReportTests.cs directly prove TESTING.md's own claim that 'which games to visit, the progress line, the summary' are already extracted and covered.",
-    "This loop's own wider sweep (all guard-acquire call sites, not just the one location the standing directive named) found a genuine, previously-untracked duplicate-ceremony finding (F-023) that loop 8's own ConfirmAndRunAsync fix had left half-done - it consolidated the dialog-construction half of the ceremony but kept its own private copy of the guard-acquire/release shape rather than delegating to a shared implementation.",
-    "This loop evaluated and correctly rejected a second, superficially similar consolidation candidate (unifying ~9 heterogeneous error-reporting catch blocks) once closer reading showed they clean up genuinely different UI state per site - avoiding the over-abstraction trap the Simplify Pressure Test exists to catch."
+    "This loop independently verified an orphaned, unverified draft left by a prior executor that died mid-flight - full build, full test suite, and a from-scratch read of the diff and the new module - rather than blindly committing it or reflexively discarding real, usable work.",
+    "The adopted extraction is the single most specifically-named F-022 candidate any prior loop's backlog has produced (loop 12: 'whether PopulateGridSelectionPanelAsync's GridImageItem list-construction ... has any pure sub-decision worth extracting on its own merits'), landed with 16 tests at the new Interface and zero new fields.",
+    "GridSelectionItemsTests.cs deliberately uses single-candidate lists to isolate the combining/mapping logic from ArtworkRanker's own ordering behavior (already covered separately in ArtworkRankerTests.cs), avoiding a test suite where ranking noise could mask a mapping bug."
   ],
+
   "findings": [
     {
       "loop_local_id": "F1",
-      "stable_id": "F-023",
+      "stable_id": "F-022",
       "id": "F1",
-      "title": "PrimaryWidget's TryBeginLibraryOperation/EndLibraryOperation guard-and-run ceremony was duplicated across five call sites, including inside the already-consolidated ConfirmAndRunAsync",
-      "why_it_matters": "This exact defect class - a call site that starts a library-wide or single-game write without a guaranteed, correctly-paired release of the reentrancy guard - has produced this project's own F-005 through F-009, F-014 and F-018 Serious-severity reentrancy bugs; five independent hand-written copies of the guard-acquire/try/finally-release shape is five places a future edit can silently drop the pairing.",
-      "what_is_wrong": "PrimaryWidget_Loaded, RefreshButton_Click, GridImage_Click and RestoreBackup_Click each independently wrote the identical `if (!TryBeginLibraryOperation()) { return; } try { await X(); } finally { EndLibraryOperation(); }` shape. ConfirmAndRunAsync - itself created in a prior loop specifically to consolidate the ContentDialog-construction half of this same ceremony for its own three callers - kept its own private copy of the guard-acquire/try/finally-release shape inline rather than delegating to a shared implementation, so the pattern this project had already decided was worth consolidating once was never actually collapsed to one implementation.",
+      "title": "PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class",
+      "why_it_matters": "Top-churn file by roughly 5x (38 edits/6mo vs 8 for the next file); architecture_quality was stuck at 7.5 across 19 critic passes before loops 10-12 started landing sequenced slices out of it.",
+      "what_is_wrong": "PrimaryWidget.xaml.cs still mixes UI event handling, file I/O/backup-restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding after loops 10-12's extractions. This loop narrowed the panel/search navigation concern further: PopulateGridSelectionPanelAsync's grid/icon-combining and per-tile display-fallback decision logic is now GridSelectionItems.BuildOrdered, a pure, directly-tested function - leaving the method itself with only the session-staleness guard, the AppliedArtworkStore lookup, and the XAML-population loop.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs pre-fix: PrimaryWidget_Loaded (170-187), RefreshButton_Click (684-699), GridImage_Click (1451-1469), RestoreBackup_Click (1873-1893) and ConfirmAndRunAsync (715-761) each independently implementing the same guard-acquire/try/finally-release shape",
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs post-fix: all five call sites now delegate to the single new RunUnderLibraryOperationGuardAsync(Func<Task> action) helper"
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs pre-fix: PopulateGridSelectionPanelAsync (lines 1353-1404 at loop-12 HEAD) inlined the grid/icon combine and a foreach computing ThumbUrl/Author/Style fallback and IsApplied per tile.",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs post-fix (1992 lines): the method now calls GridSelectionItems.BuildOrdered(grids, icons, CurrentSelectedGame?.Name, appliedArtworkId, sessionId, unknownName).",
+        "SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs (new, 99 lines) and SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs (new, 207 lines, 16 [Fact] tests).",
+        "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj: one new <Compile Include=\"Services\\Artwork\\GridSelectionItems.cs\" /> (legacy csproj, no globbing)."
       ],
       "test_failed": "Deletion test",
       "dependency_category": null,
-      "leverage_impact": "Before, a behavior change to the guard-and-run shape (e.g. a new exception type, a busy-retry) required editing five near-identical blocks; now editing RunUnderLibraryOperationGuardAsync once covers all five callers.",
-      "locality_impact": "The guard-acquire/release pairing - the exact shape whose past inconsistencies produced this project's F-005 through F-009/F-014/F-018 bug class - is now expressed in one place instead of five, reducing the chance a future call site (or an edit to an existing one) silently drops the pairing.",
-      "metric_signal": "none",
-      "why_weakens_submission": "Duplicate ceremony across five call sites is the exact ceremony/duplicate-layer pattern the deletion test and Meta-Rule 5 (prefer subtractive fixes) target, and the same defect class this project's own F-002 and F-003 findings already established as real and worth fixing - reduced Locality (a future guard-behavior change needs five edits, not one) and reduced regression-resistance against exactly the bug class (F-005 through F-009, F-014, F-018) this project's history shows is real.",
+      "leverage_impact": "The grid/icon-combining and fallback-computation logic is now readable, changeable, and tested on its own, independent of Dispatcher/GridImagesView/XAML control state.",
+      "locality_impact": "Contained to GridSelectionItems.cs and its 16 tests; the remaining panel/search navigation ceremony (session bookkeeping, close guards, focus-restore handoff, slide animation) stays in PrimaryWidget.xaml.cs and this loop's own fresh sweep found it structurally duplicated between the grid and search pickers.",
+      "metric_signal": "churn_top20: 38 edits/6mo, ~5x the next-highest file (unchanged this loop; Discovery not re-run).",
+      "why_weakens_submission": "architecture_quality's own 9-anchor requires that a senior reviewer cannot identify a structural improvement that preserves behavior and improves Leverage or Locality; this loop landed exactly such an improvement for the third time this run, but panel/search session bookkeeping, close-guard ceremony, and focus-restore handoff remain co-located and, per this loop's own fresh read, structurally duplicated between the two pickers.",
       "severity": "Noticeable weakness",
       "adr_conflicts": [],
       "adr_reopen_justification": null,
-      "minimal_correction_path": "Extract the shared TryBeginLibraryOperation/EndLibraryOperation acquire-try-finally-release shape into one private RunUnderLibraryOperationGuardAsync(Func<Task> action) helper (matching the established in-file-ceremony-consolidation pattern from SlidePanelAsync and ConfirmAndRunAsync), then delegate all five call sites to it, each passing its own original body as the action delegate and preserving each site's exact prior control flow (PrimaryWidget_Loaded's non-early-return shape; RestoreBackup_Click's button-tag cast happening inside the guarded body; ConfirmAndRunAsync's own shouldRun(result) short-circuit staying outside the guard). Fixed this loop.",
+      "minimal_correction_path": "Sequenced, multi-loop decomposition continues. This loop: extracted PopulateGridSelectionPanelAsync's list-construction into GridSelectionItems. Loop 14 should investigate: (a) the near-identical session-ID/close-guard/focus-restore-target/header-property quadruple independently hand-copied between the grid picker and the search picker - the same defect shape that produced F-023, this time 2-way rather than 5-way, friction must be freshly proven; (b) the decision logic inside ReplaceImageCoreAsync/RestoreBackupCoreAsync (filename computation, status-text branch, which fields UpdateSharedEntriesAsync touches) as opposed to the Dispatcher/StatusText-bound shell around it.",
       "blast_radius": {
-        "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs"],
-        "avoid": ["everything else - single-file, no csproj change, no new test file needed since the helper stays XAML-bound and untestable-by-design, matching ConfirmAndRunAsync/SlidePanelAsync's own established carve-out"]
+        "change": ["SteamGridDB.Xbox/PrimaryWidget.xaml.cs", "SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs", "SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs", "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj"],
+        "avoid": ["everything else - the two loop-14 candidates named above are unconfirmed until investigated fresh"]
       }
     },
     {
       "loop_local_id": "F2",
-      "stable_id": "F-022",
-      "id": "F2",
-      "title": "PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class",
-      "why_it_matters": "Top-churn file by roughly 5x (38 edits/6mo vs 8 for the next file); architecture_quality was stuck at 7.5 across 19 critic passes before loops 10-11 started landing sequenced slices out of it.",
-      "what_is_wrong": "PrimaryWidget.xaml.cs still mixes six co-located concerns after loops 10-11's extractions (ManifestEntryImage, ManifestEntryIdentity, GameMatchResolver): UI event handling, file I/O/backup-restore invocation, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding. This loop investigated three candidate areas fresh and confirmed none yields a new decomposition-into-new-class slice: (1) bulk-operation glue - re-derived (not re-cited) loop 11's own finding; GamesToProcess delegates to the already-tested GameImages.DistinctByImage, DisplayName is a one-line pure formatter, and OperationReport (already tested) owns every progress-line/summary construction - TESTING.md's own claim is independently confirmed true by GameImagesTests.cs and OperationReportTests.cs; (2) LoadGameEntriesAsync's remaining glue (lines ~411-660) - now mostly sequences calls to already-extracted, already-tested modules; the only inline logic left is a 4-line addedDate timestamp parse (too small under SPT Q5) and the final GameEntry/BitmapImage construction, inherently XAML-bound; (3) panel/search navigation (lines ~1150-1860) - deeply XAML-bound (panel Visibility, Storyboard/TranslateTransform animation, Dispatcher, GridView/ListView item collections, session-guard state). This loop's own investigation instead found and fixed a different, real, subtractive fix (Finding F1/F-023) per the standing directive's explicit permission to substitute 'a strictly better slice' when the named candidate is confirmed thin.",
-      "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs (2026 lines before this loop's edit, 1999 after - this loop's net reduction came from Finding F1's ceremony consolidation, not a new decomposition slice)",
-        "Discovery churn_top20: PrimaryWidget.xaml.cs at 38 edits/6mo, ~5x the next file"
-      ],
-      "test_failed": "n/a",
-      "dependency_category": null,
-      "leverage_impact": "Unchanged from loop 11: each future PrimaryWidget change targeting one of the six remaining concerns still has to be read and safely edited inside the same large class.",
-      "locality_impact": "Unchanged: the six co-located concerns remain in PrimaryWidget.xaml.cs; this loop's own fix (F-023) tightened one cross-cutting calling convention (library-operation guarding) without moving that concern out of the file.",
-      "metric_signal": "churn_top20: 38 edits/6mo, ~5x the next-highest file",
-      "why_weakens_submission": "Same as loop 11: architecture_quality's 9-anchor requires no identifiable structural improvement remains; this loop's own fresh, focused investigation of three candidate areas found none passes SPT, which is itself source-backed evidence the gap is narrowing rather than static, but the six concerns remain un-decomposed.",
-      "severity": "Noticeable weakness",
-      "adr_conflicts": [],
-      "adr_reopen_justification": null,
-      "minimal_correction_path": "Sequenced, multi-loop decomposition continues. No new slice confidently named this loop after investigating three candidates (bulk-operation glue, LoadGameEntriesAsync's remaining traversal glue, panel/search navigation) and finding each either already extracted-and-tested, too small to pass SPT, or inherently XAML-bound. Loop 13 should investigate: (a) whether PopulateGridSelectionPanelAsync's GridImageItem list-construction (ranking + IsApplied stamping, lines ~1330-1400) has any pure sub-decision worth extracting on its own merits; (b) whether the library-operation-guard calling convention has any further consolidation now that F-023 is resolved (a fresh look, not an assumption); (c) if neither yields a slice, treat the remaining six concerns as genuinely near the honest XAML-bound floor and say so explicitly rather than searching the same ground a fourth time.",
-      "blast_radius": {
-        "change": ["not yet named with confidence"],
-        "avoid": ["the already-investigated-and-thin bulk-operation glue and the already-consolidated (this loop) guard-and-run ceremony"]
-      }
-    },
-    {
-      "loop_local_id": "F3",
       "stable_id": "F-011",
-      "id": "F3",
+      "id": "F2",
       "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
       "why_it_matters": "On a library with many unmatched games, the fully-sequential per-entry network chain adds latency that scales linearly with library size.",
-      "what_is_wrong": "GameMatchResolver.ResolveAsync's per-entry network sequence (SteamGridDB platform-ID lookup, store name-fetch, SteamGridDB name search) runs in strict sequence across entries, even though the awaits are independent across entries. Unchanged this loop (this loop's fix does not touch GameMatchResolver.cs or LoadGameEntriesAsync's network-call code).",
+      "what_is_wrong": "GameMatchResolver.ResolveAsync's per-entry network sequence (SteamGridDB platform-ID lookup, store name-fetch, SteamGridDB name search) runs in strict sequence across entries, even though the awaits are independent across entries. Unchanged this loop.",
       "evidence": [
-        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:426-697 (current line numbers, shifted from 411-682 by this loop's own F-023 fix, which added a net +15 lines before LoadGameEntriesAsync - the sequential-await shape itself is unaffected)",
+        "SteamGridDB.Xbox/PrimaryWidget.xaml.cs:426-697 (unchanged this loop - this loop's own edit is entirely inside PopulateGridSelectionPanelAsync, ~650 lines further down the file)",
         "SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs"
       ],
       "test_failed": "n/a",
@@ -230,75 +115,85 @@
       "minimal_correction_path": "BLOCKED this loop; named for continuity per Backlog Prioritization Pass criterion 0.",
       "blast_radius": {
         "change": [],
-        "avoid": ["SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs (no change while blocked)"]
+        "avoid": ["SteamGridDB.Xbox/Services/Library/GameMatchResolver.cs"]
       }
     }
   ],
+
   "simplification_check": {
-    "structurally_necessary": "Consolidating the five independent TryBeginLibraryOperation/EndLibraryOperation guard-acquire/try/finally-release ceremonies into one RunUnderLibraryOperationGuardAsync(Func<Task> action) helper - passes the deletion test (delete the helper and the identical ceremony reappears in all five callers, exactly as it did before this loop).",
+    "structurally_necessary": "Extracting PopulateGridSelectionPanelAsync's grid/icon-combining and per-tile display-fallback logic into GridSelectionItems.BuildOrdered - passes the deletion test.",
     "new_seam_justified": false,
     "new_seam_adapters": [],
-    "helpful_simplification": "PrimaryWidget_Loaded shrinks from 11 lines to 1 for its guard wrapping; RefreshButton_Click from 9 lines to 1; GridImage_Click's inner guard from 9 lines to 1; RestoreBackup_Click from 13 lines to 6; ConfirmAndRunAsync's own guard block from 7 lines to 4. Net -27 lines file-wide (74 deletions, 47 insertions, including the new 15-line helper and doc-comment updates).",
-    "should_not_be_done": "A second candidate from this loop's own sweep - unifying the file's ~9 outer-level catch (Exception ex) error-reporting blocks - was considered and rejected. They report to different controls per call site (StatusText.Text alone in RevertAllToDefaultAsync/FixLibraryAsync/RestoreAllChangesAsync/RestoreBackup_Click; GridPanelStatus.Text+GridLoadingRing.IsActive in LoadGridSelectionAsync/DownloadAndReplaceImageAsync; SearchPanelStatus.Text+SearchLoadingRing.IsActive in PerformGameSearchAsync), so a shared helper would need a cleanup-callback parameter - ceremony added to paper over a genuine difference, failing SPT Q2 and Q3. Also not done: touching ConfirmAndRunAsync's dialog-construction logic, TryBeginLibraryOperation/EndLibraryOperation themselves, or LibraryOperationGuard.cs - none needed to change for this fix.",
-    "tests_after_fix": "No new tests. RunUnderLibraryOperationGuardAsync stays XAML-bound (calls TryBeginLibraryOperation/EndLibraryOperation, which touch StatusText.Text and SetHeaderButtonsEnabled - Page-bound UI state), matching the established untested-by-design carve-out already accepted for ConfirmAndRunAsync (loop 8) and SlidePanelAsync (loop 7), neither of which added tests either. No prior tests existed on the guard-and-run ceremony itself (it lived only inline across five call sites; LibraryOperationGuardTests.cs already covers the underlying TryBegin/End state machine, unchanged by this loop) so nothing was deleted under Replace-don't-layer. Verification: full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1: 190 passed/0 failed, unchanged count) both re-run before and after; independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks passed on the first pass."
+    "helpful_simplification": "PopulateGridSelectionPanelAsync's combine-and-map block shrinks from an ~30-line inline sequence to a single 2-line delegating call plus a foreach reading already-computed fields. PrimaryWidget.xaml.cs: 1999 -> 1992 lines (net -7).",
+    "should_not_be_done": "Making GridSelectionItems.BuildOrdered return GridImageItem directly (the XAML-bound type) - would reintroduce the Windows.UI.Xaml.Visibility dependency TESTING.md documents as having no desktop test projection. Also not done: touching ArtworkRanker.cs (already tested, unchanged) or the surrounding panel-lifecycle ceremony - none needed to change, and folding them in without proven friction would fail Meta-Rule 3.",
+    "tests_after_fix": "16 new [Fact] tests in GridSelectionItemsTests.cs, each asserting observable output (tile order, fallback field values, IsApplied, SessionId, width/height passthrough). No prior tests existed on this logic (it lived only inline, XAML-bound and untestable-by-design), so nothing was deleted under Replace-don't-layer; the carve-out is satisfied by direct new tests at the new Interface. Verification: full build (msbuild, exit 0) and full test suite (run-tests.ps1: 206 passed/0 failed, up from 190) both re-run before and after this loop's own independent review."
   },
+
   "backlog": [
     {
       "priority": 1,
       "stable_id": "F-022",
-      "title": "Continue PrimaryWidget.xaml.cs's monolith decomposition (Finding F-022) - three candidate areas investigated this loop and found not yet actionable",
+      "title": "Continue PrimaryWidget.xaml.cs's monolith decomposition",
       "kind": "structural",
       "rank": "needed for winning",
-      "why_it_matters": "Standing user directive; three candidate areas investigated this loop and found not yet actionable (see Finding F2) - loop 13 needs a fresh, narrower look at PopulateGridSelectionPanelAsync's list-construction and a post-F-023 re-check of the guard convention before naming a target.",
+      "why_it_matters": "Standing user directive, Priority 1 for this run; this loop's own fresh sweep named two concrete candidates for loop 14 - the 2-way duplicated grid/search panel-lifecycle ceremony, and the decision logic inside the single-game artwork operation paths (ReplaceImageCoreAsync/RestoreBackupCoreAsync).",
       "score_impact": "architecture_quality +0.5"
     },
     {
       "priority": 2,
       "stable_id": "F-011",
-      "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution (Finding F-011)",
+      "title": "Parallelize LoadGameEntriesAsync's per-entry network resolution",
       "kind": "structural",
       "rank": "needed for winning",
-      "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency, named for continuity per Backlog Prioritization Pass criterion 0 rather than silently dropped.",
+      "why_it_matters": "BLOCKED by the standing user constraint on per-game network-call ordering/concurrency; named for continuity per Backlog Prioritization Pass criterion 0 rather than silently dropped.",
       "score_impact": "concurrency +0.5"
     }
   ],
   "unresolved_reason": null,
+
   "deepening_candidates": [],
+
   "builder_notes": [
     {
-      "pattern": "A prior loop's own 'already consolidated' helper can itself still contain an un-collapsed copy of the exact shape it was built to generalize, if the helper only unified part of the ceremony (the dialog construction) and kept the rest (the guard acquire/release) inline rather than delegating.",
-      "how_to_recognize": "Grep for the literal duplicated shape across the whole file, not just at the specific call sites a prior finding named - a 'fixed' helper from an earlier loop is a valid grep target too.",
-      "smallest_coding_rule": "When consolidating a duplicated shape into a helper, check whether any other helper in the file (including ones a prior loop already introduced for a narrower slice of the same duplication) still has its own private copy of that shape, and fold it in too.",
-      "stack_example": "C#: ConfirmAndRunAsync (loop 8) collapsed the ContentDialog-construction half of the ceremony for its 3 dialog-based callers but kept TryBeginLibraryOperation/EndLibraryOperation's try/finally inline; this loop's RunUnderLibraryOperationGuardAsync now backs both ConfirmAndRunAsync and the four non-dialog call sites, so the guard-acquire/release shape has exactly one implementation."
+      "pattern": "A loop executor can die mid-flight (infra failure, not a logic bug) after making real code changes but before any artifact records what happened.",
+      "how_to_recognize": "CURRENT_REVIEW.json.loop behind HEAD's own commit-message loop number, a dirty working tree with no LOOP_STATE.json, and no implementation-review verdict recorded anywhere.",
+      "smallest_coding_rule": "Verify first (build + test + read), decide second (adopt or discard), commit third. Never skip straight to commit because the diff 'looks plausible.'",
+      "stack_example": "C#: this loop re-ran msbuild and run-tests.ps1 from a clean invocation against the orphaned working tree before reading a single line of the new GridSelectionItems.cs, rather than assuming the prior executor's own (unrecorded) intent was sound."
     },
     {
-      "pattern": "Not every candidate that 'looks like duplication' should be unified: several similarly-shaped catch blocks touched genuinely different UI state per site, and forcing them into one delegate-based helper would trade a few duplicated lines for an indirection layer parameterizing away the very differences that make each site correct for its own region.",
-      "how_to_recognize": "Multiple similarly-shaped error-handling blocks that, on closer read, touch different controls or fields, not the same ones.",
-      "smallest_coding_rule": "Only extract a repeated shape into a shared helper when the callers' bodies are otherwise interchangeable (same state touched); when they differ in what they clean up, leave them separate rather than adding a callback parameter to paper over the difference.",
-      "stack_example": "C#: the 5 TryBeginLibraryOperation/EndLibraryOperation call sites all touch the exact same state (one class-wide libraryOperationGuard, SetHeaderButtonsEnabled) so unifying them was a clean win; the file's ~9 outer-catch error-reporting blocks each touch a different status control, so they were left alone."
+      "pattern": "The most specific F-022 candidate a backlog has ever named turned out to be exactly right, once someone (even an executor that then crashed) actually tried it.",
+      "how_to_recognize": "A prior loop's minimal_correction_path names a specific method and a specific sub-piece of it (not just 'investigate panel navigation' generically) - that specificity is itself a signal the candidate is close to ready.",
+      "smallest_coding_rule": "When a backlog item narrows from 'investigate this whole area' to 'investigate this specific sub-decision inside this specific method,' treat that narrowing as progress worth trusting, not as a reason to re-litigate from scratch.",
+      "stack_example": "C#: loop 12's own text named PopulateGridSelectionPanelAsync's list-construction specifically; this loop confirmed that exact sub-piece was both real (decision logic, not XAML shell) and extractable (six explicit inputs, one value-struct list out)."
     },
     {
-      "pattern": "Re-deriving a prior loop's 'already at the honest floor' claim by reading the actual source (not the prior loop's prose) can both confirm the original finding and simultaneously surface a different, better-value fix nearby that the original investigation's narrower scope had not covered.",
-      "how_to_recognize": "A standing directive names one specific candidate location to investigate; a genuinely fresh read of that location is the right first step, but the same close-reading effort, cast slightly wider across the file, is often what turns up the next real finding.",
-      "smallest_coding_rule": "When a directive says 'investigate location X; if you find something strictly better, take that instead,' read X fully and keep the same close-reading discipline applied to the surrounding file, not just the one thing named.",
-      "stack_example": "C#: reading FixLibraryAsync/RevertAllToDefaultAsync/RestoreAllChangesAsync line-by-line confirmed GamesToProcess/DisplayName/OperationReport already cover 'which games, the progress line, the summary'; the same reading pass, extended to the surrounding guard-and-run call sites, is what surfaced F-023."
+      "pattern": "Fresh grep-based sweeps (not just re-reading the file linearly) surface duplication shapes a line-by-line read can miss.",
+      "how_to_recognize": "Two or more XAML event-driven 'panels' or 'flows' in the same file, each with its own session/guard/focus-tracking fields declared side by side, and near-identical Show*/Hide* method bodies.",
+      "smallest_coding_rule": "Before naming a decomposition candidate as 'done' or 'thin,' grep the file for the sibling of whatever you just extracted from rather than assuming symmetry has already been checked.",
+      "stack_example": "C#: HideGridPanelAsync (~1543-1586) and HideSearchPanelAsync (~1788-1828) share the same guard-acquire/session-capture/animate-out/guard-release shape, byte-near-identical, not yet consolidated or extracted."
     }
   ],
-  "narrative": "Place, not win. This loop's most defensible move was negative: it independently re-derived, rather than cited, the standing directive's own named candidate (bulk-operation glue) and confirmed - with sharper evidence than loop 11 had (direct citation of GameImagesTests.cs/OperationReportTests.cs) - that it is genuinely at the honest floor TESTING.md describes. Runtime ownership stayed trustworthy: this loop's fix touches no state, changes no field, and the reviewer independently confirmed the guard's acquire/release timing is byte-identical at all five sites. Concurrency stayed trustworthy for the same reason - no lock, isolation, or await-ordering change. Tests do not reduce regression risk further this loop (none added; none needed, matching established carve-out), so test_strategy holds rather than moves. The risk to watch for loop 13: the standing directive's Priority 1 (F-022) is still open with no confidently-named next slice after three consecutive loops of investigation (10, 11, and this one) turning up progressively thinner candidates - loop 13 should not assume the decomposition sequence has an obvious next step just because loops 10-11 each found one, and should be willing to say plainly if the remaining six concerns really are at the honest floor rather than searching the same ground a fourth time.\n\nScorecard humility check. Three claims this loop's critic is least confident about: (1) crediting this loop's fix entirely to simplicity and leaving architecture_quality at SAME - the new RunUnderLibraryOperationGuardAsync is, by the rubric's own scale-agnostic Module definition, a real Module with five callers, and a stricter critic could argue it deserves a small architecture_quality nudge too, not just a simplicity credit; the precedent (loops 7-8 crediting only simplicity for the same shape of fix) is followed here but is itself a judgment call, not a formula. (2) F-022's severity staying 'Noticeable weakness' for a third consecutive loop despite the user's own sustained, explicit framing as this run's Priority 1 - the same tension loop 11 flagged and left unresolved. (3) simplicity reading as '10, SAME' rather than acknowledging that F-023's existence is itself proof the codebase was not actually flawless on this dimension going into this loop - a stricter bookkeeping could argue loop 11's '10' should be read as having been premature (an un-found residual existed in source even though no critic had located it yet), rather than the number simply holding unchanged across loops 11 and 12.",
+
+  "narrative": "Place, not win. This loop's defining decision was procedural, not architectural: a prior executor died mid-flight after writing real, plausible-looking code with zero recorded verification, and this loop treated 'plausible-looking' as worthless without independently re-running the same gate any self-authored change would face - full build, full test suite, and a from-scratch read of both the new module and the method it came from. That verification held: the orphaned GridSelectionItems extraction is exactly the most specifically-named F-022 candidate any prior loop's backlog has produced, it is genuinely stateless and deletion-test-clean, and its 16 tests exercise real output rather than internal steps. architecture_quality moves up for the third time this run as a direct, source-backed consequence. test_strategy does not cross its own stated anchor this loop despite genuine new coverage, because the specific gap that has held it at 8.5 across three loops is untouched - an honest SAME rather than a generous nudge. The risk to watch for loop 14: this loop's own fresh sweep found the grid and search pickers independently maintain a near-identical four-field lifecycle-state quadruple, which is either the next real decomposition/dedup slice or a case where unifying two genuinely-different-enough things would trade real duplication for ceremony - loop 14 needs to prove friction fresh before committing to either read.",
+
   "loop_result": {
-    "what_changed": "Replaced the five near-identical TryBeginLibraryOperation()/EndLibraryOperation() guard-acquire/try/finally-release bodies in PrimaryWidget_Loaded, RefreshButton_Click, GridImage_Click, RestoreBackup_Click and ConfirmAndRunAsync with a single shared RunUnderLibraryOperationGuardAsync(Func<Task> action) private helper (PrimaryWidget.xaml.cs:244-269); each of the five call sites now delegates to it with its own original body as the action delegate, preserving each site's exact prior control flow. SteamGridDB.Xbox/PrimaryWidget.xaml.cs shrank from 2026 to 1999 lines (net -27; 74 deletions, 47 insertions). No other file changed.",
-    "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1) both re-run before and after: 190 passed/0 failed before, 190 passed/0 failed after (unchanged count - no test-relevant surface touched). The implementation reviewer, spawned cold with the diff and CURRENT_REVIEW.md's Finding #1, independently re-derived that each of the five call sites' exact prior control flow is preserved - explicitly checking PrimaryWidget_Loaded's unconditional post-guard Focus call, RestoreBackup_Click's guard-acquired-before-Button-cast ordering, and ConfirmAndRunAsync's shouldRun(result) short-circuit staying outside the guard - and confirmed no network-calling code was touched.",
+    "what_changed": "Extracted PopulateGridSelectionPanelAsync's grid/icon-combining and per-tile display-fallback logic (ranking-order combine, thumbnail/author/style fallback rules, applied-tile comparison, session-id stamping) out of PrimaryWidget.xaml.cs into a new stateless static class, SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs (internal readonly struct Result + internal static List<Result> BuildOrdered), with 16 new tests in SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs asserting real observable output at the new Interface. This diff was originally authored by a prior loop-13 executor that crashed before any verification; this loop independently re-ran the full build and full test suite from a clean invocation and read the diff/new files from scratch before adopting it.",
+    "evidence_change_is_honest": "Full build (msbuild SteamGridDB.Xbox.sln /p:Configuration=Debug /p:Platform=x64 /p:AppxBundle=Never, exit 0) and full test suite (run-tests.ps1) both re-run before spawning the implementation reviewer: 206 passed/0 failed (up from 190 at loop 12, 16 new tests, zero regressions). The implementation reviewer, spawned cold with the diff, the two new files, and CURRENT_REVIEW.md's Finding #1, independently re-derived that the inline combine/fallback logic is gone from PopulateGridSelectionPanelAsync and replaced by a stateless, behaviorally-identical extraction with no new Seam, and confirmed the 16 new tests assert real observable output at the new Interface rather than internal steps.",
     "risk_boundary_evidence": null,
-    "targeted_finding_status": "resolved",
+    "targeted_finding_status": "carried_forward",
     "unintended_regression": null,
     "changed_paths": [
-      "SteamGridDB.Xbox/PrimaryWidget.xaml.cs"
+      "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "SteamGridDB.Xbox/SteamGridDB.Xbox.csproj",
+      "SteamGridDB.Xbox/Services/Artwork/GridSelectionItems.cs",
+      "SteamGridDB.Xbox.Tests/GridSelectionItemsTests.cs"
     ],
     "interface_test_coverage_path": null
   },
+
   "implementation_review": {
     "verdict": "approved",
-    "reason": "The five duplicated TryBeginLibraryOperation/EndLibraryOperation ceremonies are now expressed in exactly one place (RunUnderLibraryOperationGuardAsync), and each of the five call sites' exact prior control flow (including PrimaryWidget_Loaded's unconditional post-guard Focus, RestoreBackup_Click's guard-before-cast ordering, and ConfirmAndRunAsync's shouldRun short-circuit) is preserved with no touch to any network-calling code.",
+    "reason": "The inline combine/fallback logic cited by F-022's Finding #1 is verifiably gone from PopulateGridSelectionPanelAsync and replaced by GridSelectionItems.BuildOrdered, a stateless extraction that is behaviorally identical to the original code, carries no new Seam, and is covered by 16 tests that assert real observable output at the new Interface.",
     "checks": {
       "reality": "passed",
       "honesty": "passed",
@@ -310,7 +205,7 @@
     "retry_count": 1,
     "retry_cause": null,
     "retry_attempts": [
-      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": 99515}
+      {"attempt": 1, "outcome": "ok", "error": null, "duration_ms": null}
     ]
   }
 }
