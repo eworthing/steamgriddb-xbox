@@ -169,17 +169,7 @@ namespace SteamGridDB.Xbox
 
         private async void PrimaryWidget_Loaded(object sender, RoutedEventArgs e)
         {
-            if (TryBeginLibraryOperation())
-            {
-                try
-                {
-                    await LoadGameEntriesAsync();
-                }
-                finally
-                {
-                    EndLibraryOperation();
-                }
-            }
+            await RunUnderLibraryOperationGuardAsync(LoadGameEntriesAsync);
 
             // Set default focus to Fix my library button for controller navigation. Outside the guard
             // so a repeat Loaded - Game Bar re-parenting the widget - still lands focus somewhere.
@@ -252,6 +242,31 @@ namespace SteamGridDB.Xbox
         {
             libraryOperationGuard.End();
             SetHeaderButtonsEnabled(true);
+        }
+
+        /// <summary>
+        /// Runs <paramref name="action"/> under the library-operation guard, doing nothing when another
+        /// library operation is already running. Owns the TryBeginLibraryOperation/EndLibraryOperation
+        /// pairing that PrimaryWidget_Loaded, RefreshButton_Click, GridImage_Click, RestoreBackup_Click
+        /// and ConfirmAndRunAsync each used to duplicate - the same shape SlidePanelAsync and
+        /// ConfirmAndRunAsync itself already consolidated for their own repeated ceremony.
+        /// </summary>
+        /// <param name="action">The guarded operation to run.</param>
+        private async Task RunUnderLibraryOperationGuardAsync(Func<Task> action)
+        {
+            if (!TryBeginLibraryOperation())
+            {
+                return;
+            }
+
+            try
+            {
+                await action();
+            }
+            finally
+            {
+                EndLibraryOperation();
+            }
         }
 
         private void SetHeaderButtonsEnabled(bool enabled)
@@ -683,28 +698,16 @@ namespace SteamGridDB.Xbox
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryBeginLibraryOperation())
-            {
-                return;
-            }
-
-            try
-            {
-                await LoadGameEntriesAsync();
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
+            await RunUnderLibraryOperationGuardAsync(LoadGameEntriesAsync);
         }
 
         /// <summary>
         /// Shows a confirm/cancel (or confirm/alternate/cancel) dialog, then runs the chosen action
-        /// under the library-operation guard. Owns the dialog construction, the XamlRoot API-contract
-        /// check, and the TryBeginLibraryOperation/EndLibraryOperation wrapping that
-        /// FixLibraryButton_Click, RestoreChangesButton_Click and RevertDefaultsButton_Click each used
-        /// to duplicate. <paramref name="action"/> receives the dialog result so a caller with a
-        /// secondary button (FixLibraryButton_Click) can still branch on which one was pressed.
+        /// under the library-operation guard via <see cref="RunUnderLibraryOperationGuardAsync"/>. Owns
+        /// the dialog construction and the XamlRoot API-contract check that FixLibraryButton_Click,
+        /// RestoreChangesButton_Click and RevertDefaultsButton_Click each used to duplicate.
+        /// <paramref name="action"/> receives the dialog result so a caller with a secondary button
+        /// (FixLibraryButton_Click) can still branch on which one was pressed.
         /// </summary>
         /// <param name="title">Dialog title.</param>
         /// <param name="content">Dialog body text.</param>
@@ -745,19 +748,12 @@ namespace SteamGridDB.Xbox
 
             ContentDialogResult result = await confirmDialog.ShowAsync();
 
-            if (!shouldRun(result) || !TryBeginLibraryOperation())
+            if (!shouldRun(result))
             {
                 return;
             }
 
-            try
-            {
-                await action(result);
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
+            await RunUnderLibraryOperationGuardAsync(() => action(result));
         }
 
         private async void FixLibraryButton_Click(object sender, RoutedEventArgs e)
@@ -1452,19 +1448,7 @@ namespace SteamGridDB.Xbox
         {
             if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanelSessionId)
             {
-                if (!TryBeginLibraryOperation())
-                {
-                    return;
-                }
-
-                try
-                {
-                    await DownloadAndReplaceImageAsync(gridItem);
-                }
-                finally
-                {
-                    EndLibraryOperation();
-                }
+                await RunUnderLibraryOperationGuardAsync(() => DownloadAndReplaceImageAsync(gridItem));
             }
         }
 
@@ -1861,35 +1845,24 @@ namespace SteamGridDB.Xbox
         /// <summary>
         /// Handle restore backup button click.
         ///
-        /// Claims the library-operation guard for the restore below, the same way
-        /// <see cref="RefreshButton_Click"/> and <see cref="ConfirmAndRunAsync"/>'s callers already do -
-        /// RestoreBackupCoreAsync holds the clicked button's tagged game across its own await and, after
-        /// it, looks the game's entries back up by image path (<see cref="EntriesSharingImage"/>); a
-        /// library-wide reload that rebuilds <see cref="GameEntries"/> while that await is pending would
-        /// otherwise have this restore's result land on the freshly-loaded entries instead of the ones
-        /// the click was about. A bulk operation already in flight declines the click (busy status text,
-        /// no restore) rather than let the two race.
+        /// Claims the library-operation guard for the restore below via
+        /// <see cref="RunUnderLibraryOperationGuardAsync"/>, the same way <see cref="RefreshButton_Click"/>
+        /// and <see cref="ConfirmAndRunAsync"/>'s callers already do - RestoreBackupCoreAsync holds the
+        /// clicked button's tagged game across its own await and, after it, looks the game's entries back
+        /// up by image path (<see cref="EntriesSharingImage"/>); a library-wide reload that rebuilds
+        /// <see cref="GameEntries"/> while that await is pending would otherwise have this restore's
+        /// result land on the freshly-loaded entries instead of the ones the click was about. A bulk
+        /// operation already in flight declines the click (busy status text, no restore) rather than let
+        /// the two race.
         /// </summary>
         private async void RestoreBackup_Click(object sender, RoutedEventArgs e)
         {
-            if (!TryBeginLibraryOperation())
-            {
-                return;
-            }
-
-            try
+            await RunUnderLibraryOperationGuardAsync(() =>
             {
                 Button button = sender as Button;
 
-                if (button?.Tag is GameEntry gameEntry)
-                {
-                    await RestoreBackupAsync(gameEntry);
-                }
-            }
-            finally
-            {
-                EndLibraryOperation();
-            }
+                return button?.Tag is GameEntry gameEntry ? RestoreBackupAsync(gameEntry) : Task.CompletedTask;
+            });
         }
 
         /// <summary>

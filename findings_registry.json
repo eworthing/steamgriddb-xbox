@@ -1,6 +1,6 @@
 {
   "registry_schema_version": 3,
-  "next_serial": 23,
+  "next_serial": 24,
   "entries": [
     {
       "stable_id": "F-001",
@@ -562,12 +562,12 @@
       "title": "LoadGameEntriesAsync resolves each unmatched game's name and SteamGridDB match sequentially, one network round trip at a time, on every widget open",
       "category_hint": "efficiency-D2/sequential-network-io",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [411, 682],
+      "primary_evidence_lines": [426, 697],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 7,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 7,
@@ -748,6 +748,18 @@
             "evidence_paths_hash": "sha256:0c54b04422ef641af8e2ddef2f087732230b37eb3b24e8f10d8453aec021d3a0"
           },
           "attempted_remedy_hash": "sha256:91d731f666d8376458aeb329f136bc028d742dee30d4af37cfa8f5cec362ac8e"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F3",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "Independently re-verified unchanged this loop by direct read of LoadGameEntriesAsync's per-entry loop, now at PrimaryWidget.xaml.cs:426-697 (shifted +15 lines from loop 11's 411-682 by this loop's own F-023 fix, which added a net +15 lines before LoadGameEntriesAsync via the new RunUnderLibraryOperationGuardAsync helper and PrimaryWidget_Loaded's shrink - the sequential-await shape itself is unaffected, confirmed by direct read). Still blocked by the STANDING USER CONSTRAINT; re-derived the blocker fresh this loop - F-023's own fix is a guard-ceremony consolidation unrelated to network-call ordering, so it neither unblocks nor further isolates this finding. Outranked this loop by F-022 (Priority 1, continuing the user's explicit decomposition directive); stays Priority 2 for continuity per Backlog Prioritization Pass criterion 0.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:26ba2ec5e277562f6b6474fb525d4a259aa0e2ea975397932efe184052bfd34f",
+            "evidence_paths_hash": "sha256:2aff044de6371a44308772252e64a84cac664cbae0b73e82bbe6d3df9fce25b9"
+          },
+          "attempted_remedy_hash": "sha256:0c83e726ac908aba7b6fbc99383396d86876227001c4be432b36607d987c96b2"
         }
       ]
     },
@@ -1268,12 +1280,12 @@
       "title": "PrimaryWidget.xaml.cs is a top-churn monolith co-locating UI event handling, network orchestration, file I/O/backup-restore, artwork-selection invocation, panel/search navigation, bulk-operation loops, and library-operation guarding in one class",
       "category_hint": "monolith/low-cohesion",
       "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
-      "primary_evidence_lines": [1, 2026],
+      "primary_evidence_lines": [1, 1999],
       "test_failed": "n/a",
       "severity": "Noticeable weakness",
       "first_seen_loop": 10,
       "first_seen_sha": "<pending>",
-      "last_seen_loop": 11,
+      "last_seen_loop": 12,
       "occurrences": [
         {
           "loop": 10,
@@ -1298,6 +1310,44 @@
             "evidence_paths_hash": "sha256:4164e35f40dee91bd6094d2ced15a197001381631bad41e7dd63d781197dfc70"
           },
           "attempted_remedy_hash": "sha256:0c0ca2bdec83df1f401a589f280b5e5a3b07200fbb03d5c052be8b4f44c6d050"
+        },
+        {
+          "loop": 12,
+          "loop_local_id": "F2",
+          "status": "open",
+          "sha": "<pending>",
+          "note": "No new slice landed this loop. Investigated three candidate areas fresh (not re-cited from loop 11): bulk-operation glue (re-derived loop 11's own finding and confirmed it via direct citation of GameImagesTests.cs/OperationReportTests.cs proving GamesToProcess/DisplayName/OperationReport already cover 'which games, the progress line, the summary' per TESTING.md's own claim), LoadGameEntriesAsync's remaining manifest-traversal glue (mostly sequences already-extracted, already-tested modules; only a 4-line addedDate parse remains, too small for SPT), and panel/search navigation (deeply XAML-bound - Visibility, Storyboard/TranslateTransform, Dispatcher, GridView/ListView collections, session-guard state). This loop's own sweep instead found and fixed a different, real, subtractive finding (F-023, the guard-and-run ceremony duplication) per the standing directive's explicit permission to substitute a strictly better slice when the named candidate is confirmed thin. Five co-located concerns remain unchanged in count from loop 11's assessment (F-023's fix tightened the library-operation-guarding calling convention without moving that concern out of the file). Loop 13 pointed at PopulateGridSelectionPanelAsync's list-construction and a post-F-023 re-check of the guard convention as the next things to investigate.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:a4c96e34273ffd1635bf83a472dea22e4f86c84686125036b81589a9ec3071c4",
+            "evidence_paths_hash": "sha256:d5338be0a7bbc9bc5c4bcdf61e23004e2e4f7622263dcd0a8c63e004f6611ee2"
+          },
+          "attempted_remedy_hash": "sha256:8e2cddf0cc2b3a19356a4989963e8930d9a754aecaa5a32c2f644de2a68cb02a"
+        }
+      ]
+    },
+    {
+      "stable_id": "F-023",
+      "title": "PrimaryWidget's TryBeginLibraryOperation/EndLibraryOperation guard-and-run ceremony was duplicated across five call sites, including inside the already-consolidated ConfirmAndRunAsync",
+      "category_hint": "duplicate-ceremony",
+      "primary_file": "SteamGridDB.Xbox/PrimaryWidget.xaml.cs",
+      "primary_evidence_lines": [170, 761],
+      "test_failed": "Deletion test",
+      "severity": "Noticeable weakness",
+      "first_seen_loop": 12,
+      "first_seen_sha": "<pending>",
+      "last_seen_loop": 12,
+      "occurrences": [
+        {
+          "loop": 12,
+          "loop_local_id": "F1",
+          "status": "resolved",
+          "sha": "<pending>",
+          "note": "Found and fixed this loop by a wider sweep (grepped all 14 catch (Exception ex) blocks and all TryBeginLibraryOperation/EndLibraryOperation call sites) run after confirming the standing directive's named candidate (bulk-operation glue, tracked under F-022) was genuinely thin - per the directive's explicit permission to substitute a strictly better slice when found. Fixed this loop: extracted a shared private RunUnderLibraryOperationGuardAsync(Func<Task> action) helper (PrimaryWidget.xaml.cs:244-269); PrimaryWidget_Loaded, RefreshButton_Click, GridImage_Click, RestoreBackup_Click and ConfirmAndRunAsync (which had kept its own private copy of this shape since loop 8, despite consolidating the ContentDialog half of the same ceremony) all now delegate to it, each preserving its exact prior control flow. Net -27 lines (2026 -> 1999). Independent implementation review (separate subagent, read-only, briefed cold on this finding and the diff only) returned verdict approved with all three checks (reality, honesty, regression) passed on the first pass, explicitly re-verifying each of the five call sites' exact prior control flow (including PrimaryWidget_Loaded's unconditional post-guard Focus, RestoreBackup_Click's guard-before-cast ordering, and ConfirmAndRunAsync's shouldRun short-circuit) and confirming no network-calling code was touched.",
+          "fingerprint": {
+            "claim_consequence_hash": "sha256:c25d0d0df541503b60004e77ecd842e847b3a97b0be3ff8eaf636fa8eaced35b",
+            "evidence_paths_hash": "sha256:e4cd63389325882e8a3808589f13afda98cfb63b183dc7b64ad20bbfeb33af1a"
+          },
+          "attempted_remedy_hash": "sha256:532002f36b061b850947578056288e32ac873ac9fd599dd416d6b4e9b2f81075"
         }
       ]
     }
