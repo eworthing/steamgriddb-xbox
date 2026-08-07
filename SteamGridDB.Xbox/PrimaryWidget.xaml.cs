@@ -838,6 +838,18 @@ namespace SteamGridDB.Xbox
                         string.IsNullOrEmpty(game.Title) ? unknownName : game.Title,
                         unknownName);
 
+                    bool hasBackup = await XboxTiles.HasBackupAsync(game.RenditionFileNames);
+
+                    if (!hasBackup)
+                    {
+                        // Applying artwork always leaves a backup behind it, so a game without one is
+                        // not customised whatever the applied-artwork record says - see
+                        // XboxTiles.ForgetArtworkRecordsAsync. Reached from here rather than from
+                        // XboxLibrary because this is where the backup is already looked up, and
+                        // asking twice per game is the only cost worth avoiding here.
+                        await XboxTiles.ForgetArtworkRecordsAsync(cacheFolder, game.RenditionFileNames);
+                    }
+
                     entries.Add(new GameEntry
                     {
                         Name = match.GameName,
@@ -848,7 +860,7 @@ namespace SteamGridDB.Xbox
                         Platform = GamePlatform.Xbox,
                         Image = image,
                         XboxRenditions = game.RenditionFileNames,
-                        HasBackup = await XboxTiles.HasBackupAsync(game.RenditionFileNames),
+                        HasBackup = hasBackup,
                         HasSteamGridDBMatch = match.HasSteamGridDbMatch,
                         OfficialCapsuleUrl = match.OfficialCapsuleUrl,
                         SteamGridDbGameId = match.SteamGridDbGameId

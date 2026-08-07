@@ -186,6 +186,42 @@ namespace SteamGridDB.Xbox.Services.Xbox
         }
 
         /// <summary>
+        /// Drops the applied-artwork records of renditions that cannot be carrying a customisation.
+        ///
+        /// That record is what marks an artwork <em>In use</em> in the picker, and nothing else knows
+        /// it - a tile on disk is just an image. It is keyed by full path, so a first-party game's
+        /// record belongs to whichever rendition was its largest at the time, and two things leave one
+        /// behind that no longer describes anything:
+        ///
+        /// <list type="bullet">
+        /// <item>a rendition stops being part of the game's set, so nothing ever looks its path up
+        /// again - not a revert, which only visits games it can restore, and not a later customisation,
+        /// which writes under whatever the largest rendition is by then</item>
+        /// <item>the game has no backup at all. <see cref="ApplyAsync"/> takes one before it writes, so
+        /// a customisation always leaves a backup behind it; no backup therefore means no
+        /// customisation, whatever the record says</item>
+        /// </list>
+        ///
+        /// Only ever removes the record. The tile, the backup and the saved customisation are all left
+        /// exactly as they are - this corrects a claim about them, and a wrong claim is worth less than
+        /// the artwork it describes.
+        /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder, which the record is keyed under.</param>
+        /// <param name="renditionFileNames">Cache file names whose records should go.</param>
+        internal static async Task ForgetArtworkRecordsAsync(StorageFolder cacheFolder, IEnumerable<string> renditionFileNames)
+        {
+            if (cacheFolder == null)
+            {
+                return;
+            }
+
+            foreach (string fileName in renditionFileNames ?? new List<string>())
+            {
+                await AppliedArtworkStore.ClearAsync(Path.Combine(cacheFolder.Path, fileName));
+            }
+        }
+
+        /// <summary>
         /// The pixel size of a cached rendition, or 0 when it is gone or unreadable.
         /// </summary>
         private static async Task<int> RenditionSizeAsync(StorageFolder cacheFolder, string fileName)

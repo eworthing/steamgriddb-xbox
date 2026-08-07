@@ -85,7 +85,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             foreach (StoreCatalog.Product product in products)
             {
-                IReadOnlyList<string> known = await SurvivingRenditionsAsync(cachedFileNames, product.StoreId);
+                IReadOnlyList<string> known = await SurvivingRenditionsAsync(cacheFolder, cachedFileNames, product.StoreId);
 
                 if (known != null)
                 {
@@ -119,9 +119,10 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// <see cref="XboxTileStore"/> - so a cache that could not be read at all leaves every record
         /// alone rather than reading silence as absence.
         /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
         /// <param name="cachedFileNames">Every file in the cache, or null when it could not be listed.</param>
         /// <param name="storeId">The game's Microsoft Store product ID.</param>
-        private static async Task<IReadOnlyList<string>> SurvivingRenditionsAsync(HashSet<string> cachedFileNames, string storeId)
+        private static async Task<IReadOnlyList<string>> SurvivingRenditionsAsync(StorageFolder cacheFolder, HashSet<string> cachedFileNames, string storeId)
         {
             IReadOnlyList<string> known = await XboxTileStore.GetAsync(storeId);
 
@@ -144,6 +145,10 @@ namespace SteamGridDB.Xbox.Services.Xbox
             // request does not change - so a saved customisation left behind for one would be written
             // straight back over it, resurrecting artwork that has since been reverted or replaced
             await XboxTiles.DiscardSavedCustomisationsAsync(lost);
+
+            // Nothing will ever look these paths up again, so a record left under one describes a tile
+            // this game no longer has - see ForgetArtworkRecordsAsync
+            await XboxTiles.ForgetArtworkRecordsAsync(cacheFolder, lost);
 
             if (surviving.Count == 0)
             {

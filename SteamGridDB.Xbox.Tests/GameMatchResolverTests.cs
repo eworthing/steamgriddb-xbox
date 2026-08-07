@@ -139,6 +139,32 @@ namespace SteamGridDB.Xbox.Tests
                 canQuerySteamGridDb: true, lookupThrew: false, unansweredBefore: 5, unansweredAfter: 5));
         }
 
+        // ---- WasLoggedFresh: which cached games still get an audit line ----
+
+        [Fact]
+        public void A_game_matched_by_its_store_id_is_not_logged()
+        {
+            // The fresh path only logs from the branch taken when the platform-ID lookup missed, so a
+            // store-ID match never produced a line. Logging one from the cache made a warm load's audit
+            // six times longer than a cold one's, which is the comparison the log exists for.
+            Assert.False(GameMatchResolver.WasLoggedFresh(matched: true, steamGridDbGameId: 0));
+        }
+
+        [Fact]
+        public void A_game_found_by_name_search_is_logged()
+        {
+            // A name search is the only thing that sets this ID, so carrying one means the store ID
+            // missed and the fresh path would have written the line.
+            Assert.True(GameMatchResolver.WasLoggedFresh(matched: true, steamGridDbGameId: 5309266));
+        }
+
+        [Fact]
+        public void An_unmatched_game_is_logged()
+        {
+            // The line that answers "why is this one still Unknown", which is the whole point.
+            Assert.True(GameMatchResolver.WasLoggedFresh(matched: false, steamGridDbGameId: 0));
+        }
+
         // ---- Result: a plain readonly carrier, no behavior of its own ----
 
         [Fact]

@@ -142,6 +142,27 @@ namespace SteamGridDB.Xbox.Services.Library
             return canQuerySteamGridDb && !lookupThrew && unansweredAfter == unansweredBefore;
         }
 
+        /// <summary>
+        /// Whether a fresh resolve of this outcome would have written an audit line, and therefore
+        /// whether a cached one should.
+        ///
+        /// <see cref="BuildUnmatchedLogLine"/> is reached only from the branch taken when the
+        /// platform-ID lookup did not match, so a game found by its store ID is never logged. That is
+        /// most of a library, and it is deliberate: the log exists to explain the games that needed
+        /// more than a store ID, not to list every game twice.
+        ///
+        /// The cache does not record which route produced a match, but it does not need to - the two
+        /// are distinguishable from what they leave behind. A name search is the only thing that sets
+        /// a SteamGridDB game ID, so a match carrying one came the long way round; a match without one
+        /// came from its store ID; and no match at all was logged either way.
+        /// </summary>
+        /// <param name="matched">Whether SteamGridDB knows the game at all.</param>
+        /// <param name="steamGridDbGameId">The game's own SteamGridDB ID, set only by a name search.</param>
+        internal static bool WasLoggedFresh(bool matched, int steamGridDbGameId)
+        {
+            return !matched || steamGridDbGameId > 0;
+        }
+
         /// <param name="sgdbClient">Null when no API key is configured; guarded by <paramref name="canQuerySteamGridDb"/> before every use.</param>
         /// <param name="canQuerySteamGridDb">Whether a SteamGridDB API key is configured at all.</param>
         /// <param name="platform">The entry's platform.</param>
@@ -174,11 +195,14 @@ namespace SteamGridDB.Xbox.Services.Library
                 {
                     GameMatchCache.Entry cached = remembered.Value;
 
-                    // Logged like a fresh resolve would be, and marked as cached: an audit line that
-                    // silently went missing for most of the library after the first load would make
-                    // the log useless for the thing it exists to answer, which is why a given game is
-                    // still showing as Unknown
-                    FixLog.Write($"cached {platform}/{externalPlatformId} name={cached.Name ?? unknownName} sgdbId={cached.SteamGridDbGameId} matched={cached.Matched}");
+                    // Logged only for the games a fresh resolve would have logged - see WasLoggedFresh.
+                    // Logging every cached game instead made a warm load's audit six times longer than
+                    // a cold one's and of a different shape, which defeats the one thing this log is
+                    // for: comparing two loads to see why a game is still showing as Unknown.
+                    if (WasLoggedFresh(cached.Matched, cached.SteamGridDbGameId))
+                    {
+                        FixLog.Write($"cached {platform}/{externalPlatformId} name={cached.Name ?? unknownName} sgdbId={cached.SteamGridDbGameId} matched={cached.Matched}");
+                    }
 
                     return new Result(cached.Name ?? gameName, cached.Matched, cached.CapsuleUrl, cached.SteamGridDbGameId);
                 }
