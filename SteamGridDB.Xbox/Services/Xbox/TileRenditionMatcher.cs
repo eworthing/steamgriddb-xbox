@@ -55,12 +55,12 @@ namespace SteamGridDB.Xbox.Services.Xbox
             IEnumerable<string> artworkDigests,
             IEnumerable<ImageCacheIndex.CachedImage> cached)
         {
-            List<string> renditions = new List<string>();
+            List<ImageCacheIndex.CachedImage> renditions = new List<ImageCacheIndex.CachedImage>();
             List<string> ambiguous = new List<string>();
 
             if (artworkDigests == null || cached == null)
             {
-                return new Result(renditions, ambiguous);
+                return new Result(new List<string>(), ambiguous);
             }
 
             HashSet<string> wanted = new HashSet<string>(
@@ -68,7 +68,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             if (wanted.Count == 0)
             {
-                return new Result(renditions, ambiguous);
+                return new Result(new List<string>(), ambiguous);
             }
 
             // Grouped by content, because that is precisely what makes a file attributable: a digest
@@ -82,17 +82,21 @@ namespace SteamGridDB.Xbox.Services.Xbox
                     .OrderByDescending(image => image.PixelSize)
                     .ToList();
 
-                (files.Count == 1 ? renditions : ambiguous).AddRange(files.Select(image => image.FileName));
+                if (files.Count == 1)
+                {
+                    renditions.Add(files[0]);
+                }
+                else
+                {
+                    ambiguous.AddRange(files.Select(image => image.FileName));
+                }
             }
 
+            // Ordered from what the grouping already knows about each file, rather than by looking its
+            // size back up in the index - which is a scan of the whole cache per rendition claimed
             return new Result(
-                renditions.OrderByDescending(name => PixelSizeOf(cached, name)).ToList(),
+                renditions.OrderByDescending(image => image.PixelSize).Select(image => image.FileName).ToList(),
                 ambiguous);
-        }
-
-        private static int PixelSizeOf(IEnumerable<ImageCacheIndex.CachedImage> cached, string fileName)
-        {
-            return cached.FirstOrDefault(image => image.FileName == fileName)?.PixelSize ?? 0;
         }
     }
 }

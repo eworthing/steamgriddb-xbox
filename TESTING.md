@@ -18,9 +18,9 @@ facts the rest of the suite rests on: that `StorageFolder` works on an ordinary 
 missing file throws `FileNotFoundException` - the exact type the backup and restore paths branch on.
 If a future Windows SDK changes either, those two tests fail first and loudly.
 
-The one API that genuinely needs an app container is `ApplicationData.Current`. Two files touch it,
-`AppliedArtworkStore` and `FixLog`, and both now take the folder as a settable property that defaults
-to the real one.
+The one API that genuinely needs an app container is `ApplicationData.Current`. Three files touch it,
+`AppliedArtworkStore`, `FixLog` and `XboxTileStore`, and all three take the folder as a settable
+property that defaults to the real one.
 
 ## How the app's code gets into the test project
 
@@ -78,13 +78,16 @@ fails three of the `OperationReport` tests. Worth repeating for any new test tha
 The first-party tile paths were checked the same way: making the cross-folder restore use `RenameAsync`
 - which cannot leave a folder, so it silently restores nothing - fails
 `Restore_moves_the_original_back_out_of_the_sidecar_folder` and
-`Restore_puts_the_original_back_even_when_the_xbox_app_deleted_the_tile`, and dropping the layout half
-of the tile match fails `Does_not_match_a_different_picture_built_from_the_same_palette`.
+`Restore_puts_the_original_back_even_when_the_xbox_app_deleted_the_tile`, and handing a digest held by
+two cache files to both games rather than to neither fails
+`Two_products_with_identical_artwork_leave_their_shared_files_unclaimed`.
 
-`TileRenditionMatcher`'s thresholds are the one thing in the suite chosen from measurement rather than
-reasoning: eight installed games scored against a real 805-image cache, where every true match reached
-0.9995 on layout agreement and the strongest false match reached 0.8751. The tests pin the behaviour
-around the threshold, not the number - re-measure rather than re-derive if the signature ever changes.
+`TileRenditionMatcher` has nothing to tune, which is the point of it: a cached file is a game's when
+its bytes are exactly what the CDN returns for that game's artwork at that width, so the tests pin
+behaviour - which files are claimed, which are left alone, what happens when two products publish the
+same picture - and never a number. An earlier version compared images perceptually and did need a
+threshold; it was replaced because "these two look alike" cannot tell the two Minecraft products apart,
+and it took `ArtworkSignature` out of this path with it.
 
 ## Known build wrinkle, unrelated to tests
 

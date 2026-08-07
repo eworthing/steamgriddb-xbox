@@ -42,16 +42,11 @@ namespace SteamGridDB.Xbox.Services.Artwork
         }
 
         /// <summary>
-        /// Builds a signature from an already-open decoder, for callers that need something else from
-        /// the same decode.
-        ///
-        /// Standing up a decoder is most of the cost of signing an image, and the Xbox app's image cache
-        /// holds hundreds of files that have to be both measured and signed to be matched against a
-        /// game's artwork. Going through <see cref="CreateAsync"/> for the signature and opening a
-        /// second decoder for the dimensions would double the work for every one of them.
+        /// Builds a signature from an already-open decoder - the body of <see cref="CreateAsync"/>,
+        /// named rather than a lambda so the two centre-square reads read as one step each.
         /// </summary>
         /// <param name="decoder">Decoder for the image.</param>
-        public static async Task<ArtworkSignature> FromDecoderAsync(BitmapDecoder decoder)
+        private static async Task<ArtworkSignature> FromDecoderAsync(BitmapDecoder decoder)
         {
             double[] histogram = ColourHistogram(
                 await TileImage.CentreSquarePixelsAsync(decoder, colourGridSize));

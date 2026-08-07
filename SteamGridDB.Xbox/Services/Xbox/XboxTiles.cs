@@ -101,29 +101,69 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// </summary>
         /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
         /// <param name="renditionFileNames">The game's cached images.</param>
-        /// <returns>How many renditions had to be put back.</returns>
-        internal static async Task<int> ReapplyOverwrittenAsync(
+        /// <returns>
+        /// Reapplied when the game's saved customisation is on its tile, whether this call had to put
+        /// it there or found it already in place; NothingSaved when no rendition has one saved. The
+        /// distinction that matters to a caller is "is there a customisation" rather than "did this
+        /// call write" - a load runs this on every game, so by the time a bulk restore reaches one, the
+        /// answer to the second is always no.
+        /// </returns>
+        internal static async Task<ArtworkFiles.ReapplyOutcome> ReapplyOverwrittenAsync(
             StorageFolder cacheFolder,
             IReadOnlyList<string> renditionFileNames)
         {
             StorageFolder vault = await XboxTileStore.VaultFolderAsync();
-            int reapplied = 0;
+            bool anySaved = false;
 
             foreach (string fileName in renditionFileNames ?? new List<string>())
             {
                 if (await MatchesSavedCustomisationAsync(cacheFolder, vault, fileName))
                 {
+                    anySaved = true;
+
                     continue;
                 }
 
                 if (await ArtworkFiles.ReapplyCustomisationAsync(cacheFolder, fileName, vault)
                     == ArtworkFiles.ReapplyOutcome.Reapplied)
                 {
-                    reapplied++;
+                    anySaved = true;
                 }
             }
 
-            return reapplied;
+            return anySaved ? ArtworkFiles.ReapplyOutcome.Reapplied : ArtworkFiles.ReapplyOutcome.NothingSaved;
+        }
+
+        /// <summary>
+        /// Drops the saved customisations of renditions that have left the cache.
+        ///
+        /// The Xbox app re-fetches an evicted rendition under the same name - the name is a hash of the
+        /// request, and the request has not changed - so a .new left behind for one is written straight
+        /// back over it the next time the game is loaded, putting back artwork that may since have been
+        /// reverted or replaced. The .bak is deliberately kept: it holds the Xbox app's own artwork,
+        /// which is exactly what the re-fetch brings back, so it costs nothing and is the one file here
+        /// that cannot be recreated.
+        /// </summary>
+        /// <param name="renditionFileNames">Cache file names that are no longer there.</param>
+        internal static async Task DiscardSavedCustomisationsAsync(IEnumerable<string> renditionFileNames)
+        {
+            StorageFolder vault = null;
+
+            foreach (string fileName in renditionFileNames ?? new List<string>())
+            {
+                vault = vault ?? await XboxTileStore.VaultFolderAsync();
+
+                try
+                {
+                    StorageFile saved = await vault.GetFileAsync(ArtworkFiles.CustomisedNameFor(fileName));
+
+                    await saved.DeleteAsync();
+                }
+                catch (Exception ex) when (ex is FileNotFoundException || ex is UnauthorizedAccessException)
+                {
+                    // Nothing saved for this rendition, which is the common case
+                }
+            }
         }
 
         /// <summary>
@@ -164,14 +204,34 @@ namespace SteamGridDB.Xbox.Services.Xbox
         ///
         /// Compared by length rather than content: both files were written by this app in the same call,
         /// so they are either the identical buffer or the Xbox app has replaced one of them with a
-        /// download that has no reason to match its size.
+        /// download that has no reason to match its size. And by the length the file system reports
+        /// rather than the length of a buffer read from it, because this runs over every rendition of
+        /// every first-party game on every library load - reading them all in to compare two integers
+        /// is megabytes of I/O per refresh for an answer the directory entry already holds.
         /// </summary>
         private static async Task<bool> MatchesSavedCustomisationAsync(StorageFolder cacheFolder, StorageFolder vault, string fileName)
         {
-            IBuffer current = await ReadIfPresentAsync(cacheFolder, fileName);
-            IBuffer saved = await ReadIfPresentAsync(vault, ArtworkFiles.CustomisedNameFor(fileName));
+            ulong? current = await SizeIfPresentAsync(cacheFolder, fileName);
+            ulong? saved = await SizeIfPresentAsync(vault, ArtworkFiles.CustomisedNameFor(fileName));
 
-            return current != null && saved != null && current.Length == saved.Length;
+            return current.HasValue && saved.HasValue && current.Value == saved.Value;
+        }
+
+        /// <summary>
+        /// A file's size on disk, or null when it is not there.
+        /// </summary>
+        private static async Task<ulong?> SizeIfPresentAsync(StorageFolder folder, string fileName)
+        {
+            try
+            {
+                StorageFile file = await folder.GetFileAsync(fileName);
+
+                return (await file.GetBasicPropertiesAsync()).Size;
+            }
+            catch (Exception ex) when (ex is FileNotFoundException || ex is UnauthorizedAccessException)
+            {
+                return null;
+            }
         }
 
         /// <summary>

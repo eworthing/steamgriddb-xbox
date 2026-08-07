@@ -211,13 +211,5 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             return Windows.Security.Cryptography.CryptographicBuffer.EncodeToHexString(sha256.HashData(bytes));
         }
-
-        /// <summary>
-        /// Hex SHA-256 of a buffer, for callers with nothing else to hash.
-        /// </summary>
-        internal static string Digest(IBuffer bytes)
-        {
-            return Digest(HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Sha256), bytes);
-        }
     }
 }

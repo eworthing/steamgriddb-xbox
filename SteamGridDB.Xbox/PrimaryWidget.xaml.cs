@@ -430,6 +430,29 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
+        /// The thumbnail to show after a write, or the one the row already has when the file it would
+        /// be decoded from is not there.
+        ///
+        /// A third-party game is the one file that was just written, so it is always present. A
+        /// first-party game is several and <see cref="GameEntry.ImageFilePath"/> names only the largest,
+        /// which the Xbox app may have evicted - the smaller renditions were still written and the
+        /// operation still succeeded, so failing to re-read that one file must not report it as failed.
+        /// </summary>
+        /// <param name="game">Game whose image was written.</param>
+        /// <param name="imageFileName">Name of the image to decode.</param>
+        private async Task<BitmapImage> WrittenThumbnailAsync(GameEntry game, string imageFileName)
+        {
+            try
+            {
+                return await CreateThumbnailAsync(await game.ImageFolder.GetFileAsync(imageFileName));
+            }
+            catch (FileNotFoundException)
+            {
+                return game.Image;
+            }
+        }
+
+        /// <summary>
         /// The games a bulk run should visit: those matching <paramref name="eligible"/>, one per image.
         /// </summary>
         /// <param name="eligible">Which entries the operation applies to.</param>
@@ -1194,12 +1217,11 @@ namespace SteamGridDB.Xbox
 
                         // A first-party game has one saved customisation per rendition, and any of them
                         // could be the one the Xbox app overwrote, so all are checked
-                        bool reapplied = game.IsXboxTile
-                            ? await XboxTiles.ReapplyOverwrittenAsync(game.ImageFolder, game.XboxRenditions) > 0
-                            : await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName)
-                                == ArtworkFiles.ReapplyOutcome.Reapplied;
+                        ArtworkFiles.ReapplyOutcome outcome = game.IsXboxTile
+                            ? await XboxTiles.ReapplyOverwrittenAsync(game.ImageFolder, game.XboxRenditions)
+                            : await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName);
 
-                        if (!reapplied)
+                        if (outcome == ArtworkFiles.ReapplyOutcome.NothingSaved)
                         {
                             noArtworkCount++;
                             System.Diagnostics.Debug.WriteLine($"Skipping {gameName} for restoration: corresponding .new file not found");
@@ -1207,8 +1229,7 @@ namespace SteamGridDB.Xbox
                             continue;
                         }
 
-                        StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-                        BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
+                        BitmapImage restoredImage = await WrittenThumbnailAsync(game, imageFileName);
 
                         // hasBackup left untouched: whether a backup exists doesn't change by restoring
                         // a customisation, and this loop's own status line is set above via report.Step
@@ -1287,8 +1308,7 @@ namespace SteamGridDB.Xbox
                 await AppliedArtworkStore.SetAsync(game.ImageFilePath, appliedArtworkId);
 
                 // Reload the image in the UI
-                StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-                BitmapImage newImage = await CreateThumbnailAsync(imageFile);
+                BitmapImage newImage = await WrittenThumbnailAsync(game, imageFileName);
 
                 await UpdateSharedEntriesAsync(
                     game,
@@ -2078,15 +2098,18 @@ namespace SteamGridDB.Xbox
                 await AppliedArtworkStore.ClearAsync(game.ImageFilePath);
 
                 // Reload the image in the UI
-                StorageFile imageFile = await game.ImageFolder.GetFileAsync(imageFileName);
-                BitmapImage restoredImage = await CreateThumbnailAsync(imageFile);
+                BitmapImage restoredImage = await WrittenThumbnailAsync(game, imageFileName);
 
-                // hasBackup: false - the backup that would have been restored from no longer exists
+                // The backup that was restored from no longer exists - but a first-party game has one
+                // per rendition and only those with a backup were restored, so the button has to stay
+                // for whatever is left rather than being cleared on the strength of the one that went
+                bool backupRemaining = game.IsXboxTile && await XboxTiles.HasBackupAsync(game.XboxRenditions);
+
                 await UpdateSharedEntriesAsync(
                     game,
                     imageFileName,
                     restoredImage,
-                    false,
+                    backupRemaining,
                     updateStatusText ? $"Backup restored for {backupGameName}" : null);
 
                 return RestoreBackupResult.Restored;

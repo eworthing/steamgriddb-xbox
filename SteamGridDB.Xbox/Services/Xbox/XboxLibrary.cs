@@ -76,12 +76,16 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 products = await XboxInstalledGames.LoadAsync(catalog);
             }
 
+            // One enumeration answers every "is this rendition still there" question the loop below
+            // asks, rather than a file open apiece
+            HashSet<string> cachedFileNames = await CacheFileNamesAsync(cacheFolder);
+
             List<Game> games = new List<Game>();
             List<StoreCatalog.Product> undiscovered = new List<StoreCatalog.Product>();
 
             foreach (StoreCatalog.Product product in products)
             {
-                IReadOnlyList<string> known = await SurvivingRenditionsAsync(cacheFolder, product.StoreId);
+                IReadOnlyList<string> known = await SurvivingRenditionsAsync(cachedFileNames, product.StoreId);
 
                 if (known != null)
                 {
@@ -109,8 +113,15 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// app fetches it under a new hash and the old files go, taking the customisation with them.
         /// Nothing on disk can prevent that, so the record is dropped and the game is discovered again
         /// against its new artwork.
+        ///
+        /// Which makes "gone" an answer worth being sure of. A record dropped by mistake cannot be
+        /// rebuilt once artwork has been applied over the tiles - the whole point of
+        /// <see cref="XboxTileStore"/> - so a cache that could not be read at all leaves every record
+        /// alone rather than reading silence as absence.
         /// </summary>
-        private static async Task<IReadOnlyList<string>> SurvivingRenditionsAsync(StorageFolder cacheFolder, string storeId)
+        /// <param name="cachedFileNames">Every file in the cache, or null when it could not be listed.</param>
+        /// <param name="storeId">The game's Microsoft Store product ID.</param>
+        private static async Task<IReadOnlyList<string>> SurvivingRenditionsAsync(HashSet<string> cachedFileNames, string storeId)
         {
             IReadOnlyList<string> known = await XboxTileStore.GetAsync(storeId);
 
@@ -119,15 +130,20 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return null;
             }
 
-            List<string> surviving = new List<string>();
-
-            foreach (string fileName in known)
+            if (cachedFileNames == null)
             {
-                if (await ExistsAsync(cacheFolder, fileName))
-                {
-                    surviving.Add(fileName);
-                }
+                // Nothing could be read, so nothing is known to be gone. Taking the record at its word
+                // costs at most a load where a write is skipped; reading it as gone costs the record.
+                return known;
             }
+
+            List<string> surviving = known.Where(cachedFileNames.Contains).ToList();
+            List<string> lost = known.Where(name => !cachedFileNames.Contains(name)).ToList();
+
+            // An evicted rendition comes back under the same name - the hash is of the request, and the
+            // request does not change - so a saved customisation left behind for one would be written
+            // straight back over it, resurrecting artwork that has since been reverted or replaced
+            await XboxTiles.DiscardSavedCustomisationsAsync(lost);
 
             if (surviving.Count == 0)
             {
@@ -136,7 +152,37 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return null;
             }
 
+            if (lost.Count > 0)
+            {
+                await XboxTileStore.SetAsync(storeId, surviving);
+            }
+
             return surviving;
+        }
+
+        /// <summary>
+        /// The name of every file in the cache folder, or null when it could not be listed.
+        /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
+        private static async Task<HashSet<string>> CacheFileNamesAsync(StorageFolder cacheFolder)
+        {
+            try
+            {
+                HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (StorageFile file in await cacheFolder.GetFilesAsync())
+                {
+                    names.Add(file.Name);
+                }
+
+                return names;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not list the Xbox app image cache: {ex.Message}");
+
+                return null;
+            }
         }
 
         /// <summary>
@@ -258,20 +304,6 @@ namespace SteamGridDB.Xbox.Services.Xbox
             }
 
             return responses;
-        }
-
-        private static async Task<bool> ExistsAsync(StorageFolder folder, string fileName)
-        {
-            try
-            {
-                await folder.GetFileAsync(fileName);
-
-                return true;
-            }
-            catch (Exception ex) when (ex is System.IO.FileNotFoundException || ex is UnauthorizedAccessException)
-            {
-                return false;
-            }
         }
     }
 }

@@ -40,6 +40,8 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
         private static StorageFolder recordFolder;
 
+        private static StorageFolder vaultFolder;
+
         /// <summary>
         /// Where the record and the vault are kept. Defaults to the widget's own local data.
         ///
@@ -54,16 +56,23 @@ namespace SteamGridDB.Xbox.Services.Xbox
             set
             {
                 recordFolder = value;
+                vaultFolder = null;
                 tileCache = new AsyncLazyCache<Dictionary<string, List<string>>>(gate, LoadMapFromDiskAsync);
             }
         }
 
         /// <summary>
-        /// The folder holding first-party backups, created on first use.
+        /// The folder holding first-party backups, created on first use and remembered after it.
+        ///
+        /// Every <see cref="XboxTiles"/> entry point opens with this, and a library load reaches two of
+        /// them per game, so resolving it once matters more than the one-line call site suggests. No
+        /// lock: two callers racing both get the same folder, because OpenIfExists is what creation
+        /// means here.
         /// </summary>
         internal static async Task<StorageFolder> VaultFolderAsync()
         {
-            return await RecordFolder.CreateFolderAsync(vaultFolderName, CreationCollisionOption.OpenIfExists);
+            return vaultFolder ?? (vaultFolder =
+                await RecordFolder.CreateFolderAsync(vaultFolderName, CreationCollisionOption.OpenIfExists));
         }
 
         /// <summary>
