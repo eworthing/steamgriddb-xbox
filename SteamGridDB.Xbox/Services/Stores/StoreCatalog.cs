@@ -65,6 +65,7 @@ namespace SteamGridDB.Xbox.Services.Stores
 
             httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Accept.Add(new HttpMediaTypeWithQualityHeaderValue("application/json"));
+            AppIdentity.Identify(httpClient.DefaultRequestHeaders);
 
             // The catalogue expects a correlation vector on every request and answers 400 without one.
             // Its value is only ever used for Microsoft's own request tracing, so one per client is enough.

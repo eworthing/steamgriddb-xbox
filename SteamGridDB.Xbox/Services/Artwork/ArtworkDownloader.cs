@@ -32,7 +32,16 @@ namespace SteamGridDB.Xbox.Services.Artwork
         private const double officialArtworkFloor = 0.60;
         private const double officialArtworkCeiling = 0.85;
 
-        private static readonly HttpClient sharedHttpClient = new HttpClient();
+        private static readonly HttpClient sharedHttpClient = CreateHttpClient();
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient();
+
+            AppIdentity.Identify(client.DefaultRequestHeaders);
+
+            return client;
+        }
 
         /// <summary>
         /// Downloads one artwork, returning null rather than throwing when it cannot be fetched.

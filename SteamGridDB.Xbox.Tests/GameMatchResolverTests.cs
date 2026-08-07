@@ -94,6 +94,51 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Equal("unmatched EA/194814 ea=[3 content ids from C:\\Program Files\\EA Games] name=Unknown sgdbId=0", line);
         }
 
+        // ---- ShouldRemember: what may be written to the match cache ----
+
+        [Fact]
+        public void An_answered_lookup_is_worth_remembering()
+        {
+            Assert.True(GameMatchResolver.ShouldRemember(
+                canQuerySteamGridDb: true, lookupThrew: false, unansweredBefore: 0, unansweredAfter: 0));
+        }
+
+        [Fact]
+        public void A_lookup_made_without_an_api_key_is_not()
+        {
+            // Nothing was asked, so "no match" is not an answer about the game - and caching it would
+            // leave that miss waiting for the moment a key is finally configured.
+            Assert.False(GameMatchResolver.ShouldRemember(
+                canQuerySteamGridDb: false, lookupThrew: false, unansweredBefore: 0, unansweredAfter: 0));
+        }
+
+        [Fact]
+        public void A_lookup_that_threw_is_not()
+        {
+            // A timeout or a dead network, which looks exactly like "SteamGridDB does not have this
+            // game" by the time it reaches the caller.
+            Assert.False(GameMatchResolver.ShouldRemember(
+                canQuerySteamGridDb: true, lookupThrew: true, unansweredBefore: 0, unansweredAfter: 0));
+        }
+
+        [Fact]
+        public void A_lookup_that_went_unanswered_anywhere_along_the_way_is_not()
+        {
+            // The counter is the only evidence: a rate-limited or failed lookup returns the same null
+            // a genuine miss does. Writing that would turn a bad minute into days of Unknown.
+            Assert.False(GameMatchResolver.ShouldRemember(
+                canQuerySteamGridDb: true, lookupThrew: false, unansweredBefore: 2, unansweredAfter: 3));
+        }
+
+        [Fact]
+        public void Failures_from_before_this_game_do_not_disqualify_it()
+        {
+            // An earlier game in the same load went unanswered and this one did not. Only the change
+            // across this resolve says anything about this resolve.
+            Assert.True(GameMatchResolver.ShouldRemember(
+                canQuerySteamGridDb: true, lookupThrew: false, unansweredBefore: 5, unansweredAfter: 5));
+        }
+
         // ---- Result: a plain readonly carrier, no behavior of its own ----
 
         [Fact]

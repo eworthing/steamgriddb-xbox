@@ -64,5 +64,15 @@ namespace SteamGridDB.Xbox.Services
 
             return value?.ValueType == JsonValueType.Number ? value.GetNumber() : fallback;
         }
+
+        /// <summary>
+        /// A member as a boolean, or <paramref name="fallback"/> when it is absent, null or another type.
+        /// </summary>
+        public static bool Boolean(JsonObject source, string name, bool fallback = false)
+        {
+            IJsonValue value = Value(source, name);
+
+            return value?.ValueType == JsonValueType.Boolean ? value.GetBoolean() : fallback;
+        }
     }
 }

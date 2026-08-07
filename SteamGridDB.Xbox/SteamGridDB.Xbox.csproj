@@ -124,8 +124,10 @@
     <Compile Include="Services\Artwork\FixLog.cs" />
     <Compile Include="Services\Artwork\GridSelectionItems.cs" />
     <Compile Include="Services\Artwork\TileImage.cs" />
+    <Compile Include="Services\AppIdentity.cs" />
     <Compile Include="Services\AsyncLazyCache.cs" />
     <Compile Include="Services\Library\GameImages.cs" />
+    <Compile Include="Services\Library\GameMatchCache.cs" />
     <Compile Include="Services\Library\GameMatchResolver.cs" />
     <Compile Include="Services\Library\LibraryOperationGuard.cs" />
     <Compile Include="Services\Library\ManifestEntryIdentity.cs" />
@@ -137,6 +139,7 @@
     <Compile Include="Services\SteamGridDB\Models\SteamGridDbGame.cs" />
     <Compile Include="Services\JsonRead.cs" />
     <Compile Include="Services\SteamGridDB\ArtworkSource.cs" />
+    <Compile Include="Services\SteamGridDB\RequestThrottle.cs" />
     <Compile Include="Services\SteamGridDB\SteamGridDbClient.cs" />
     <Compile Include="Services\Stores\EaLibrary.cs" />
     <Compile Include="Services\Stores\EpicLibrary.cs" />

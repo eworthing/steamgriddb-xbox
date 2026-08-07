@@ -14,10 +14,16 @@ namespace SteamGridDB.Xbox.Services.Library
     /// LoadGameEntriesAsync's per-entry parsing (see PrimaryWidget.xaml.cs) that runs after
     /// <see cref="ManifestEntryIdentity"/> has already derived the entry's default name and platform ID.
     /// First tries an exact SteamGridDB platform-ID match; if that fails, asks the entry's own store for
-    /// its display name (GOG/Epic/Ubisoft/EA) and falls back to a SteamGridDB name search. Every call
-    /// here happens in exactly the order, count and condition it always did inline - this is a
-    /// relocation, not a behavior change, per the standing constraint on per-game network-call
-    /// ordering/concurrency. EA's lookup, added later, is local file reads only and makes no request.
+    /// its display name (GOG/Epic/Ubisoft/EA) and falls back to a SteamGridDB name search. The order,
+    /// count and condition of those calls is exactly what it always was inline; the one thing that has
+    /// changed since is that the whole sequence is now skipped outright when
+    /// <see cref="GameMatchCache"/> already holds a fresh answer for this game, which is the single
+    /// largest reduction in the app's outbound traffic available - see that type for why. EA's lookup
+    /// is local file reads only and makes no request.
+    ///
+    /// The cache is neither read nor written when there is no API key. Without one the SteamGridDB
+    /// half of this never runs, so the result would be a miss recorded for a question that was never
+    /// asked - and adding a key later would then find that miss waiting for it.
     ///
     /// <see cref="SelectStoreNameLookupTarget"/> and <see cref="BuildUnmatchedLogLine"/> are pure and
     /// tested directly. <see cref="ResolveAsync"/> itself is not: it is real network I/O, the same carve-out
@@ -111,6 +117,31 @@ namespace SteamGridDB.Xbox.Services.Library
                 + $" name={gameName} sgdbId={steamGridDbGameId}";
         }
 
+        /// <summary>
+        /// Whether a resolve's outcome is worth writing to <see cref="GameMatchCache"/>.
+        ///
+        /// Three ways an outcome can be a non-answer, all of which look identical to a genuine "this
+        /// game is not on SteamGridDB" from the outside, and all of which would be remembered as one:
+        /// there was no API key so nothing was asked; the request threw, which is a timeout or a dead
+        /// network; or something in it went unanswered - refused, a server error, a dead connection -
+        /// which <see cref="SteamGridDbClient.UnansweredResponses"/> is the only evidence of, because
+        /// every one of those reaches the caller as the same null a real miss does.
+        ///
+        /// Only a 404 counts as an answer, and that is the one that matters: it is what SteamGridDB
+        /// returns for a game it does not carry, which is the fact worth keeping for days.
+        ///
+        /// Pure, and split out for that reason - the resolve around it is network I/O that TESTING.md
+        /// carves out, and this is the part of it whose logic can actually be wrong.
+        /// </summary>
+        /// <param name="canQuerySteamGridDb">Whether a SteamGridDB API key is configured at all.</param>
+        /// <param name="lookupThrew">Whether the platform-ID lookup threw.</param>
+        /// <param name="unansweredBefore">The client's unanswered-request count before the resolve.</param>
+        /// <param name="unansweredAfter">The client's unanswered-request count after it.</param>
+        internal static bool ShouldRemember(bool canQuerySteamGridDb, bool lookupThrew, int unansweredBefore, int unansweredAfter)
+        {
+            return canQuerySteamGridDb && !lookupThrew && unansweredAfter == unansweredBefore;
+        }
+
         /// <param name="sgdbClient">Null when no API key is configured; guarded by <paramref name="canQuerySteamGridDb"/> before every use.</param>
         /// <param name="canQuerySteamGridDb">Whether a SteamGridDB API key is configured at all.</param>
         /// <param name="platform">The entry's platform.</param>
@@ -133,6 +164,32 @@ namespace SteamGridDB.Xbox.Services.Library
             string officialCapsuleUrl = null;
             int steamGridDbGameId = 0;
 
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+
+            if (canQuerySteamGridDb)
+            {
+                GameMatchCache.Entry? remembered = await GameMatchCache.GetAsync(platform, externalPlatformId, now);
+
+                if (remembered.HasValue)
+                {
+                    GameMatchCache.Entry cached = remembered.Value;
+
+                    // Logged like a fresh resolve would be, and marked as cached: an audit line that
+                    // silently went missing for most of the library after the first load would make
+                    // the log useless for the thing it exists to answer, which is why a given game is
+                    // still showing as Unknown
+                    FixLog.Write($"cached {platform}/{externalPlatformId} name={cached.Name ?? unknownName} sgdbId={cached.SteamGridDbGameId} matched={cached.Matched}");
+
+                    return new Result(cached.Name ?? gameName, cached.Matched, cached.CapsuleUrl, cached.SteamGridDbGameId);
+                }
+            }
+
+            // Whether anything in this resolve went unanswered rather than answered. A refused or
+            // failed lookup returns the same null a genuine miss does, and writing that into the cache
+            // would turn a bad minute into days of the game showing as Unknown
+            int unansweredBefore = canQuerySteamGridDb ? sgdbClient.UnansweredResponses : 0;
+            bool lookupThrew = false;
+
             // Try to fetch game name from SteamGridDB API
             try
             {
@@ -154,6 +211,8 @@ namespace SteamGridDB.Xbox.Services.Library
             }
             catch (Exception ex)
             {
+                lookupThrew = true;
+
                 // Log but don't fail - game name is optional, default is "Unknown"
                 System.Diagnostics.Debug.WriteLine($"Could not fetch game name for {entryId} from SteamGridDB: {ex.Message}");
             }
@@ -225,6 +284,14 @@ namespace SteamGridDB.Xbox.Services.Library
                 }
 
                 FixLog.Write(BuildUnmatchedLogLine(platform, externalPlatformId, epicCatalogItemId, storeLoadSummary, gameName, steamGridDbGameId));
+            }
+
+            if (ShouldRemember(canQuerySteamGridDb, lookupThrew, unansweredBefore, canQuerySteamGridDb ? sgdbClient.UnansweredResponses : 0))
+            {
+                await GameMatchCache.SetAsync(
+                    platform,
+                    externalPlatformId,
+                    new GameMatchCache.Entry(gameName, hasSteamGridDbMatch, officialCapsuleUrl, steamGridDbGameId, now));
             }
 
             return new Result(gameName, hasSteamGridDbMatch, officialCapsuleUrl, steamGridDbGameId);

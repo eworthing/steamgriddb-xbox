@@ -73,7 +73,30 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         private readonly TimeSpan timeout;
+        private readonly RequestThrottle throttle = new RequestThrottle();
         private bool disposed = false;
+
+        /// <summary>
+        /// Whether this client has stopped asking because SteamGridDB kept refusing - see
+        /// <see cref="RequestThrottle"/>. A bulk run should check this between games and stop rather
+        /// than walk the rest of the library making requests that will not be answered.
+        /// </summary>
+        internal bool HasGivenUp => throttle.HasGivenUp;
+
+        /// <summary>
+        /// How many requests this client failed to get an answer to, over its whole life - refusals,
+        /// server errors and dead connections alike, but not a 404, which is SteamGridDB answering
+        /// clearly that it does not have the thing asked for.
+        ///
+        /// Snapshot it around a piece of work to find out whether any part of that work went
+        /// unanswered. Every one of these comes back to the caller as the same null a genuine miss
+        /// does, so without this counter there is no way to tell "SteamGridDB has no match for this
+        /// game" from "SteamGridDB did not say" - and the first is worth caching for days while the
+        /// second is worth caching for no time at all.
+        /// </summary>
+        internal int UnansweredResponses => unansweredResponses;
+
+        private int unansweredResponses;
 
         /// <summary>
         /// Initialises a new SteamGridDB client with API key.
@@ -97,6 +120,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             httpClient = new HttpClient();
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
             httpClient.DefaultRequestHeaders.Accept.Add(new HttpMediaTypeWithQualityHeaderValue("application/json"));
+            AppIdentity.Identify(httpClient.DefaultRequestHeaders);
         }
 
         /// <summary>
@@ -348,12 +372,40 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// <summary>
         /// GET returning the raw response body, for callers that need to read parts of the document
         /// the data contracts do not cover. Returns null on any non-success response.
+        ///
+        /// Also where the client's manners live: a refused response is recorded and paces the next
+        /// request rather than being treated as an ordinary failure, and once
+        /// <see cref="RequestThrottle.GiveUpAfterConsecutive"/> refusals have arrived in a row this
+        /// stops issuing requests altogether. See <see cref="RequestThrottle"/>; callers notice via
+        /// <see cref="HasGivenUp"/>.
         /// </summary>
         private async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
         {
+            if (throttle.HasGivenUp)
+            {
+                // Counted, because a request never sent is as unanswered as one that failed - and a
+                // library load that continued past this point would otherwise cache a miss for every
+                // remaining game. Not logged per request: the run that hit the limit already said so.
+                unansweredResponses++;
+
+                return null;
+            }
+
             try
             {
                 var uri = new Uri(url);
+
+                // Before the timeout clock starts, not inside it: the backoff can legitimately be
+                // longer than a request timeout, and waiting it out under the timeout token would
+                // cancel the wait rather than the request it is pacing
+                TimeSpan backoff = throttle.WaitBefore(DateTimeOffset.UtcNow);
+
+                if (backoff > TimeSpan.Zero)
+                {
+                    System.Diagnostics.Debug.WriteLine($"SteamGridDB asked us to wait; holding {backoff.TotalSeconds:F0}s");
+
+                    await Task.Delay(backoff, cancellationToken);
+                }
 
                 // Create a linked cancellation token source for timeout
                 using (var timeoutCts = new System.Threading.CancellationTokenSource(timeout))
@@ -363,10 +415,34 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
                     if (response.IsSuccessStatusCode)
                     {
+                        throttle.ObserveServed();
+
                         return await response.Content.ReadAsStringAsync().AsTask(linkedCts.Token);
+                    }
+                    else if (RequestThrottle.IsThrottled((int)response.StatusCode))
+                    {
+                        response.Headers.TryGetValue("Retry-After", out string retryAfter);
+                        throttle.ObserveThrottled(retryAfter, DateTimeOffset.UtcNow);
+                        unansweredResponses++;
+
+                        System.Diagnostics.Debug.WriteLine(
+                            $"SteamGridDB is rate limiting us: {response.StatusCode}, Retry-After: {retryAfter ?? "none"}"
+                            + $" ({throttle.Consecutive} in a row{(throttle.HasGivenUp ? ", giving up" : string.Empty)})");
                     }
                     else
                     {
+                        // A 404 or a bad request is the service answering, not refusing - it says
+                        // nothing about how often we are asking, so the streak starts over
+                        throttle.ObserveServed();
+
+                        // ...but only a 404 is an answer about the game. SteamGridDB returns one for a
+                        // game it does not carry, which is exactly the fact worth remembering; a 500 or
+                        // a bad gateway reaches the caller as the same null and must not be
+                        if ((int)response.StatusCode != 404)
+                        {
+                            unansweredResponses++;
+                        }
+
                         System.Diagnostics.Debug.WriteLine($"SteamGridDB API error: {response.StatusCode}");
                     }
                 }
@@ -385,6 +461,10 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
             catch (Exception ex)
             {
+                // A dead connection or a malformed URI - no answer, and swallowed rather than thrown,
+                // so this counter is the only trace of it the caller will ever see
+                unansweredResponses++;
+
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB API exception: {ex.Message}");
             }
 

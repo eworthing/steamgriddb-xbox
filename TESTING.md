@@ -55,8 +55,15 @@ Two consequences worth knowing:
   `GameEntry` and assign to it. What they *compute* - which games to visit, the progress line, the
   summary - is extracted and covered. What they *do* to the UI is not.
 - **Anything over the network.** `SteamGridDbClient` and most of `StoreNameLookup` call SteamGridDB,
-  GOG, Epic and Ubisoft. A test that did that would be grading their uptime. Only the pure part -
-  `NormaliseGameName` - is covered.
+  GOG, Epic and Ubisoft. A test that did that would be grading their uptime.
+
+  The pure parts are covered, and for the request-manners work they are covered deliberately rather
+  than incidentally. `RequestThrottle` decides how long to wait after a refusal and when to stop
+  asking altogether; `GameMatchCache` decides how long an answer is trusted; `ShouldRemember` decides
+  whether an answer may be cached at all. All three are promises made to somebody else's server,
+  which is exactly the kind that rots unnoticed - nothing in this app gets worse if the backoff quietly
+  stops working. Each takes its `now` as an argument so the whole decision is testable without a
+  clock, and the I/O left around them is a `Task.Delay` and an `HttpClient` call.
 - **Whether artwork looks right.** The ranker tests pin the ordering rules and the reasons behind
   them, not the aesthetic outcome. That is still graded by eye against a real library.
 

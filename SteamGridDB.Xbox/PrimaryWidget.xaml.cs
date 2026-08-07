@@ -1060,10 +1060,27 @@ namespace SteamGridDB.Xbox
                     FixLog.Write($"capsule parse: {note}");
                 }
 
+                // Set from inside the using below, because the summary is built after it closes
+                bool stoppedForThrottling = false;
+
                 using (SteamGridDbClient client = new SteamGridDbClient(steamGridDbApiKey))
                 {
                     foreach (GameEntry game in eligibleGames)
                     {
+                        // SteamGridDB has refused several requests in a row and the client has stopped
+                        // asking. Walking the rest of the library would make a request per game that
+                        // cannot be answered, which is the pattern the backoff exists to avoid - and
+                        // every one of them would be counted as an error, burying however many games
+                        // the run did fix under a wall of failures.
+                        if (client.HasGivenUp)
+                        {
+                            stoppedForThrottling = true;
+
+                            FixLog.Write($"stopped after {report.Started} of {report.Total}: SteamGridDB is rate limiting this client");
+
+                            break;
+                        }
+
                         try
                         {
                             // game.Name rather than DisplayName: this line has always shown "Unknown"
@@ -1177,7 +1194,9 @@ namespace SteamGridDB.Xbox
                 // The error count is always shown here, unlike the other operations: a fix that reports
                 // nothing about failures reads as a clean run when it may have touched almost nothing
                 await SetStatusAsync(OperationReport.Summary(
-                    $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database",
+                    stoppedForThrottling
+                        ? $"Fixing library stopped early - SteamGridDB is rate limiting; try again later. {successCount} updated so far"
+                        : $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database",
                     OperationReport.When(skippedCount, $"{skippedCount} skipped (unsupported platform)"),
                     OperationReport.Plural(errorCount, "error")));
             }

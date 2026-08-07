@@ -52,14 +52,60 @@ namespace SteamGridDB.Xbox.Services.Stores
         // A second long-lived client, separate from PrimaryWidget's artwork-download one: this one
         // only ever talks to the three store name-lookup endpoints below, and a Services/Stores type
         // should not reach back into the UI class for a shared instance.
-        private static readonly HttpClient httpClient = new HttpClient();
+        private static readonly HttpClient httpClient = CreateHttpClient();
+
+        private static HttpClient CreateHttpClient()
+        {
+            var client = new HttpClient();
+
+            AppIdentity.Identify(client.DefaultRequestHeaders);
+
+            return client;
+        }
+
+        /// <summary>
+        /// What a store said about a name, keeping "there is no such game" apart from "the store could
+        /// not be reached".
+        ///
+        /// The two used to be the same null, and the caches could only tell them apart by refusing to
+        /// remember either - so a game GOG or the Epic database genuinely does not carry was looked up
+        /// again on every single library load, forever, and always got the same answer. That is the
+        /// worst kind of request to repeat: guaranteed to be useless, and aimed at services that are
+        /// doing this app a favour by answering at all.
+        /// </summary>
+        internal readonly struct NameLookup
+        {
+            private NameLookup(string name, bool answered)
+            {
+                Name = name;
+                Answered = answered;
+            }
+
+            /// <summary>The name, or null when the store has none for this ID.</summary>
+            internal string Name { get; }
+
+            /// <summary>
+            /// Whether the store actually answered. False means the request failed, which is worth
+            /// retrying; true with a null <see cref="Name"/> is a real answer and worth remembering.
+            /// </summary>
+            internal bool Answered { get; }
+
+            /// <summary>The store answered, with a name or with nothing.</summary>
+            internal static NameLookup Answer(string name)
+            {
+                return new NameLookup(name, true);
+            }
+
+            /// <summary>The store could not be reached, or failed in a way that may not repeat.</summary>
+            internal static NameLookup Unavailable => new NameLookup(null, false);
+        }
 
         /// <summary>
         /// Fetches game name from GOG API by GOG ID.
         /// </summary>
         /// <param name="gogId">The GOG game ID</param>
-        /// <returns>Game name or null if not found</returns>
-        internal static async Task<string> GetGogGameNameAsync(string gogId)
+        /// <returns>What GOG said - see <see cref="NameLookup"/>.</returns>
+        internal static async Task<NameLookup> GetGogGameNameAsync(string gogId)
         {
             try
             {
@@ -75,16 +121,27 @@ namespace SteamGridDB.Xbox.Services.Stores
                         JsonObject embedded = JsonRead.Object(gameData, "_embedded");
                         JsonObject product = JsonRead.Object(embedded, "product");
 
-                        return JsonRead.String(product, "title");
+                        // A parsed body with no title is still an answer: GOG has this product and it
+                        // has no name we can use, which asking again will not change
+                        return NameLookup.Answer(JsonRead.String(product, "title"));
                     }
+
+                    // A 200 that will not parse is not an answer about the game
+                    return NameLookup.Unavailable;
                 }
+
+                // Only "no such product" is a fact about the game. A 429, a 500 or a gateway error is
+                // a fact about GOG's afternoon, and caching it would make this ID permanently nameless
+                return response.StatusCode == HttpStatusCode.NotFound
+                    ? NameLookup.Answer(null)
+                    : NameLookup.Unavailable;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error fetching GOG game name for {gogId}: {ex.Message}");
-            }
 
-            return null;
+                return NameLookup.Unavailable;
+            }
         }
 
         /// <summary>
@@ -101,27 +158,31 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <summary>
         /// Shared check-then-populate skeleton for <see cref="GetOrFetchGogNameAsync"/> and
         /// <see cref="GetOrFetchEpicNameAsync"/>: try the cache unlocked, await the store's own gate,
-        /// re-check under the gate, fetch, and cache only a non-empty result. An empty cached value is
-        /// treated the same as a miss and retried - the cache is only ever written on a successful
-        /// fetch here, so this only matters if that invariant is ever relaxed.
+        /// re-check under the gate, fetch, and cache whatever the store actually answered.
+        ///
+        /// A cached null is a remembered "this store has no name for that ID", not an empty slot. That
+        /// is the whole point of <see cref="NameLookup"/>: caching only non-empty names, as this did
+        /// before, meant every genuine miss was re-fetched on every library load for the life of the
+        /// install. Presence in the dictionary is now the cache hit, so the check is
+        /// <c>TryGetValue</c> alone rather than <c>TryGetValue</c> plus a non-empty test.
         ///
         /// The re-check inside the gate is the same double-checked shape
         /// <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/> uses: two callers can both pass the first,
         /// unlocked check while a fetch for the same key is already in flight, and only the second
         /// caller's own re-check under the gate stops it from fetching and writing the same key again.
         ///
-        /// <see cref="FindGameByNameAsync"/> is deliberately NOT routed through this: its cached value
-        /// is an int where 0 is a valid, cacheable "genuine miss" - folding it in here would risk
-        /// caching a failed request the same way a genuine miss is cached, or vice versa.
+        /// <see cref="FindGameByNameAsync"/> is still deliberately NOT routed through this: its cached
+        /// value is an int rather than a string, and what makes its answer trustworthy is a check on
+        /// the SteamGridDB client's unanswered-request counter that has no analogue for GOG or Epic.
         /// </summary>
         /// <param name="cache">The store's own name cache.</param>
         /// <param name="gate">The store's own dedicated gate.</param>
         /// <param name="key">Cache key.</param>
         /// <param name="fetch">Fetches the name when neither check finds a cached value.</param>
-        /// <returns>Cached or freshly fetched name, or null when neither has one.</returns>
-        private static async Task<string> GetOrFetchNameAsync(Dictionary<string, string> cache, SemaphoreSlim gate, string key, Func<Task<string>> fetch)
+        /// <returns>Cached or freshly fetched name, or null when the store has none.</returns>
+        private static async Task<string> GetOrFetchNameAsync(Dictionary<string, string> cache, SemaphoreSlim gate, string key, Func<Task<NameLookup>> fetch)
         {
-            if (cache.TryGetValue(key, out string cached) && !string.IsNullOrEmpty(cached))
+            if (cache.TryGetValue(key, out string cached))
             {
                 return cached;
             }
@@ -130,19 +191,19 @@ namespace SteamGridDB.Xbox.Services.Stores
 
             try
             {
-                if (cache.TryGetValue(key, out cached) && !string.IsNullOrEmpty(cached))
+                if (cache.TryGetValue(key, out cached))
                 {
                     return cached;
                 }
 
-                string name = await fetch();
+                NameLookup looked = await fetch();
 
-                if (!string.IsNullOrEmpty(name))
+                if (looked.Answered)
                 {
-                    cache[key] = name;
+                    cache[key] = looked.Name;
                 }
 
-                return name;
+                return looked.Name;
             }
             finally
             {
@@ -180,6 +241,7 @@ namespace SteamGridDB.Xbox.Services.Stores
                 }
 
                 int found = 0;
+                int unansweredBefore = client.UnansweredResponses;
 
                 try
                 {
@@ -193,7 +255,14 @@ namespace SteamGridDB.Xbox.Services.Stores
                         }
                     }
 
-                    nameMatchCache[wanted] = found;
+                    // A search that was refused or failed comes back as an empty result list, not an
+                    // exception, so the catch below does not see it - and an empty list is exactly
+                    // what a genuine miss looks like. Caching one would make a moment of rate limiting
+                    // into a game that stays unmatched for the rest of the session.
+                    if (client.UnansweredResponses == unansweredBefore)
+                    {
+                        nameMatchCache[wanted] = found;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -226,8 +295,8 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// Keyed by catalog item ID, not by the appName SteamGridDB wants.
         /// </summary>
         /// <param name="epicId">Epic catalog item ID.</param>
-        /// <returns>Game name, or null when the database does not have it.</returns>
-        internal static async Task<string> GetEpicGameNameAsync(string epicId)
+        /// <returns>What the database said - see <see cref="NameLookup"/>.</returns>
+        internal static async Task<NameLookup> GetEpicGameNameAsync(string epicId)
         {
             try
             {
@@ -240,16 +309,25 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                     if (JsonObject.TryParse(jsonContent, out JsonObject gameData))
                     {
-                        return JsonRead.String(gameData, "title");
+                        return NameLookup.Answer(JsonRead.String(gameData, "title"));
                     }
+
+                    return NameLookup.Unavailable;
                 }
+
+                // The database is a directory of files in a git repository, so a 404 is simply "not in
+                // it" - the flat, permanent answer worth remembering. GitHub's own rate limiting and
+                // outages come back as other codes and must not be
+                return response.StatusCode == HttpStatusCode.NotFound
+                    ? NameLookup.Answer(null)
+                    : NameLookup.Unavailable;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error fetching Epic game name for {epicId}: {ex.Message}");
-            }
 
-            return null;
+                return NameLookup.Unavailable;
+            }
         }
 
         /// <summary>
@@ -267,8 +345,15 @@ namespace SteamGridDB.Xbox.Services.Stores
             // cover games the online database does not. The database is keyed by catalog item ID, not
             // by the appName SteamGridDB wants.
             return GetOrFetchNameAsync(epicNameCache, epicNameGate, appName, async () =>
-                await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId)
-                    ?? await GetEpicGameNameAsync(catalogItemId ?? appName));
+            {
+                string installed = await EpicLibrary.GetDisplayNameAsync(appName, catalogItemId);
+
+                // A local manifest that names the game is as answered as an answer gets - no request
+                // is made at all, and the file is not going to say something different next time
+                return string.IsNullOrEmpty(installed)
+                    ? await GetEpicGameNameAsync(catalogItemId ?? appName)
+                    : NameLookup.Answer(installed);
+            });
         }
 
         /// <summary>
