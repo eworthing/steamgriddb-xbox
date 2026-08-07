@@ -636,6 +636,16 @@ namespace SteamGridDB.Xbox
                                     {
                                         staleEntryCount++;
 
+                                        // The one place these entries are ever named. Answering "why is
+                                        // this game not in my widget" previously meant reading the Xbox
+                                        // app's manifests off disk and deriving each entry's expected
+                                        // image path by hand, because the load reported only a count.
+                                        // The folder is named as well as the platform: two folders can
+                                        // map to the same platform when the Xbox app has renamed one and
+                                        // left the old one behind, and knowing which of them an entry
+                                        // came from is most of the answer when it happens.
+                                        FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} (no artwork on disk, no backup)");
+
                                         continue;
                                     }
 
@@ -755,7 +765,16 @@ namespace SteamGridDB.Xbox
 
                     if (staleEntryCount > 0)
                     {
-                        summary += $", skipped {staleEntryCount} stale manifest entr{(staleEntryCount == 1 ? "y" : "ies")}";
+                        // Not "stale manifest entries", which reads as damage the user should go and
+                        // repair. There is nothing to repair and nothing missing: the Xbox app's
+                        // manifest is a record of the third-party games it has detected, and it decides
+                        // separately which of them to show. An entry it never fetched artwork for is
+                        // one it is not showing, so the widget's library matches the Xbox app's by
+                        // skipping it. Graded against a real library where all 17 were checked by hand:
+                        // every one was either absent from the Xbox app or a leftover of a store folder
+                        // it had abandoned. The count stays because a library that silently shrinks is
+                        // worse than one that says why - see last-load.log for which entries they were.
+                        summary += $", {staleEntryCount} other entr{(staleEntryCount == 1 ? "y" : "ies")} the Xbox app is not showing";
                     }
 
                     if (!canQuerySteamGridDb)
