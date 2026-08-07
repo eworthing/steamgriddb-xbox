@@ -167,7 +167,30 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
-        public async Task Missing_image_with_no_backup_is_stale()
+        public async Task Missing_image_with_a_saved_customisation_keeps_the_row()
+        {
+            // The state thirteen games on the graded library were in: image gone, backup gone, and the
+            // artwork the user had chosen sitting beside them untouched. Dropping the row hid both the
+            // game and the only copy of that artwork; keeping it lets Restore my changes write it back.
+            using (var temp = new TempFolder())
+            {
+                await temp.WriteAsync("gog_1234567890.new", "the artwork the user chose");
+
+                ManifestEntryImage.Result? result = await ManifestEntryImage.ResolveAsync(
+                    Parse("{}"), GamePlatform.GOG, "gog:1234567890", temp.Folder, thirdPartyLibrariesPath, imageExtension);
+
+                Assert.NotNull(result);
+                Assert.Equal("Not found", result.Value.ImageFileName);
+                Assert.Null(result.Value.ExistingImageFile);
+
+                // No backup, so reverting to the Xbox app's own artwork is genuinely not available -
+                // the row is kept for the customisation, and must not claim otherwise
+                Assert.False(result.Value.HasBackup);
+            }
+        }
+
+        [Fact]
+        public async Task Missing_image_with_no_backup_and_no_customisation_is_stale()
         {
             using (var temp = new TempFolder())
             {

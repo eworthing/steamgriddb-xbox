@@ -121,7 +121,16 @@ namespace SteamGridDB.Xbox.Services.Library
             }
             catch (FileNotFoundException)
             {
-                if (!hasBackup)
+                // A saved customisation is as much a reason to keep the row as a backup is, and on the
+                // graded library it was the only reason left for thirteen games: every one had its
+                // image and its backup gone while the artwork the user had chosen sat beside them
+                // untouched, and every one was invisible in the widget and in the Xbox app. Keeping
+                // them lets Restore my changes write that artwork back - which it can, because
+                // ReapplyCustomisationAsync creates the image rather than requiring one.
+                //
+                // Asked only here, in the branch where the image is already known to be missing, so a
+                // library whose images are all present pays nothing for it.
+                if (!hasBackup && !await ArtworkFiles.HasSavedCustomisationAsync(imageFolder, imageFileName))
                 {
                     // Nothing on disk for this entry: either a game the Xbox app removed but left in the
                     // manifest, or one of the legacy store folders it abandoned (their images use a
@@ -129,7 +138,7 @@ namespace SteamGridDB.Xbox.Services.Library
                     return null;
                 }
 
-                // Image is gone but the backup is not - keep the row so it can be restored
+                // Image is gone but something to act on is not - keep the row so it can be restored
                 return new Result(imageFilePath, imageFolder, "Not found", hasBackup, null);
             }
         }

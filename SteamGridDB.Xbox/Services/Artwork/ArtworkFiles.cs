@@ -104,6 +104,29 @@ namespace SteamGridDB.Xbox.Services.Artwork
         }
 
         /// <summary>
+        /// Whether this image has a saved customisation, and so can have it put back.
+        ///
+        /// The counterpart to <see cref="HasBackupAsync"/>, and the reason both are asked: they are the
+        /// two independent ways an entry can still be worth showing when its image has gone. A backup
+        /// means the Xbox app's own artwork can be restored; a saved customisation means the user's
+        /// chosen artwork can be. Either is something to act on, and neither implies the other - the
+        /// two files are written at different moments and removed by different things.
+        /// </summary>
+        internal static async Task<bool> HasSavedCustomisationAsync(StorageFolder folder, string imageFileName)
+        {
+            try
+            {
+                await folder.GetFileAsync(CustomisedNameFor(imageFileName));
+
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Writes artwork over a game's image, preserving the Xbox app's original the first time.
         /// </summary>
         /// <param name="folder">The Xbox app's image folder for this game.</param>
