@@ -1032,14 +1032,28 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
-                // Eligible: there is a match in SteamGridDB and, unless re-fixing, no backup yet
-                List<GameEntry> eligibleGames = GamesToProcess(g => g.HasSteamGridDBMatch && (refixCustomised || !g.HasBackup));
+                // Eligible: there is a match in SteamGridDB, it is not one of the Xbox app's own games,
+                // and, unless re-fixing, there is no backup yet. See FixEligibility for why the Xbox
+                // app's own games are left alone by the bulk runs.
+                List<GameEntry> eligibleGames = GamesToProcess(g =>
+                    FixEligibility.ShouldFix(g.HasSteamGridDBMatch, g.IsXboxTile, g.HasBackup, refixCustomised));
+
+                // Counted from the same deduplicated set the run itself walks, so a first-party game
+                // listed under several stale manifest entries is one game here as well
+                int firstPartyCount = GamesToProcess(g =>
+                    FixEligibility.SkippedAsFirstParty(g.HasSteamGridDBMatch, g.IsXboxTile, g.HasBackup, refixCustomised)).Count;
+
+                string firstPartyClause = OperationReport.When(
+                    firstPartyCount,
+                    $"{firstPartyCount} Xbox app {(firstPartyCount == 1 ? "game" : "games")} left alone (they already have the Store's own artwork)");
 
                 if (eligibleGames.Count == 0)
                 {
-                    await SetStatusAsync(refixCustomised
-                        ? "No eligible artworks to fix (no games have a match in SteamGridDB)"
-                        : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)");
+                    await SetStatusAsync(OperationReport.Summary(
+                        refixCustomised
+                            ? "No eligible artworks to fix (no games have a match in SteamGridDB)"
+                            : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)",
+                        firstPartyClause));
 
                     return;
                 }
@@ -1198,6 +1212,7 @@ namespace SteamGridDB.Xbox
                         ? $"Fixing library stopped early - SteamGridDB is rate limiting; try again later. {successCount} updated so far"
                         : $"Fixing library is complete: {successCount} updated, {notFoundCount} had no artwork in the database",
                     OperationReport.When(skippedCount, $"{skippedCount} skipped (unsupported platform)"),
+                    firstPartyClause,
                     OperationReport.Plural(errorCount, "error")));
             }
             catch (Exception ex)
