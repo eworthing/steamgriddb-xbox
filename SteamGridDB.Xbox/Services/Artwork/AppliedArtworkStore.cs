@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -112,6 +113,38 @@ namespace SteamGridDB.Xbox.Services.Artwork
             await UpdateAsync(map => map.Remove(Key(imageFilePath)));
         }
 
+        /// <summary>
+        /// Forgets every record the caller judges orphaned.
+        ///
+        /// The predicate decides; this only owns the walk and the write. That split is deliberate -
+        /// the judgement is about which images still belong to a game, which is
+        /// <see cref="Xbox.XboxTiles.IsOrphanedRecord"/>'s business and is covered on its own, while
+        /// this side is the locking and the file that a bulk removal must not get wrong.
+        ///
+        /// A sweep that finds nothing does not write. This runs on every library load, and rewriting an
+        /// untouched record each time would be a pointless chance to corrupt it.
+        /// </summary>
+        /// <param name="isOrphaned">Given a record's key, whether it should go.</param>
+        internal static async Task ForgetWhereAsync(Func<string, bool> isOrphaned)
+        {
+            if (isOrphaned == null)
+            {
+                return;
+            }
+
+            await UpdateAsync(map =>
+            {
+                List<string> orphaned = map.Keys.Where(isOrphaned).ToList();
+
+                foreach (string key in orphaned)
+                {
+                    map.Remove(key);
+                }
+
+                return orphaned.Count > 0;
+            });
+        }
+
         private static string Key(string imageFilePath)
         {
             return imageFilePath.ToLowerInvariant();
@@ -150,7 +183,19 @@ namespace SteamGridDB.Xbox.Services.Artwork
             return map;
         }
 
-        private static async Task UpdateAsync(Action<Dictionary<string, int>> change)
+        private static Task UpdateAsync(Action<Dictionary<string, int>> change)
+        {
+            return UpdateAsync(map =>
+            {
+                change(map);
+
+                return true;
+            });
+        }
+
+        /// <param name="change">Mutates the map, returning whether it actually changed anything -
+        /// false skips the write entirely.</param>
+        private static async Task UpdateAsync(Func<Dictionary<string, int>, bool> change)
         {
             Dictionary<string, int> map = await appliedCache.GetOrLoadAsync();
 
@@ -158,7 +203,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             try
             {
-                change(map);
+                if (!change(map))
+                {
+                    return;
+                }
 
                 var root = new JsonObject();
 

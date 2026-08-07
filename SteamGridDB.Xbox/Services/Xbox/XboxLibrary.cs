@@ -99,6 +99,10 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             int discovered = await DiscoverAsync(cacheFolder, undiscovered, games);
 
+            // After discovery, so a game whose renditions were located on this very load counts as
+            // claiming them rather than being swept for not having claimed them yet
+            await ForgetOrphanedArtworkRecordsAsync(cacheFolder);
+
             LoadSummary = $"{games.Count} of {products.Count} game{(products.Count == 1 ? string.Empty : "s")} located"
                 + $" ({discovered} newly discovered); {XboxInstalledGames.LoadSummary}";
 
@@ -163,6 +167,34 @@ namespace SteamGridDB.Xbox.Services.Xbox
             }
 
             return surviving;
+        }
+
+        /// <summary>
+        /// Drops applied-artwork records for cached images no game claims any more.
+        ///
+        /// <see cref="XboxTiles.ForgetArtworkRecordsAsync"/> covers the two cases reachable from a game
+        /// - a rendition that left its set, and a game with no backup - but both start from a game and
+        /// walk to its renditions. A record whose image belongs to no game at all is reachable from
+        /// neither, because nothing enumerates it; the only way to find one is to walk the records
+        /// instead. That is what this does, once per load, over a file with as many entries as the user
+        /// has customised games.
+        /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
+        private static async Task ForgetOrphanedArtworkRecordsAsync(StorageFolder cacheFolder)
+        {
+            HashSet<string> tracked = await XboxTileStore.AllRenditionsAsync();
+
+            // Nothing known is not the same as nothing claimed. A tile record that failed to load would
+            // otherwise make every first-party record look orphaned on the same pass - see
+            // XboxTiles.IsOrphanedRecord, which refuses an empty set for the same reason. Checked here
+            // as well so the walk is not even started.
+            if (tracked.Count == 0)
+            {
+                return;
+            }
+
+            await AppliedArtworkStore.ForgetWhereAsync(
+                key => XboxTiles.IsOrphanedRecord(key, cacheFolder.Path, tracked));
         }
 
         /// <summary>

@@ -222,6 +222,52 @@ namespace SteamGridDB.Xbox.Services.Xbox
         }
 
         /// <summary>
+        /// Whether an applied-artwork record names a cached image no game claims, and so describes
+        /// nothing at all.
+        ///
+        /// The two rules in <see cref="ForgetArtworkRecordsAsync"/> both work forwards from a game to
+        /// its renditions, which is why neither reaches a record whose file has stopped being any
+        /// game's rendition: nothing enumerates it any more, so nothing thinks to clear it. This is
+        /// the reverse direction - start from the record and ask whether anything still claims it.
+        ///
+        /// Two guards keep it from over-reaching, and both matter more than the rule itself:
+        ///
+        /// <list type="bullet">
+        /// <item>only records inside the Xbox app's image cache are judged. Third-party records live
+        /// under ThirdPartyLibraries and are none of this method's business - it has no idea what
+        /// accounts for those, and a rule that guesses would delete them all.</item>
+        /// <item>an empty set of tracked renditions means "nothing known", never "nothing claimed".
+        /// A damaged or missing tile record would otherwise make every first-party record look
+        /// orphaned at once, which is the one way this could do real harm.</item>
+        /// </list>
+        /// </summary>
+        /// <param name="recordKey">An applied-artwork key - the full path of the image it describes.</param>
+        /// <param name="cacheFolderPath">The Xbox app's image cache folder.</param>
+        /// <param name="trackedRenditions">Every cached image some game claims; empty means unknown.</param>
+        internal static bool IsOrphanedRecord(string recordKey, string cacheFolderPath, ISet<string> trackedRenditions)
+        {
+            if (string.IsNullOrEmpty(recordKey)
+                || string.IsNullOrEmpty(cacheFolderPath)
+                || trackedRenditions == null
+                || trackedRenditions.Count == 0)
+            {
+                return false;
+            }
+
+            // The record's key is lowercased on the way in and the folder's path is not, so neither
+            // side of this can be compared as written
+            if (!string.Equals(
+                Path.GetDirectoryName(recordKey),
+                cacheFolderPath.TrimEnd(Path.DirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return !trackedRenditions.Contains(Path.GetFileName(recordKey));
+        }
+
+        /// <summary>
         /// The pixel size of a cached rendition, or 0 when it is gone or unreadable.
         /// </summary>
         private static async Task<int> RenditionSizeAsync(StorageFolder cacheFolder, string fileName)

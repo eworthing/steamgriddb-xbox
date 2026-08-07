@@ -102,6 +102,40 @@ namespace SteamGridDB.Xbox.Services.Xbox
         }
 
         /// <summary>
+        /// Every cached image this record claims, across all games it knows - installed or not.
+        ///
+        /// Deliberately the whole record rather than the games a load happened to find. A game the
+        /// Xbox app has since uninstalled keeps its entry here, and its renditions are still this
+        /// widget's: the only caller uses this to decide which images are <em>not</em> accounted for,
+        /// and answering that from the installed subset would call an uninstalled game's tiles unknown.
+        /// </summary>
+        internal static async Task<HashSet<string>> AllRenditionsAsync()
+        {
+            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
+
+            await gate.WaitAsync();
+
+            try
+            {
+                var all = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var pair in map)
+                {
+                    foreach (string fileName in pair.Value)
+                    {
+                        all.Add(fileName);
+                    }
+                }
+
+                return all;
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
+        /// <summary>
         /// Records the cached images making up a game's tile.
         /// </summary>
         /// <param name="storeId">The game's Microsoft Store product ID.</param>
