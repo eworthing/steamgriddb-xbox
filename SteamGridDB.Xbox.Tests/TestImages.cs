@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -97,6 +98,45 @@ namespace SteamGridDB.Xbox.Tests
         internal static Task<IBuffer> SolidColorPngAsync(byte r, byte g, byte b, int width = 32, int height = 32)
         {
             return FromPixelsAsync(width, height, (x, y) => (B: b, G: g, R: r, A: (byte)255));
+        }
+
+        /// <summary>
+        /// A PNG carrying the storefront badge <see cref="BadgeOverlay"/> looks for, painted from that
+        /// class's own reference over an otherwise plain image.
+        ///
+        /// Sized to <see cref="BadgeOverlay.ScaledSize"/> exactly so the decode does no scaling: a
+        /// resample would blur the badge's hard edges and the test would be measuring the interpolator
+        /// rather than the check. Real artwork is 512 or 1024 square and does get scaled, which is why
+        /// the limit sits far from the badge's own distance rather than beside it.
+        /// </summary>
+        /// <param name="badged">Whether to paint the badge at all; false gives the same image without it.</param>
+        internal static Task<IBuffer> BadgedPngAsync(bool badged = true)
+        {
+            int size = (int)BadgeOverlay.ScaledSize;
+            var badge = new Dictionary<int, (byte R, byte G, byte B)>();
+
+            foreach (uint packed in BadgeOverlay.Reference)
+            {
+                badge[(int)(packed >> 24)] = (
+                    R: (byte)((packed >> 16) & 0xFF),
+                    G: (byte)((packed >> 8) & 0xFF),
+                    B: (byte)(packed & 0xFF));
+            }
+
+            return FromPixelsAsync(size, size, (x, y) =>
+            {
+                if (badged && x < BadgeOverlay.CornerSize && y < BadgeOverlay.CornerSize
+                    && badge.TryGetValue((y * BadgeOverlay.CornerSize) + x, out var colour))
+                {
+                    return (B: colour.B, G: colour.G, R: colour.R, A: (byte)255);
+                }
+
+                // Deliberately not flat - artwork the badge sits on is never flat, and a flat
+                // background would let an indexing mistake read a neighbouring pixel and still pass
+                byte level = (byte)(((x * 7) + (y * 13)) % 256);
+
+                return (B: level, G: (byte)(255 - level), R: (byte)((level + 128) % 256), A: (byte)255);
+            });
         }
 
         /// <summary>

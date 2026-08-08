@@ -27,6 +27,7 @@ Three evidence sources, all reproducible:
 | §4.6 request-side filters | **implemented** — no behaviour change, by design |
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
 | §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
+| §4.6c corner-badge pixel check | **implemented** — 51 of 858 flagged, 0 false positives, 8 picks moved |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -554,6 +555,58 @@ Still out of reach of any vocabulary, and visible in the same candidate set: `17
 **GOLD EDITION** printed across the art with an empty notes field, and `681879` carries a PC/Windows
 spine with no notes at all. Catching those needs an edge-spine detector, not more words — related to
 §4.8, and unevidenced for now.
+
+### 4.6c The badge that has no notes at all — IMPLEMENTED as a pixel check
+
+Reported from the Xbox app: a Steam roundel burned into the corner of Rayman Legends, Risk of Rain 2,
+OlliOlli World, Plants vs. Zombies GOTY, Slay the Spire, Tabletop Simulator, REMATCH and PEAK.
+
+§4.6a and §4.6b both work by reading what the uploader wrote. **These say nothing.** One uploader has
+41 covers in the test library, in a single contiguous ID block, every notes field empty, every one
+carrying the same composited overlay. Two more uploaders do the same. No vocabulary can reach this,
+and the official-artwork gate rates it *highly* — the art under the badge is the real cover.
+
+Two vaguer measures were tried against the library first and are worth recording as failures:
+
+| measure | result |
+| --- | --- |
+| contrast-normalised corner template correlation | recall 37%, and it scored the reported Rayman Legends case 0.57 — a miss |
+| "corner is a flat colour absent from the middle" | no separation at all; clean artwork scored **higher** than badged artwork, because most cover art has a flat corner |
+
+What works is exploiting the one property a composited overlay has: it is bit-for-bit identical no
+matter what is underneath. Averaging the badged corners and measuring per-pixel spread *across
+different games* separates the overlay (constant) from the art showing past it (not), which derives
+the mask from the data instead of drawing it by hand. `BadgeOverlay` then measures mean per-channel
+distance to that reference over those pixels only.
+
+Measured through the app's own decoder on full-size artwork:
+
+```
+badged   n=25  max  2.55   mean  2.44
+clean    n=60  min 36.09   mean 94.57      limit 10.0
+```
+
+Half the badged set built the reference and half was held out; held-out artwork scores no worse. The
+check found badge uploads from two uploaders it was never shown, which is the only evidence that it
+generalises past the batch it was fitted on. Over 858 library candidates it flags 51, and all 51 were
+confirmed badged by eye — no false positives.
+
+It lives in `ArtworkDownloader`, not in `ArtworkRanker`: ranking has no pixels, and the downloader
+already walks candidates in rank order decoding each one. A badged candidate is skipped the way one
+that fails the tile-fill check is, and the same fallback applies — if every candidate in reach carries
+a badge, the best-ranked is still written, because a badged cover beats no tile. The gate consults it
+too, for the same reason it consults `IsDemotedGrid`.
+
+Effect: **8 of 189 picks move, all to rank 2**, so it costs one extra download on the games it fires
+on and nothing on the rest.
+
+Known limit: it recognises one overlay family. Far Cry 6's PS4 cover measures 36.09 against this
+reference — correctly, it is a different badge. Extending means adding references, each derived the
+same way; the mask-from-variance method is the reusable part, not the table.
+
+An uploader blocklist was considered first and reaches the same 8 picks on this library. It was
+rejected: it names people rather than describing artwork, and it cannot generalise — the pixel check
+found the other two uploaders on its own.
 
 ### 4.7 Record the applied artwork ID — IMPLEMENTED
 

@@ -97,6 +97,17 @@ namespace SteamGridDB.Xbox.Services.Artwork
                     fallbackId = rankedGrids[i].Id;
                 }
 
+                // Storefront badges live here rather than in the ranking because the ranking has no
+                // pixels, and this is the only pass that decodes candidates in rank order anyway.
+                // Kept out of the fallback above deliberately: a badged cover still beats no tile,
+                // so if every candidate in reach carries one the best-ranked is written as before.
+                if (await BadgeOverlay.CarriesBadgeAsync(imageBytes))
+                {
+                    FixLog.Write($"  {rankedGrids[i].Id}: storefront badge in the corner - skipped");
+
+                    continue;
+                }
+
                 if (await TileImage.FillsTileAsync(imageBytes))
                 {
                     (IBuffer Bytes, int ArtworkId) replacement = await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl);
@@ -178,6 +189,16 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 if (candidate == null)
                 {
                     FixLog.Write($"    {rankedGrids[i].Id}: unreadable");
+
+                    continue;
+                }
+
+                // The same reason the demotion check above is here: this gate rates a badged cover
+                // highly precisely because the art under the badge is the real cover, so without
+                // this it would reach past a clean candidate to promote a badged one.
+                if (await BadgeOverlay.CarriesBadgeAsync(candidateBytes))
+                {
+                    FixLog.Write($"    {rankedGrids[i].Id}: storefront badge in the corner - rejected");
 
                     continue;
                 }
