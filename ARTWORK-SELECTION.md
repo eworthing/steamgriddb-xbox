@@ -27,7 +27,7 @@ Three evidence sources, all reproducible:
 | §4.6 request-side filters | **implemented** — no behaviour change, by design |
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
 | §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
-| §4.6c corner-badge pixel check | **implemented** — 51 of 858 flagged, 0 false positives, 8 picks moved |
+| §4.6c corner-badge pixel check | **implemented** — 4 renderings, 64 of 861 flagged, 0 false positives |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -579,17 +579,25 @@ different games* separates the overlay (constant) from the art showing past it (
 the mask from the data instead of drawing it by hand. `BadgeOverlay` then measures mean per-channel
 distance to that reference over those pixels only.
 
-Measured through the app's own decoder on full-size artwork:
+One reference per **rendering**, not per badge design — the hardest-won part. The dark tab is drawn
+by several uploaders at slightly different scales, and a reference averaged across them matches any
+dark corner: one such fit claimed 226 of 861 candidates. Fitted per rendering, the same images
+separate by a factor of thirty.
 
-```
-badged   n=25  max  2.55   mean  2.44
-clean    n=60  min 36.09   mean 94.57      limit 10.0
-```
+| reference | flags | worst flagged | nearest unflagged |
+| --- | --- | --- | --- |
+| SteamTabLight | 50 | 0.8 | 29.8 |
+| SteamTabDarkA | 10 | 0.6 | 30.5 |
+| SteamTabDarkB | 2 | 0.9 | 24.9 |
+| SteamTabDarkC | 2 | 0.0 | 23.6 |
 
-Half the badged set built the reference and half was held out; held-out artwork scores no worse. The
-check found badge uploads from two uploaders it was never shown, which is the only evidence that it
-generalises past the batch it was fitted on. Over 858 library candidates it flags 51, and all 51 were
-confirmed badged by eye — no false positives.
+64 of 861 flagged, all confirmed badged by eye. Measured again through the app's own decoder on
+full-size artwork rather than thumbnails: 64 badged max **3.95**, 120 clean min **30.54**, limit
+**10.0** — no misses, no false positives.
+
+`SteamTabLight` was fitted on half its set with the other half held out, which scores no worse, and
+it went on to find badge uploads from two uploaders it had never been shown. That is the only
+evidence any of this generalises past the batch it was fitted on.
 
 It lives in `ArtworkDownloader`, not in `ArtworkRanker`: ranking has no pixels, and the downloader
 already walks candidates in rank order decoding each one. A badged candidate is skipped the way one
@@ -598,11 +606,19 @@ a badge, the best-ranked is still written, because a badged cover beats no tile.
 too, for the same reason it consults `IsDemotedGrid`.
 
 Effect: **8 of 189 picks move, all to rank 2**, so it costs one extra download on the games it fires
-on and nothing on the rest.
+on and nothing on the rest. Two more games outside that replay's corpus also move — Stumble Guys
+(725323 at rank 1) and Vampire Survivors (689258 at rank 2, which the tile-fill check had reached).
 
-Known limit: it recognises one overlay family. Far Cry 6's PS4 cover measures 36.09 against this
-reference — correctly, it is a different badge. Extending means adding references, each derived the
-same way; the mask-from-variance method is the reusable part, not the table.
+**Adding a rendering is a measurement, not a tuning exercise.** Grow the group from a reported
+upload, confirm the members by eye, average them, keep the pixels whose spread across different
+games is lowest. A group whose members do not then sit far below the limit is not one rendering and
+must be split. Three fits were rejected this way before the dark tab came out as three renderings
+rather than one.
+
+Known limit: only the Steam tab is described. A clustering pass over the library found the rest as
+their own renderings — the PlayStation and Xbox spines (Far Cry 6's set, which measures 36.09 against
+the Steam references, correctly), Epic, LEGO, Play Store, Xbox 360, "PlayStation Hits" and Nintendo
+Switch. None is described yet.
 
 An uploader blocklist was considered first and reaches the same 8 picks on this library. It was
 rejected: it names people rather than describing artwork, and it cannot generalise — the pixel check

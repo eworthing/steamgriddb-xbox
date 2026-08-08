@@ -110,12 +110,13 @@ namespace SteamGridDB.Xbox.Tests
         /// the limit sits far from the badge's own distance rather than beside it.
         /// </summary>
         /// <param name="badged">Whether to paint the badge at all; false gives the same image without it.</param>
-        internal static Task<IBuffer> BadgedPngAsync(bool badged = true)
+        /// <param name="rendering">Which of <see cref="BadgeOverlay.Renderings"/> to paint.</param>
+        internal static Task<IBuffer> BadgedPngAsync(bool badged = true, int rendering = 0)
         {
             int size = (int)BadgeOverlay.ScaledSize;
             var badge = new Dictionary<int, (byte R, byte G, byte B)>();
 
-            foreach (uint packed in BadgeOverlay.Reference)
+            foreach (uint packed in BadgeOverlay.Renderings[rendering])
             {
                 badge[(int)(packed >> 24)] = (
                     R: (byte)((packed >> 16) & 0xFF),

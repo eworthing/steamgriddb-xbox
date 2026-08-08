@@ -23,16 +23,36 @@ namespace SteamGridDB.Xbox.Tests
     {
         // ---- BadgeDistance ----
 
-        [Fact]
-        public async Task Artwork_painted_with_the_badge_measures_essentially_zero()
+        [Theory]
+        [InlineData(0)]
+        [InlineData(1)]
+        [InlineData(2)]
+        [InlineData(3)]
+        public async Task Artwork_painted_with_any_known_rendering_is_flagged(int rendering)
         {
-            // Pins the unpacking and the stride together: the reference indexes a 16-wide corner but
+            // Pins the unpacking and the stride together: a rendering indexes a 16-wide corner but
             // addresses a 64-wide buffer, so reading a row at the wrong pitch lands on artwork - and
             // the painted background is deliberately noisy, so that would show up as a large distance
-            // rather than passing on a flat neighbour.
-            IBuffer badged = await TestImages.BadgedPngAsync();
+            // rather than passing on a flat neighbour. Run over every rendering so a table added later
+            // with a malformed index cannot go unnoticed.
+            IBuffer badged = await TestImages.BadgedPngAsync(rendering: rendering);
 
             Assert.True(await BadgeOverlay.CarriesBadgeAsync(badged));
+        }
+
+        [Fact]
+        public void Every_rendering_is_described_and_indexable()
+        {
+            // A table is only meaningful if its indices address the corner it claims to describe, and
+            // a rendering with too few pixels would measure noise.
+            Assert.NotEmpty(BadgeOverlay.Renderings);
+
+            foreach (uint[] rendering in BadgeOverlay.Renderings)
+            {
+                Assert.True(rendering.Length >= 32, "a rendering needs enough pixels to be a badge");
+                Assert.All(rendering, packed =>
+                    Assert.InRange((int)(packed >> 24), 0, (BadgeOverlay.CornerSize * BadgeOverlay.CornerSize) - 1));
+            }
         }
 
         [Fact]
@@ -55,22 +75,28 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
-        public void Distance_is_measured_per_channel_and_averaged_over_the_reference()
+        public void Distance_is_the_nearest_rendering_measured_per_channel()
         {
-            // A buffer that is black everywhere sits a known distance from the badge: the mean of the
-            // reference's own channel values, since every difference is the reference value itself.
+            // A buffer that is black everywhere sits a known distance from each rendering: the mean of
+            // that rendering's own channel values, since every difference is the reference value
+            // itself. The answer must be the smallest of those, not the first or the sum.
             var black = new byte[BadgeOverlay.ScaledSize * BadgeOverlay.ScaledSize * 4];
 
-            double expected = 0;
+            double nearest = double.MaxValue;
 
-            foreach (uint packed in BadgeOverlay.Reference)
+            foreach (uint[] rendering in BadgeOverlay.Renderings)
             {
-                expected += (((packed >> 16) & 0xFF) + ((packed >> 8) & 0xFF) + (packed & 0xFF)) / 3.0;
+                double total = 0;
+
+                foreach (uint packed in rendering)
+                {
+                    total += (((packed >> 16) & 0xFF) + ((packed >> 8) & 0xFF) + (packed & 0xFF)) / 3.0;
+                }
+
+                nearest = System.Math.Min(nearest, total / rendering.Length);
             }
 
-            expected /= BadgeOverlay.Reference.Count;
-
-            Assert.Equal(expected, BadgeOverlay.BadgeDistance(black), 6);
+            Assert.Equal(nearest, BadgeOverlay.BadgeDistance(black), 6);
         }
 
         // ---- CarriesBadgeAsync ----
