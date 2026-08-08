@@ -229,14 +229,18 @@ namespace SteamGridDB.Xbox
         /// disabling the header is not enough: restoring or replacing one game's artwork from a row
         /// while a bulk pass is rewriting the same files is the same concurrent-writer race.
         /// </summary>
-        private bool IsLibraryOperationBlocking()
+        /// <param name="reportTo">Where to say so, or null for the main status bar. A caller reached
+        /// from behind one of the slide-up panels has to name its own panel's status line: the panels
+        /// are opaque and full-screen, so a refusal written to <c>StatusText</c> is one the user cannot
+        /// see, and the click reads as simply not responding.</param>
+        private bool IsLibraryOperationBlocking(TextBlock reportTo = null)
         {
             if (!libraryOperationGuard.IsRunning)
             {
                 return false;
             }
 
-            StatusText.Text = busyStatusText;
+            (reportTo ?? StatusText).Text = busyStatusText;
 
             return true;
         }
@@ -245,11 +249,12 @@ namespace SteamGridDB.Xbox
         /// Marks the start of a library-wide operation and disables the header buttons for its duration.
         /// Returns false when another operation is already running.
         /// </summary>
-        private bool TryBeginLibraryOperation()
+        /// <param name="reportTo">Where to report a refusal - see <see cref="IsLibraryOperationBlocking"/>.</param>
+        private bool TryBeginLibraryOperation(TextBlock reportTo = null)
         {
             if (!libraryOperationGuard.TryBegin())
             {
-                StatusText.Text = busyStatusText;
+                (reportTo ?? StatusText).Text = busyStatusText;
 
                 return false;
             }
@@ -276,9 +281,10 @@ namespace SteamGridDB.Xbox
         /// ConfirmAndRunAsync itself already consolidated for their own repeated ceremony.
         /// </summary>
         /// <param name="action">The guarded operation to run.</param>
-        private async Task RunUnderLibraryOperationGuardAsync(Func<Task> action)
+        /// <param name="reportTo">Where to report a refusal - see <see cref="IsLibraryOperationBlocking"/>.</param>
+        private async Task RunUnderLibraryOperationGuardAsync(Func<Task> action, TextBlock reportTo = null)
         {
-            if (!TryBeginLibraryOperation())
+            if (!TryBeginLibraryOperation(reportTo))
             {
                 return;
             }
@@ -352,7 +358,20 @@ namespace SteamGridDB.Xbox
 
                 await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () =>
                 {
-                    decoded.TrySetResult(await DecodeThumbnailAsync(file, imageStream));
+                    // The lambda is async void: an exception escaping it is lost to the dispatcher, so
+                    // without this catch nothing would ever complete the source and the await below
+                    // would hang forever - taking the library-operation guard with it, leaving every
+                    // header button disabled and the widget stuck on its last status line with no
+                    // error to explain it. Faulting the task instead surfaces it to the caller's own
+                    // handler, the way the same failure on the inline path already does.
+                    try
+                    {
+                        decoded.TrySetResult(await DecodeThumbnailAsync(file, imageStream));
+                    }
+                    catch (Exception ex)
+                    {
+                        decoded.TrySetException(ex);
+                    }
                 });
 
                 return await decoded.Task;
@@ -596,112 +615,59 @@ namespace SteamGridDB.Xbox
 
                                     JsonObject entryObject = entry.Value.GetObject();
 
-                                    // Get the ID from the "id" property (not from the key). JsonRead
-                                    // treats a present-but-JSON-null "id" the same as a missing one -
-                                    // the raw GetNamedString/ContainsKey pair below did not: ContainsKey
-                                    // returns true for a null-valued member, and GetNamedString throws
-                                    // InvalidOperationException on one, which nothing here caught, so a
-                                    // single null "id" anywhere in a folder's manifest silently dropped
-                                    // every entry after it in that folder (see JsonRead.cs's docstring
-                                    // for the same failure class shipping once already).
+                                    // From the "id" property, not the gameCache key, and read with
+                                    // JsonRead: that treats a present-but-JSON-null "id" the same as a
+                                    // missing one, where the raw GetNamedString/ContainsKey pair it
+                                    // replaced did not - ContainsKey returns true for a null-valued
+                                    // member and GetNamedString throws on one, which nothing caught, so
+                                    // a single null "id" silently dropped every entry after it in the
+                                    // folder (JsonRead.cs's docstring has the same failure class
+                                    // shipping once already).
+                                    //
+                                    // Read here rather than in ParseManifestEntryAsync because it
+                                    // cannot throw, and because an entry with no ID is not a stale one:
+                                    // it names nothing on disk that could have gone missing, so it is
+                                    // skipped without being counted, exactly as it always was.
                                     string entryId = JsonRead.String(entryObject, "id");
 
-                                    // Only process entries that have an "id" property
                                     if (string.IsNullOrEmpty(entryId))
                                     {
                                         continue;
                                     }
 
-                                    // Parse addedDate - it's stored as a string in JSON
-                                    string addedDateString = JsonRead.String(entryObject, "addedDate") ?? "0";
-                                    long timestamp = 0;
-
-                                    if (!string.IsNullOrEmpty(addedDateString) && long.TryParse(addedDateString, out long parsedTimestamp))
+                                    // Scoped to this one entry, not to the folder. The folder-level
+                                    // catch below used to be the only one, so anything that threw part
+                                    // way through a manifest - a file removed between the lookup that
+                                    // found it and the read that opens it, a rendition the Xbox app has
+                                    // locked - silently discarded every remaining entry in that folder,
+                                    // uncounted and unlogged. That is the same failure the "id" comment
+                                    // in ParseManifestEntryAsync describes shipping once already;
+                                    // hardening one JSON read fixed that instance rather than the
+                                    // shape, so any other throw still reproduced it.
+                                    try
                                     {
-                                        timestamp = parsedTimestamp;
+                                        GameEntry parsed = await ParseManifestEntryAsync(
+                                            entryObject, platform, entryId, folder, sgdbClient, canQuerySteamGridDb);
+
+                                        if (parsed == null)
+                                        {
+                                            staleEntryCount++;
+                                        }
+                                        else
+                                        {
+                                            tmpGameList.Add(parsed);
+                                        }
                                     }
-
-                                    // The platform-dependent half of this entry's on-disk location -
-                                    // Custom's full-path/folder-resolution branch, the standard
-                                    // from-ID path construction, and the missing-image/has-backup
-                                    // "Not found" placeholder shape - lives in ManifestEntryImage so it
-                                    // can be tested directly instead of only by inspection here. Returns
-                                    // null for every stale-entry reason (see its own doc comment); this
-                                    // loop's own accounting (staleEntryCount) stays here because it is a
-                                    // caller-local summary, not part of the resolution itself.
-                                    ManifestEntryImage.Result? imageLocation = await ManifestEntryImage.ResolveAsync(
-                                        entryObject, platform, entryId, folder, thirdPartyLibrariesPath, imageExtension);
-
-                                    if (imageLocation == null)
+                                    catch (Exception ex)
                                     {
-                                        staleEntryCount++;
+                                        // One entry that could not be read is one game missing, not the
+                                        // rest of the folder. Named in the load log for the same reason
+                                        // the stale entries are: a library that silently shrinks is
+                                        // worse than one that says why.
+                                        FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} ({ex.GetType().Name}: {ex.Message})");
 
-                                        // The one place these entries are ever named. Answering "why is
-                                        // this game not in my widget" previously meant reading the Xbox
-                                        // app's manifests off disk and deriving each entry's expected
-                                        // image path by hand, because the load reported only a count.
-                                        // The folder is named as well as the platform: two folders can
-                                        // map to the same platform when the Xbox app has renamed one and
-                                        // left the old one behind, and knowing which of them an entry
-                                        // came from is most of the answer when it happens.
-                                        FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} (no artwork on disk, no backup)");
-
-                                        continue;
+                                        System.Diagnostics.Debug.WriteLine($"Skipping entry {entryId} in {folder.Name}: {ex.Message}");
                                     }
-
-                                    string imageFilePath = imageLocation.Value.ImageFilePath;
-                                    StorageFolder imageFolder = imageLocation.Value.ImageFolder;
-                                    string imageFileName = imageLocation.Value.ImageFileName;
-                                    bool hasBackup = imageLocation.Value.HasBackup;
-
-                                    BitmapImage image = null;
-
-                                    if (imageLocation.Value.ExistingImageFile != null)
-                                    {
-                                        image = await CreateThumbnailAsync(imageLocation.Value.ExistingImageFile);
-                                    }
-
-                                    // The store's own game ID, as SteamGridDB knows it, and the default
-                                    // display name: derived by ManifestEntryIdentity, which owns the
-                                    // platform-specific rules (Custom's title/installLocation/executableName
-                                    // reads; every other platform's id-prefix strip; Epic's further split
-                                    // into an appName and a separately-kept catalog item ID) so they are
-                                    // testable on their own rather than only by inspection here.
-                                    ManifestEntryIdentity.Result identity = ManifestEntryIdentity.Derive(entryObject, platform, entryId, unknownName);
-                                    string gameName = identity.GameName;
-                                    string externalPlatformId = identity.ExternalPlatformId;
-                                    string epicCatalogItemId = identity.EpicCatalogItemId;
-
-                                    // The SGDB platform-ID match attempt, GOG/Epic/Ubisoft store-name
-                                    // dispatch, and SGDB name-search fallback for this not-yet-matched
-                                    // entry live in GameMatchResolver, so the platform-to-store dispatch
-                                    // decision and the FixLog line format are testable directly instead
-                                    // of only by inspection here. Every network call still runs in
-                                    // exactly the order, count and condition it always did.
-                                    GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
-                                        sgdbClient, canQuerySteamGridDb, platform, externalPlatformId, epicCatalogItemId, entryId, gameName, unknownName);
-
-                                    gameName = match.GameName;
-                                    bool hasSteamGridDBMatch = match.HasSteamGridDbMatch;
-                                    string officialCapsuleUrl = match.OfficialCapsuleUrl;
-                                    int steamGridDbGameId = match.SteamGridDbGameId;
-
-                                    // Add to temporary list instead of directly to GameEntries
-                                    tmpGameList.Add(new GameEntry
-                                    {
-                                        Name = gameName,
-                                        ExternalPlatformId = externalPlatformId,
-                                        ImageFileName = imageFileName,
-                                        ImageFilePath = imageFilePath,
-                                        ImageFolder = imageFolder,
-                                        Platform = platform,
-                                        AddedDate = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).LocalDateTime,
-                                        Image = image,
-                                        HasBackup = hasBackup,
-                                        HasSteamGridDBMatch = hasSteamGridDBMatch,
-                                        OfficialCapsuleUrl = officialCapsuleUrl,
-                                        SteamGridDbGameId = steamGridDbGameId
-                                    });
                                 }
                             }
                         }
@@ -719,10 +685,7 @@ namespace SteamGridDB.Xbox
                     }
 
                     // Sort games alphabetically by name, with "Unknown" at the end
-                    List<GameEntry> sortedGames = tmpGameList
-                        .OrderBy(g => g.Name == unknownName ? 1 : 0)
-                        .ThenBy(g => g.Name)
-                        .ToList();
+                    List<GameEntry> sortedGames = SortedByName(tmpGameList);
 
                     // Shown before the first-party pass rather than after it. That pass has to ask the
                     // Store's CDN about each game it has not seen before, which is the one genuinely
@@ -750,8 +713,6 @@ namespace SteamGridDB.Xbox
                 {
                     sgdbClient?.Dispose();
                 }
-
-                await FixLog.SaveAsync();
 
                 await OnUiThreadAsync(() =>
                 {
@@ -789,6 +750,123 @@ namespace SteamGridDB.Xbox
             {
                 await SetStatusAsync($"Error: {ex.Message}");
             }
+            finally
+            {
+                // In a finally rather than at the end of the try: the run worth having a log for is the
+                // one that failed, and every early return and every throw above used to leave
+                // last-load.log holding a previous, unrelated load.
+                await FixLog.SaveAsync();
+            }
+        }
+
+        /// <summary>
+        /// Rows sorted the way the library shows them - alphabetically, with unnamed games last.
+        /// </summary>
+        /// <param name="games">Rows to sort.</param>
+        private static List<GameEntry> SortedByName(IEnumerable<GameEntry> games)
+        {
+            return games
+                .OrderBy(g => g.Name == unknownName ? 1 : 0)
+                .ThenBy(g => g.Name)
+                .ToList();
+        }
+
+        /// <summary>
+        /// Turns one manifest entry into a library row, or null when it is stale - the body of
+        /// <see cref="LoadGameEntriesAsync"/>'s per-entry loop, lifted out so that loop's own
+        /// try/catch can be scoped to a single entry rather than to the whole folder.
+        /// </summary>
+        /// <param name="entryObject">The manifest entry's JSON object.</param>
+        /// <param name="platform">The entry's platform.</param>
+        /// <param name="entryId">The entry's own "id" field, already known to be non-empty.</param>
+        /// <param name="folder">The Xbox app folder the manifest was read from.</param>
+        /// <param name="sgdbClient">The load's SteamGridDB client, or null when there is no API key.</param>
+        /// <param name="canQuerySteamGridDb">Whether SteamGridDB can be queried at all.</param>
+        /// <returns>The row, or null when the entry has nothing on disk to show or act on.</returns>
+        private async Task<GameEntry> ParseManifestEntryAsync(
+            JsonObject entryObject,
+            GamePlatform platform,
+            string entryId,
+            StorageFolder folder,
+            SteamGridDbClient sgdbClient,
+            bool canQuerySteamGridDb)
+        {
+            // Parse addedDate - it's stored as a string in JSON
+            string addedDateString = JsonRead.String(entryObject, "addedDate") ?? "0";
+            long timestamp = 0;
+
+            if (!string.IsNullOrEmpty(addedDateString) && long.TryParse(addedDateString, out long parsedTimestamp))
+            {
+                timestamp = parsedTimestamp;
+            }
+
+            // The platform-dependent half of this entry's on-disk location - Custom's
+            // full-path/folder-resolution branch, the standard from-ID path construction, and the
+            // missing-image/has-backup "Not found" placeholder shape - lives in ManifestEntryImage so
+            // it can be tested directly instead of only by inspection here. Returns null for every
+            // stale-entry reason (see its own doc comment); the caller's own accounting
+            // (staleEntryCount) stays there because it is a caller-local summary, not part of the
+            // resolution itself.
+            ManifestEntryImage.Result? imageLocation = await ManifestEntryImage.ResolveAsync(
+                entryObject, platform, entryId, folder, thirdPartyLibrariesPath, imageExtension);
+
+            if (imageLocation == null)
+            {
+                // The one place these entries are ever named. Answering "why is this game not in my
+                // widget" previously meant reading the Xbox app's manifests off disk and deriving each
+                // entry's expected image path by hand, because the load reported only a count. The
+                // folder is named as well as the platform: two folders can map to the same platform
+                // when the Xbox app has renamed one and left the old one behind, and knowing which of
+                // them an entry came from is most of the answer when it happens.
+                FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} (no artwork on disk, no backup)");
+
+                return null;
+            }
+
+            BitmapImage image = null;
+
+            if (imageLocation.Value.ExistingImageFile != null)
+            {
+                image = await CreateThumbnailAsync(imageLocation.Value.ExistingImageFile);
+            }
+
+            // The store's own game ID, as SteamGridDB knows it, and the default display name: derived
+            // by ManifestEntryIdentity, which owns the platform-specific rules (Custom's
+            // title/installLocation/executableName reads; every other platform's id-prefix strip;
+            // Epic's further split into an appName and a separately-kept catalog item ID) so they are
+            // testable on their own rather than only by inspection here.
+            ManifestEntryIdentity.Result identity = ManifestEntryIdentity.Derive(entryObject, platform, entryId, unknownName);
+
+            // The SGDB platform-ID match attempt, GOG/Epic/Ubisoft store-name dispatch, and SGDB
+            // name-search fallback for this not-yet-matched entry live in GameMatchResolver, so the
+            // platform-to-store dispatch decision and the FixLog line format are testable directly
+            // instead of only by inspection here. Every network call still runs in exactly the order,
+            // count and condition it always did.
+            GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
+                sgdbClient,
+                canQuerySteamGridDb,
+                platform,
+                identity.ExternalPlatformId,
+                identity.EpicCatalogItemId,
+                entryId,
+                identity.GameName,
+                unknownName);
+
+            return new GameEntry
+            {
+                Name = match.GameName,
+                ExternalPlatformId = identity.ExternalPlatformId,
+                ImageFileName = imageLocation.Value.ImageFileName,
+                ImageFilePath = imageLocation.Value.ImageFilePath,
+                ImageFolder = imageLocation.Value.ImageFolder,
+                Platform = platform,
+                AddedDate = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).LocalDateTime,
+                Image = image,
+                HasBackup = imageLocation.Value.HasBackup,
+                HasSteamGridDBMatch = match.HasSteamGridDbMatch,
+                OfficialCapsuleUrl = match.OfficialCapsuleUrl,
+                SteamGridDbGameId = match.SteamGridDbGameId
+            };
         }
 
         /// <summary>
@@ -827,63 +905,84 @@ namespace SteamGridDB.Xbox
 
                 FixLog.Write($"Xbox app library: {XboxLibrary.LoadSummary}");
 
+                // Listed once for the whole pass rather than probed per rendition per game - see
+                // XboxTileStore.VaultFileNamesAsync. Nothing writes to the vault while this runs: the
+                // operations that do are single-game actions the library-operation guard holds off
+                // for the duration of a load.
+                HashSet<string> vaultFileNames = await XboxTileStore.VaultFileNamesAsync();
+
                 foreach (XboxLibrary.Game game in games)
                 {
-                    // Before the thumbnail is decoded, so the row shows what is actually on the tile
-                    await XboxTiles.ReapplyOverwrittenAsync(cacheFolder, game.RenditionFileNames);
-
-                    string primaryFileName = game.PrimaryFileName;
-                    BitmapImage image = null;
-
+                    // Scoped to this one game, for the same reason the third-party walk's is - and
+                    // here the throw is routine rather than exotic: ReapplyOverwrittenAsync writes
+                    // into the Xbox app's own live image cache, so a rendition the app happens to be
+                    // holding open fails with UnauthorizedAccessException. Under the single outer
+                    // catch that used to be the only one, that took every remaining first-party game
+                    // with it.
                     try
                     {
-                        image = await CreateThumbnailAsync(await cacheFolder.GetFileAsync(primaryFileName));
+                        // Before the thumbnail is decoded, so the row shows what is actually on the tile
+                        await XboxTiles.ReapplyOverwrittenAsync(cacheFolder, game.RenditionFileNames, vaultFileNames);
+
+                        string primaryFileName = game.PrimaryFileName;
+                        BitmapImage image = null;
+
+                        try
+                        {
+                            image = await CreateThumbnailAsync(await cacheFolder.GetFileAsync(primaryFileName));
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Could not decode the tile for {game.Title}: {ex.Message}");
+                        }
+
+                        // GamePlatform.Xbox has no SteamGridDB platform of its own, so this always takes the
+                        // name-search path - which is the good one here, because unlike the ID-derived names
+                        // the third-party manifests give, the Store's title is the game's actual title
+                        GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
+                            sgdbClient,
+                            canQuerySteamGridDb,
+                            GamePlatform.Xbox,
+                            game.StoreId,
+                            null,
+                            game.StoreId,
+                            string.IsNullOrEmpty(game.Title) ? unknownName : game.Title,
+                            unknownName);
+
+                        bool hasBackup = XboxTiles.HasBackup(game.RenditionFileNames, vaultFileNames);
+
+                        if (!hasBackup)
+                        {
+                            // Applying artwork always leaves a backup behind it, so a game without one is
+                            // not customised whatever the applied-artwork record says - see
+                            // XboxTiles.ForgetArtworkRecordsAsync. Reached from here rather than from
+                            // XboxLibrary because this is where the backup is already looked up, and
+                            // asking twice per game is the only cost worth avoiding here.
+                            await XboxTiles.ForgetArtworkRecordsAsync(cacheFolder, game.RenditionFileNames);
+                        }
+
+                        entries.Add(new GameEntry
+                        {
+                            Name = match.GameName,
+                            ExternalPlatformId = game.StoreId,
+                            ImageFileName = primaryFileName,
+                            ImageFilePath = Path.Combine(cacheFolder.Path, primaryFileName),
+                            ImageFolder = cacheFolder,
+                            Platform = GamePlatform.Xbox,
+                            Image = image,
+                            XboxRenditions = game.RenditionFileNames,
+                            HasBackup = hasBackup,
+                            HasSteamGridDBMatch = match.HasSteamGridDbMatch,
+                            OfficialCapsuleUrl = match.OfficialCapsuleUrl,
+                            SteamGridDbGameId = match.SteamGridDbGameId
+                        });
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Could not decode the tile for {game.Title}: {ex.Message}");
+                        FixLog.Write($"not shown Xbox/{game.StoreId} ({ex.GetType().Name}: {ex.Message})");
+
+                        System.Diagnostics.Debug.WriteLine($"Skipping Xbox app game {game.Title}: {ex.Message}");
                     }
-
-                    // GamePlatform.Xbox has no SteamGridDB platform of its own, so this always takes the
-                    // name-search path - which is the good one here, because unlike the ID-derived names
-                    // the third-party manifests give, the Store's title is the game's actual title
-                    GameMatchResolver.Result match = await GameMatchResolver.ResolveAsync(
-                        sgdbClient,
-                        canQuerySteamGridDb,
-                        GamePlatform.Xbox,
-                        game.StoreId,
-                        null,
-                        game.StoreId,
-                        string.IsNullOrEmpty(game.Title) ? unknownName : game.Title,
-                        unknownName);
-
-                    bool hasBackup = await XboxTiles.HasBackupAsync(game.RenditionFileNames);
-
-                    if (!hasBackup)
-                    {
-                        // Applying artwork always leaves a backup behind it, so a game without one is
-                        // not customised whatever the applied-artwork record says - see
-                        // XboxTiles.ForgetArtworkRecordsAsync. Reached from here rather than from
-                        // XboxLibrary because this is where the backup is already looked up, and
-                        // asking twice per game is the only cost worth avoiding here.
-                        await XboxTiles.ForgetArtworkRecordsAsync(cacheFolder, game.RenditionFileNames);
-                    }
-
-                    entries.Add(new GameEntry
-                    {
-                        Name = match.GameName,
-                        ExternalPlatformId = game.StoreId,
-                        ImageFileName = primaryFileName,
-                        ImageFilePath = Path.Combine(cacheFolder.Path, primaryFileName),
-                        ImageFolder = cacheFolder,
-                        Platform = GamePlatform.Xbox,
-                        Image = image,
-                        XboxRenditions = game.RenditionFileNames,
-                        HasBackup = hasBackup,
-                        HasSteamGridDBMatch = match.HasSteamGridDbMatch,
-                        OfficialCapsuleUrl = match.OfficialCapsuleUrl,
-                        SteamGridDbGameId = match.SteamGridDbGameId
-                    });
                 }
             }
             catch (Exception ex)
@@ -892,10 +991,7 @@ namespace SteamGridDB.Xbox
                 System.Diagnostics.Debug.WriteLine($"Could not load Xbox app games: {ex.Message}");
             }
 
-            return entries
-                .OrderBy(g => g.Name == unknownName ? 1 : 0)
-                .ThenBy(g => g.Name)
-                .ToList();
+            return SortedByName(entries);
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -1054,11 +1150,19 @@ namespace SteamGridDB.Xbox
         /// <param name="refixCustomised">When true, also re-downloads artwork for games that were customised before (their original backups are preserved).</param>
         private async Task FixLibraryAsync(bool refixCustomised = false)
         {
+            // Opened before the first early return, not after them, so that the finally below always
+            // has a log belonging to this run to write. Starting it later meant a run that declined
+            // to do anything - no API key, nothing eligible - left last-fix.log describing some
+            // earlier run, which reads as if this one had done that work.
+            FixLog.Start(refixCustomised ? "Re-fix all games" : "Fix my library");
+
             try
             {
                 if (!HasSteamGridDbApiKey)
                 {
                     await SetStatusAsync("SteamGridDB API key is not set - artwork cannot be downloaded");
+
+                    FixLog.Write("nothing attempted: SteamGridDB API key is not set");
 
                     return;
                 }
@@ -1086,6 +1190,8 @@ namespace SteamGridDB.Xbox
                             : "No eligible artworks to fix (all games either were already modified or have no match in SteamGridDB)",
                         firstPartyClause));
 
+                    FixLog.Write($"nothing eligible: {firstPartyCount} first-party game(s) left alone");
+
                     return;
                 }
 
@@ -1097,8 +1203,6 @@ namespace SteamGridDB.Xbox
                 int notFoundCount = 0;
                 int skippedCount = 0;
                 int errorCount = 0;
-
-                FixLog.Start(refixCustomised ? "Re-fix all games" : "Fix my library");
 
                 foreach (string note in SteamGridDbClient.CapsuleParseNotes)
                 {
@@ -1234,8 +1338,6 @@ namespace SteamGridDB.Xbox
                     }
                 }
 
-                await FixLog.SaveAsync();
-
                 // The error count is always shown here, unlike the other operations: a fix that reports
                 // nothing about failures reads as a clean run when it may have touched almost nothing
                 await SetStatusAsync(OperationReport.Summary(
@@ -1251,6 +1353,14 @@ namespace SteamGridDB.Xbox
                 await SetStatusAsync($"Error fixing library: {ex.Message}");
 
                 System.Diagnostics.Debug.WriteLine($"Error in FixLibraryAsync: {ex.Message}");
+            }
+            finally
+            {
+                // In a finally rather than at the end of the try, for the same reason
+                // LoadGameEntriesAsync's is: the run worth having a log for is the one that failed,
+                // and every early return and every throw above used to leave last-fix.log holding a
+                // previous, unrelated run.
+                await FixLog.SaveAsync();
             }
         }
 
@@ -1271,6 +1381,9 @@ namespace SteamGridDB.Xbox
 
                 var report = new OperationReport("Restoring", uniqueGames.Count);
 
+                // One listing for the whole run, as the library load does - this walks every game too
+                HashSet<string> vaultFileNames = await XboxTileStore.VaultFileNamesAsync();
+
                 foreach (GameEntry game in uniqueGames)
                 {
                     string imageFileName = Path.GetFileName(game.ImageFilePath);
@@ -1283,7 +1396,7 @@ namespace SteamGridDB.Xbox
                         // A first-party game has one saved customisation per rendition, and any of them
                         // could be the one the Xbox app overwrote, so all are checked
                         ArtworkFiles.ReapplyOutcome outcome = game.IsXboxTile
-                            ? await XboxTiles.ReapplyOverwrittenAsync(game.ImageFolder, game.XboxRenditions)
+                            ? await XboxTiles.ReapplyOverwrittenAsync(game.ImageFolder, game.XboxRenditions, vaultFileNames)
                             : await ArtworkFiles.ReapplyCustomisationAsync(game.ImageFolder, imageFileName);
 
                         if (outcome == ArtworkFiles.ReapplyOutcome.NothingSaved)
@@ -1316,7 +1429,7 @@ namespace SteamGridDB.Xbox
                     ? "No changes found to restore"
                     : OperationReport.Summary(
                         $"Restore complete: {successCount} restored",
-                        $"{noArtworkCount} had no artwork saved",
+                        OperationReport.When(noArtworkCount, $"{noArtworkCount} had no artwork saved"),
                         OperationReport.Plural(errorCount, "error")));
             }
             catch (Exception ex)
@@ -1698,7 +1811,11 @@ namespace SteamGridDB.Xbox
         {
             if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanelSessionId)
             {
-                await RunUnderLibraryOperationGuardAsync(() => DownloadAndReplaceImageAsync(gridItem));
+                // The refusal goes to the panel's own status line, not the main one: this panel is an
+                // opaque full-screen sibling of the main grid and covers StatusText completely, so a
+                // busy line written there is one the user cannot see and the click reads as simply not
+                // responding.
+                await RunUnderLibraryOperationGuardAsync(() => DownloadAndReplaceImageAsync(gridItem), GridPanelStatus);
             }
         }
 
@@ -1955,7 +2072,17 @@ namespace SteamGridDB.Xbox
                         return;
                     }
 
-                    if (results == null || results.Count == 0)
+                    // Null is the client's "the request itself failed" - telling the user SteamGridDB
+                    // has no such game when it was never reached sends them off renaming their search
+                    if (results == null)
+                    {
+                        SearchPanelStatus.Text = "Could not reach SteamGridDB - try again";
+                        SearchLoadingRing.IsActive = false;
+
+                        return;
+                    }
+
+                    if (results.Count == 0)
                     {
                         SearchPanelStatus.Text = "No games found";
                         SearchLoadingRing.IsActive = false;
@@ -2054,10 +2181,10 @@ namespace SteamGridDB.Xbox
             }
             else
             {
+                // No Select call here: this branch is reached exactly when the box is empty, so
+                // placing the caret at the end of the text is placing it at 0, which is where it
+                // already is. GameSearchBox_GotFocus does the positioning that matters.
                 GameSearchBox.Focus(FocusState.Programmatic);
-
-                // Position cursor at the end of the text
-                GameSearchBox.Select(GameSearchBox.Text.Length, 0);
             }
         }
 
@@ -2168,7 +2295,8 @@ namespace SteamGridDB.Xbox
                 // The backup that was restored from no longer exists - but a first-party game has one
                 // per rendition and only those with a backup were restored, so the button has to stay
                 // for whatever is left rather than being cleared on the strength of the one that went
-                bool backupRemaining = game.IsXboxTile && await XboxTiles.HasBackupAsync(game.XboxRenditions);
+                bool backupRemaining = game.IsXboxTile
+                    && XboxTiles.HasBackup(game.XboxRenditions, await XboxTileStore.VaultFileNamesAsync());
 
                 await UpdateSharedEntriesAsync(
                     game,

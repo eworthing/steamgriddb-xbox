@@ -128,7 +128,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         /// </summary>
         /// <param name="term">Search term.</param>
         /// <param name="cancellationToken">Cancellation token.</param>
-        /// <returns>List of matching games.</returns>
+        /// <returns>Matching games, empty when there are none, null when the request failed.</returns>
         public async Task<List<SteamGridDbGame>> SearchGameByNameAsync(string term, CancellationToken cancellationToken = default)
         {
             if (string.IsNullOrWhiteSpace(term))
@@ -139,12 +139,16 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             var url = $"{baseUrl}/search/autocomplete/{Uri.EscapeDataString(term)}";
             var response = await GetAsync<SteamGridDbResponse<List<SteamGridDbGame>>>(url, cancellationToken);
 
-            if (response != null && response.Success && response.Data != null)
+            // The same null contract GetArtworkListAsync keeps, and for the same reason: an empty list
+            // returned for a refused or unreachable request is indistinguishable from SteamGridDB
+            // saying it has no such game, so the manual search reported "No games found" for a request
+            // that was never answered.
+            if (response == null || !response.Success)
             {
-                return response.Data;
+                return null;
             }
 
-            return new List<SteamGridDbGame>();
+            return response.Data ?? new List<SteamGridDbGame>();
         }
 
         /// <summary>
@@ -449,6 +453,15 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
             catch (TaskCanceledException)
             {
+                // Counted before the rethrow, like every other outcome that is not the service
+                // answering. A caller that swallows this exception - StoreNameLookup.FindGameByNameAsync
+                // does, returning "no match" - would otherwise leave this counter untouched, and
+                // GameMatchResolver.ShouldRemember reads an unchanged counter as "SteamGridDB answered",
+                // so a single timeout was written into GameMatchCache as a confirmed miss and kept for
+                // MissLifetime. That is precisely the "bad minute becomes days of Unknown" outcome the
+                // counter exists to prevent.
+                unansweredResponses++;
+
                 if (cancellationToken.IsCancellationRequested)
                 {
                     System.Diagnostics.Debug.WriteLine("SteamGridDB API request cancelled by user");

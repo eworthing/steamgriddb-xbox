@@ -26,6 +26,12 @@ namespace SteamGridDB.Xbox.Services.Xbox
     internal static class XboxTiles
     {
         /// <summary>
+        /// Stands in for a game with no recorded renditions, so every loop below can take a null list
+        /// without allocating a throwaway one apiece to walk zero times.
+        /// </summary>
+        private static readonly string[] EmptyNames = Array.Empty<string>();
+
+        /// <summary>
         /// Writes artwork over every rendition of a game's tile, preserving the Xbox app's originals the
         /// first time.
         /// </summary>
@@ -42,7 +48,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
             int written = 0;
             bool anyBackup = false;
 
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
                 int size = await RenditionSizeAsync(cacheFolder, fileName);
 
@@ -78,7 +84,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
             StorageFolder vault = await XboxTileStore.VaultFolderAsync();
             bool restoredAny = false;
 
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
                 ArtworkFiles.RestoreOutcome outcome = await ArtworkFiles.RestoreOriginalAsync(cacheFolder, fileName, vault);
 
@@ -101,6 +107,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// </summary>
         /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
         /// <param name="renditionFileNames">The game's cached images.</param>
+        /// <param name="vaultFileNames">A listing of the vault, from <see cref="XboxTileStore.VaultFileNamesAsync"/>.</param>
         /// <returns>
         /// Reapplied when the game's saved customisation is on its tile, whether this call had to put
         /// it there or found it already in place; NothingSaved when no rendition has one saved. The
@@ -110,13 +117,23 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// </returns>
         internal static async Task<ArtworkFiles.ReapplyOutcome> ReapplyOverwrittenAsync(
             StorageFolder cacheFolder,
-            IReadOnlyList<string> renditionFileNames)
+            IReadOnlyList<string> renditionFileNames,
+            ISet<string> vaultFileNames)
         {
             StorageFolder vault = await XboxTileStore.VaultFolderAsync();
             bool anySaved = false;
 
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
+                // The listing answers "is anything saved for this rendition" without touching the
+                // disk, and for a game nobody has customised - most of them, on most machines - that
+                // is the entire answer. Both size reads below and the reapply attempt after them are
+                // skipped, which is where nearly all of this pass's file I/O used to go.
+                if (!vaultFileNames.Contains(ArtworkFiles.CustomisedNameFor(fileName)))
+                {
+                    continue;
+                }
+
                 if (await MatchesSavedCustomisationAsync(cacheFolder, vault, fileName))
                 {
                     anySaved = true;
@@ -149,7 +166,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
         {
             StorageFolder vault = null;
 
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
                 vault = vault ?? await XboxTileStore.VaultFolderAsync();
 
@@ -168,15 +185,24 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
         /// <summary>
         /// Whether this game has backups, and so can be reverted to the Xbox app's own artwork.
+        ///
+        /// Answered from a listing rather than from the disk, which is what makes it synchronous - and
+        /// therefore a plain function a test can call, rather than another awaited walk that could only
+        /// be checked by running the app. A backup is a file existing under a known name, and a
+        /// listing already says which names exist.
         /// </summary>
         /// <param name="renditionFileNames">The game's cached images.</param>
-        internal static async Task<bool> HasBackupAsync(IReadOnlyList<string> renditionFileNames)
+        /// <param name="vaultFileNames">A listing of the vault, from <see cref="XboxTileStore.VaultFileNamesAsync"/>.</param>
+        internal static bool HasBackup(IReadOnlyList<string> renditionFileNames, ISet<string> vaultFileNames)
         {
-            StorageFolder vault = await XboxTileStore.VaultFolderAsync();
-
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            if (vaultFileNames == null)
             {
-                if (await ArtworkFiles.HasBackupAsync(vault, fileName))
+                return false;
+            }
+
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
+            {
+                if (vaultFileNames.Contains(ArtworkFiles.BackupNameFor(fileName)))
                 {
                     return true;
                 }
@@ -215,7 +241,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return;
             }
 
-            foreach (string fileName in renditionFileNames ?? new List<string>())
+            foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
                 await AppliedArtworkStore.ClearAsync(Path.Combine(cacheFolder.Path, fileName));
             }
@@ -287,9 +313,11 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// Compared by length rather than content: both files were written by this app in the same call,
         /// so they are either the identical buffer or the Xbox app has replaced one of them with a
         /// download that has no reason to match its size. And by the length the file system reports
-        /// rather than the length of a buffer read from it, because this runs over every rendition of
-        /// every first-party game on every library load - reading them all in to compare two integers
-        /// is megabytes of I/O per refresh for an answer the directory entry already holds.
+        /// rather than the length of a buffer read from it - reading two files in to compare two
+        /// integers is megabytes of I/O for an answer the directory entry already holds.
+        ///
+        /// Reached only for a rendition the caller's vault listing says has a customisation saved at
+        /// all, so a library nobody has customised never gets here.
         /// </summary>
         private static async Task<bool> MatchesSavedCustomisationAsync(StorageFolder cacheFolder, StorageFolder vault, string fileName)
         {

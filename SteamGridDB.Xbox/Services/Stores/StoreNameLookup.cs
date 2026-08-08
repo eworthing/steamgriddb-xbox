@@ -26,11 +26,12 @@ namespace SteamGridDB.Xbox.Services.Stores
     {
         // GetOrFetchGogNameAsync, GetOrFetchEpicNameAsync and FindGameByNameAsync below each own the
         // "is this cached" decision for their store, matching GetUbisoftGameNameAsync's shape - and
-        // each now guards its check-then-populate body with its own dedicated gate, immediately below
-        // its cache. A dedicated gate per cache, not one shared gate: the three caches hold unrelated
-        // per-game data, so serialising them behind a single lock would block one store's lookup on a
-        // completely different store's network round trip for no reason - the same per-cache
-        // granularity AppliedArtworkStore's own single Dictionary already uses one dedicated gate for.
+        // each guards its whole check-then-populate body, the read included, with its own dedicated
+        // gate immediately below its cache. A dedicated gate per cache, not one shared gate: the three
+        // caches hold unrelated per-game data, so serialising them behind a single lock would block
+        // one store's lookup on a completely different store's network round trip for no reason - the
+        // same per-cache granularity AppliedArtworkStore's own single Dictionary already uses one
+        // dedicated gate for.
         private static readonly Dictionary<string, string> gogNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         private static readonly SemaphoreSlim gogNameGate = new SemaphoreSlim(1, 1);
         private static readonly Dictionary<string, string> epicNameCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -157,8 +158,8 @@ namespace SteamGridDB.Xbox.Services.Stores
 
         /// <summary>
         /// Shared check-then-populate skeleton for <see cref="GetOrFetchGogNameAsync"/> and
-        /// <see cref="GetOrFetchEpicNameAsync"/>: try the cache unlocked, await the store's own gate,
-        /// re-check under the gate, fetch, and cache whatever the store actually answered.
+        /// <see cref="GetOrFetchEpicNameAsync"/>: await the store's own gate, check the cache under
+        /// it, fetch, and cache whatever the store actually answered.
         ///
         /// A cached null is a remembered "this store has no name for that ID", not an empty slot. That
         /// is the whole point of <see cref="NameLookup"/>: caching only non-empty names, as this did
@@ -166,10 +167,14 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// install. Presence in the dictionary is now the cache hit, so the check is
         /// <c>TryGetValue</c> alone rather than <c>TryGetValue</c> plus a non-empty test.
         ///
-        /// The re-check inside the gate is the same double-checked shape
-        /// <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/> uses: two callers can both pass the first,
-        /// unlocked check while a fetch for the same key is already in flight, and only the second
-        /// caller's own re-check under the gate stops it from fetching and writing the same key again.
+        /// The check happens under the gate rather than in front of it. A double-checked version of
+        /// this - unlocked read, gate, re-read - is what <see cref="AsyncLazyCache{T}.GetOrLoadAsync"/>
+        /// does, but that reads a single reference, which is atomic; this reads a
+        /// <see cref="Dictionary{TKey, TValue}"/>, which is not safe to read while another caller is
+        /// writing it. A write that resizes replaces the buckets and entries arrays, and a reader mid
+        /// probe can follow a stale bucket into the new entries and return the wrong name, throw, or
+        /// spin. The gate is uncontended whenever nothing is fetching, which is the common case, so
+        /// the pre-check bought nothing worth that.
         ///
         /// <see cref="FindGameByNameAsync"/> is still deliberately NOT routed through this: its cached
         /// value is an int rather than a string, and what makes its answer trustworthy is a check on
@@ -182,16 +187,11 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <returns>Cached or freshly fetched name, or null when the store has none.</returns>
         private static async Task<string> GetOrFetchNameAsync(Dictionary<string, string> cache, SemaphoreSlim gate, string key, Func<Task<NameLookup>> fetch)
         {
-            if (cache.TryGetValue(key, out string cached))
-            {
-                return cached;
-            }
-
             await gate.WaitAsync();
 
             try
             {
-                if (cache.TryGetValue(key, out cached))
+                if (cache.TryGetValue(key, out string cached))
                 {
                     return cached;
                 }
@@ -226,16 +226,11 @@ namespace SteamGridDB.Xbox.Services.Stores
         {
             string wanted = NormaliseGameName(gameName);
 
-            if (nameMatchCache.TryGetValue(wanted, out int cached))
-            {
-                return cached;
-            }
-
             await nameMatchGate.WaitAsync();
 
             try
             {
-                if (nameMatchCache.TryGetValue(wanted, out cached))
+                if (nameMatchCache.TryGetValue(wanted, out int cached))
                 {
                     return cached;
                 }
@@ -245,7 +240,9 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                 try
                 {
-                    foreach (SteamGridDbGame candidate in await client.SearchGameByNameAsync(gameName))
+                    // Null is the client's "could not ask" - an empty list is a real, cacheable miss
+                    foreach (SteamGridDbGame candidate in await client.SearchGameByNameAsync(gameName)
+                        ?? Enumerable.Empty<SteamGridDbGame>())
                     {
                         if (NormaliseGameName(candidate.Name) == wanted)
                         {
@@ -255,10 +252,10 @@ namespace SteamGridDB.Xbox.Services.Stores
                         }
                     }
 
-                    // A search that was refused or failed comes back as an empty result list, not an
-                    // exception, so the catch below does not see it - and an empty list is exactly
-                    // what a genuine miss looks like. Caching one would make a moment of rate limiting
-                    // into a game that stays unmatched for the rest of the session.
+                    // A search that was refused or failed does not throw, so the catch below does not
+                    // see it. The counter is what separates it from a genuine miss: caching a refusal
+                    // would make a moment of rate limiting into a game that stays unmatched for the
+                    // rest of the session.
                     if (client.UnansweredResponses == unansweredBefore)
                     {
                         nameMatchCache[wanted] = found;

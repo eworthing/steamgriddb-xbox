@@ -20,7 +20,14 @@ namespace SteamGridDB.Xbox.Services
     {
         private readonly SemaphoreSlim gate;
         private readonly Func<Task<T>> loader;
-        private T value;
+
+        // Volatile because GetOrLoadAsync reads this outside the gate. Without it the unlocked read
+        // is a plain load with no acquire semantics, so on a weakly ordered architecture a caller can
+        // observe the non-null reference before the writes that populated the object it points at -
+        // and every value loaded here is a Dictionary, whose buckets and entries arrays would then be
+        // read half-initialised. Permitted on T because the type parameter is constrained to a
+        // reference type.
+        private volatile T value;
 
         /// <param name="gate">The lock to take while loading. Pass a lock the caller also uses for
         /// its own later access to the loaded value, or a dedicated one if nothing else needs it.</param>

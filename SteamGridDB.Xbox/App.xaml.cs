@@ -24,6 +24,37 @@ namespace SteamGridDB.Xbox
         {
             this.InitializeComponent();
             this.Suspending += OnSuspending;
+            this.UnhandledException += OnUnhandledException;
+        }
+
+        /// <summary>
+        /// Last-resort net for an exception nothing else caught.
+        ///
+        /// PrimaryWidget drives everything from <c>async void</c> event handlers, which is what a XAML
+        /// event handler has to be. An exception that escapes one of those is not returned to a caller
+        /// and not observable on a Task - it is rethrown on the UI thread's synchronization context,
+        /// and without a handler here that ends the process. For a Game Bar widget that means the panel
+        /// vanishing mid-operation, which reads as Game Bar being broken rather than as one action
+        /// having failed.
+        ///
+        /// This is the right layer for it rather than a catch in each handler, or in the shared panel
+        /// helpers they delegate into. The deep operations already catch broadly and report to the
+        /// status line they own (LoadGameEntriesAsync, FixLibraryAsync, PerformGameSearchAsync,
+        /// LoadGridSelectionAsync and the rest), so what is left uncaught is the panel plumbing -
+        /// SlidePanelAsync, HidePanelAsync, ConfirmAndRunAsync's ShowAsync - and none of those know
+        /// which of the two panels they are serving, so a catch placed there could log but could not
+        /// pick a status line to report to. State is already safe by the time this fires: the
+        /// library-operation guard is released in a finally, and each operation restores its own UI in
+        /// its own catch.
+        ///
+        /// Handled, deliberately. A widget that stays up with one action having quietly failed is a
+        /// better outcome than one that disappears, and the failure is recorded for a debugger.
+        /// </summary>
+        private void OnUnhandledException(object sender, Windows.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            e.Handled = true;
+
+            System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Message}{Environment.NewLine}{e.Exception}");
         }
 
         protected override void OnActivated(IActivatedEventArgs args)

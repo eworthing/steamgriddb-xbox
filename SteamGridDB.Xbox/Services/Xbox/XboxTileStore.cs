@@ -76,6 +76,37 @@ namespace SteamGridDB.Xbox.Services.Xbox
         }
 
         /// <summary>
+        /// The name of every file in the vault, for a pass that is about to ask after many of them.
+        ///
+        /// The same trade <c>XboxLibrary.CacheFileNamesAsync</c> makes for the image cache, and
+        /// for the same reason: the questions <see cref="XboxTiles"/> asks the vault - has this
+        /// rendition a backup, has it a saved customisation - are questions about a name existing, and
+        /// answering them one <c>GetFileAsync</c> at a time costs a brokered call per rendition per
+        /// game per load, nearly all of which miss and so pay for a thrown FileNotFoundException as
+        /// well.
+        ///
+        /// Names only, deliberately. Fetching each file's properties here would put back most of the
+        /// round trips this exists to remove; the two sizes that are genuinely needed are read lazily,
+        /// and only for the renditions this listing says have a customisation saved at all - which on
+        /// a library nobody has customised is none of them.
+        ///
+        /// A snapshot, so it is only good for as long as nothing writes to the vault. That holds for
+        /// the passes that use it: applying, restoring and discarding are all single-game actions the
+        /// library-operation guard keeps from overlapping a load.
+        /// </summary>
+        internal static async Task<HashSet<string>> VaultFileNamesAsync()
+        {
+            HashSet<string> names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (StorageFile file in await (await VaultFolderAsync()).GetFilesAsync())
+            {
+                names.Add(file.Name);
+            }
+
+            return names;
+        }
+
+        /// <summary>
         /// The cached images known to be this game's tile, largest first, or null when it has never
         /// been discovered.
         /// </summary>
