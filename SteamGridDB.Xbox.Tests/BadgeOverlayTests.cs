@@ -23,11 +23,20 @@ namespace SteamGridDB.Xbox.Tests
     {
         // ---- BadgeDistance ----
 
+        public static TheoryData<int> EveryRendering()
+        {
+            var data = new TheoryData<int>();
+
+            for (int i = 0; i < BadgeOverlay.Renderings.Count; i++)
+            {
+                data.Add(i);
+            }
+
+            return data;
+        }
+
         [Theory]
-        [InlineData(0)]
-        [InlineData(1)]
-        [InlineData(2)]
-        [InlineData(3)]
+        [MemberData(nameof(EveryRendering))]
         public async Task Artwork_painted_with_any_known_rendering_is_flagged(int rendering)
         {
             // Pins the unpacking and the stride together: a rendering indexes a 16-wide corner but
