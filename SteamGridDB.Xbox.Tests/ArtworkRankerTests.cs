@@ -106,6 +106,29 @@ namespace SteamGridDB.Xbox.Tests
             Assert.True(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Halo"));
         }
 
+        [Theory]
+        [InlineData("Playstation 4")]
+        [InlineData("Playstation 5")]
+        [InlineData("Xbox One")]
+        [InlineData("Xbox Series S/X")]
+        public void A_bare_console_name_is_as_much_a_badge_as_the_badge_shaped_phrasings(string notes)
+        {
+            // One uploader's set of Far Cry 6 covers, identical but for the console spine down the
+            // left edge. The Xbox two were caught and the PlayStation two were not, so "Playstation 4"
+            // won the tile on a game whose notes said what was wrong with it.
+            Assert.True(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Far Cry 6"));
+        }
+
+        [Fact]
+        public void A_console_name_without_a_generation_is_not_a_badge()
+        {
+            // "Playstation" alone is how uploaders name the franchise and the storefront, not a spine
+            // stamp; only the numbered forms mark art as a specific console's reissue. The Xbox half
+            // of this vocabulary is generation-qualified for the same reason, and the separate test
+            // above pins that a bare "Xbox" mention does not demote.
+            Assert.False(ArtworkRanker.IsDemotedGrid(Grid(notes: "PlayStation store art"), "Halo"));
+        }
+
         [Fact]
         public void Artwork_for_an_edition_the_game_is_not_is_demoted()
         {

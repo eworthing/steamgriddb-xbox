@@ -26,6 +26,7 @@ Three evidence sources, all reproducible:
 | §4.2a PNG-over-JPEG tie-break | **tried and reverted** — graded 2 better / 7 worse |
 | §4.6 request-side filters | **implemented** — no behaviour change, by design |
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
+| §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -516,6 +517,43 @@ reissues. But the labels are sitting in the notes: 26 candidates across the libr
 the ranking. `greatest hits` is deliberately excluded — one upload advertises being the *non*-Hits
 version. Xbox terms are included at the user's request, despite this project targeting the native
 Xbox look.
+
+### 4.6b The PlayStation half of that vocabulary was missing — IMPLEMENTED
+
+Found in use, not by analysis: Far Cry 6 shipped a tile with a **PS4 spine down its left edge**.
+
+The Xbox names went in bare (`xbox one`, `xbox series`); the PlayStation ones only went in as
+badge-shaped phrasings (`playstation hits`, `ps5 dashboard icon`, `ps4 square`). One uploader had
+posted the same Far Cry 6 cover four times, once per console, and the notes said so exactly —
+`Playstation 4`, `Playstation 5`, `Xbox One`, `Xbox Series S/X`. Half the batch was demoted and half
+of it was not, so `682497` won rank 1 of 23 on a game whose own metadata named the problem.
+
+`playstation ?[1-5]` closes it. Replayed over the whole library (191 games, 187 rankable):
+
+```
+candidates newly demoted     5   Far Cry 6 x2, Forza Horizon 5, Fallout 4, Far Cry 3
+picks that move              1   Far Cry 6 only - the other four were already losing on rank
+```
+
+Two things this case says that the earlier rounds did not:
+
+- **The similarity gate could not have caught it, twice over.** Far Cry 6 is a Ubisoft entry matched
+  by name, so it has no Steam link and `capsule=none` — but even with a capsule the gate would have
+  *approved* the pick, because a badged cover is the real cover and scores ~0.9 against it. §4.6a
+  said this in the abstract; this is the first tile that shipped because of it.
+- **A vocabulary is only as good as its symmetry.** The hole was not a missing idea, it was one
+  console family written in a narrower form than the other in the same regex.
+
+**An `MS Store` boost was considered and rejected.** `615770` is the same cover *without* a badge,
+noted `Taken from the MS Store`, and boosting that phrase lands Far Cry 6 exactly on it. It was left
+out because the phrase matches **one candidate in the entire library** — a rule with a sample of one
+is the thing this document keeps learning not to ship. Without it Far Cry 6 ranks onto minimalist
+fan art (`173475`); the correct cover is one click away in the picker.
+
+Still out of reach of any vocabulary, and visible in the same candidate set: `173473` has
+**GOLD EDITION** printed across the art with an empty notes field, and `681879` carries a PC/Windows
+spine with no notes at all. Catching those needs an edge-spine detector, not more words — related to
+§4.8, and unevidenced for now.
 
 ### 4.7 Record the applied artwork ID — IMPLEMENTED
 

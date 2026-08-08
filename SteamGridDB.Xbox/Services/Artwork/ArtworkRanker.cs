@@ -26,7 +26,14 @@ namespace SteamGridDB.Xbox.Services.Artwork
         // The art underneath is usually right, which is why the similarity gate rates these highly and
         // why the vocabulary above misses them - they are not mockups, they are branded reissues.
         // "greatest hits" is deliberately absent: one upload advertises being the *non*-Hits version.
-        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        //
+        // A bare console name counts, not just the badge-shaped phrasings. Far Cry 6 was handed a cover
+        // with a PS4 spine down its left edge whose notes read exactly "Playstation 4": the same
+        // uploader had posted the set - "Xbox One" and "Xbox Series S/X" caught here, "Playstation 4"
+        // and "Playstation 5" not - so half a batch of identically-badged art was being demoted and
+        // half of it was winning. The Xbox names were already bare for this reason; the PlayStation
+        // ones only appeared in their "PS5 dashboard icon" forms.
+        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|playstation ?[1-5]|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
         // or citing an official platform-store domain. Press-kit mentions were tried and rejected:
