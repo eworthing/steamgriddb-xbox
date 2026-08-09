@@ -187,6 +187,50 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Null(await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(64, 64), pixels));
         }
 
+        [Fact]
+        public async Task EncodeSquareJpeg_drops_quality_until_the_tile_fits_its_budget()
+        {
+            // A first-party tile is written into the space the Store's own download left, without the
+            // file being resized, so a budget it cannot meet is a tile that cannot be written at all.
+            // Trading quality for that is worth it; the alternative is no artwork.
+            IBuffer artwork = await TestImages.QuadrantPngAsync(329);
+            IBuffer unbounded = await TileImage.EncodeSquareJpegAsync(artwork, 329);
+
+            // A byte under what the top quality produced, so the budget is one the first attempt cannot
+            // meet and any lower one can. Expressed against the fixture's own output rather than as a
+            // fixed fraction of it: a flat synthetic image is already near the smallest a JPEG of its
+            // dimensions can be, so what fraction is reachable is a property of the fixture, not of the
+            // rule being tested.
+            uint budget = unbounded.Length - 1;
+
+            IBuffer fitted = await TileImage.EncodeSquareJpegAsync(artwork, 329, budget);
+
+            Assert.NotNull(fitted);
+            Assert.True(fitted.Length <= budget, $"{fitted.Length} bytes exceeds the {budget} byte budget");
+            Assert.Equal((329u, 329u), await SizeOfAsync(fitted));
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_at_its_best_quality_is_what_no_budget_produces()
+        {
+            // A budget it already meets must not cost anything. Everything written before this existed
+            // was encoded at the top quality and has to go on being.
+            IBuffer artwork = await TestImages.QuadrantPngAsync(329);
+            IBuffer unbounded = await TileImage.EncodeSquareJpegAsync(artwork, 329);
+
+            IBuffer generous = await TileImage.EncodeSquareJpegAsync(artwork, 329, unbounded.Length * 4);
+
+            Assert.Equal(unbounded.Length, generous.Length);
+        }
+
+        [Fact]
+        public async Task EncodeSquareJpeg_returns_nothing_for_a_budget_it_cannot_meet()
+        {
+            // Handing back the smallest it managed would only move the refusal to the write, where there
+            // is less to say about why
+            Assert.Null(await TileImage.EncodeSquareJpegAsync(await TestImages.QuadrantPngAsync(329), 329, 64));
+        }
+
         private static Task<(uint Width, uint Height)> SizeOfAsync(IBuffer image)
         {
             return TileImage.WithDecoderAsync(

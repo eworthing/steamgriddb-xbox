@@ -28,6 +28,16 @@ namespace SteamGridDB.Xbox.Services.Artwork
         private const double tileJpegQuality = 0.92;
 
         /// <summary>
+        /// Qualities a tile is encoded at, best first, when it has to fit a byte budget.
+        ///
+        /// The first is <see cref="tileJpegQuality"/>, so a tile under no pressure is encoded exactly as
+        /// it always was. The rest are only reached by a tile that has to fit the space a Store download
+        /// left behind it, and stop well above the point where artefacts are obvious - a tile that will
+        /// not fit at 0.45 is one that should be reported rather than smeared until it does.
+        /// </summary>
+        private static readonly double[] tileJpegQualitySteps = { tileJpegQuality, 0.85, 0.75, 0.65, 0.55, 0.45 };
+
+        /// <summary>
         /// Decodes an image and hands the decoder to <paramref name="read"/>, returning
         /// <paramref name="onError"/> if it cannot be decoded or the read throws.
         /// </summary>
@@ -206,11 +216,22 @@ namespace SteamGridDB.Xbox.Services.Artwork
         ///
         /// Artwork that is not already square is centre-cropped, so a tall SteamGridDB grid gives its
         /// middle to the tile instead of being squashed.
+        ///
+        /// A byte budget can be imposed, and for a first-party tile there always is one. Those files
+        /// are written without being resized - the Xbox app keeps them memory-mapped while it is showing
+        /// them, and a mapped file can have its contents changed but not its length - so a tile that
+        /// does not fit the space the Store's own download left cannot be written at all. Quality is
+        /// stepped down until it fits rather than the tile being refused at the first attempt, because
+        /// a slightly softer tile is worth incomparably more than no tile.
         /// </summary>
         /// <param name="imageBytes">Encoded artwork in any format the platform can decode.</param>
         /// <param name="pixels">Width and height the result must have.</param>
-        /// <returns>JPEG bytes, or null when the artwork cannot be decoded.</returns>
-        public static async Task<IBuffer> EncodeSquareJpegAsync(IBuffer imageBytes, int pixels)
+        /// <param name="maxBytes">Largest the result may be, or 0 for no limit.</param>
+        /// <returns>
+        /// JPEG bytes, or null when the artwork cannot be decoded or will not fit
+        /// <paramref name="maxBytes"/> at any quality this is willing to drop to.
+        /// </returns>
+        public static async Task<IBuffer> EncodeSquareJpegAsync(IBuffer imageBytes, int pixels, uint maxBytes = 0)
         {
             if (imageBytes == null || pixels <= 0)
             {
@@ -224,7 +245,20 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(
                     square.AsBuffer(), BitmapPixelFormat.Bgra8, pixels, pixels, BitmapAlphaMode.Ignore))
                 {
-                    return await EncodeJpegAsync(bitmap, tileJpegQuality);
+                    foreach (double quality in tileJpegQualitySteps)
+                    {
+                        IBuffer encoded = await EncodeJpegAsync(bitmap, quality);
+
+                        if (encoded == null || maxBytes == 0 || encoded.Length <= maxBytes)
+                        {
+                            return encoded;
+                        }
+                    }
+
+                    // Every step tried and none fit. Returning null rather than the smallest anyway: the
+                    // caller cannot write it, and handing back bytes that will be refused only moves the
+                    // failure somewhere with less to say about it.
+                    return null;
                 }
             }, null, $"Could not encode a {pixels}px tile");
         }

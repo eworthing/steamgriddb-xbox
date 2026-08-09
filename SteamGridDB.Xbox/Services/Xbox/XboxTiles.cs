@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
+using Windows.Security.Cryptography;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
@@ -34,64 +35,116 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// <summary>
         /// Writes artwork over every rendition of a game's tile, preserving the Xbox app's originals the
         /// first time.
+        ///
+        /// A rendition that cannot be written costs that rendition and no more. These files live in the
+        /// Xbox app's own live cache, so a write can be refused for reasons that have nothing to do with
+        /// this game and everything to do with what the app happens to be doing at that moment - the
+        /// same reason the library load catches per game around
+        /// <see cref="ReapplyOverwrittenAsync"/>. Letting the first refusal out of here abandons the
+        /// renditions after it, and because the largest is written first, the one most likely to be busy
+        /// is the one whose failure would take all the others with it.
+        ///
+        /// The refusals are returned rather than swallowed. A partial write is a real outcome and the
+        /// caller has to be able to say so: some of the surfaces showing this game changed and some did
+        /// not, which to anyone looking at their library is indistinguishable from nothing happening.
         /// </summary>
         /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
         /// <param name="renditionFileNames">The game's cached images, largest first.</param>
         /// <param name="artworkBytes">The artwork to apply, in any format a decoder can read.</param>
-        /// <returns>How many renditions were written, and whether backups of the originals now exist.</returns>
-        internal static async Task<(int Written, bool HasBackup)> ApplyAsync(
+        /// <returns>
+        /// How many renditions were written, why any of the rest were refused, and whether backups of
+        /// the originals now exist.
+        /// </returns>
+        internal static async Task<(int Written, IReadOnlyList<string> Failures, bool HasBackup)> ApplyAsync(
             StorageFolder cacheFolder,
             IReadOnlyList<string> renditionFileNames,
             IBuffer artworkBytes)
         {
             StorageFolder vault = await XboxTileStore.VaultFolderAsync();
+            List<string> failures = new List<string>();
             int written = 0;
             bool anyBackup = false;
 
             foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
-                int size = await RenditionSizeAsync(cacheFolder, fileName);
+                (int size, uint room) = await RenditionAsync(cacheFolder, fileName);
 
                 if (size <= 0)
                 {
                     continue;
                 }
 
-                IBuffer tileBytes = await TileImage.EncodeSquareJpegAsync(artworkBytes, size);
+                // The tile is written without resizing the file, so the Store's own download sets how
+                // many bytes there are to work with - see ArtworkFiles.WriteMode
+                IBuffer tileBytes = await TileImage.EncodeSquareJpegAsync(artworkBytes, size, room);
 
                 if (tileBytes == null)
                 {
+                    failures.Add($"{size}px (this artwork will not compress into the {room} bytes the cached tile has room for)");
+
                     continue;
                 }
 
-                anyBackup |= await ArtworkFiles.ApplyEncodedAsync(cacheFolder, fileName, vault, tileBytes);
-                written++;
+                try
+                {
+                    anyBackup |= await ArtworkFiles.ApplyEncodedAsync(
+                        cacheFolder, fileName, vault, tileBytes, ArtworkFiles.WriteMode.InPlace);
+
+                    written++;
+                }
+                catch (Exception ex)
+                {
+                    // Named by size rather than by file name, because the name is a hash of the request
+                    // that fetched it and says nothing to anyone reading it
+                    failures.Add($"{size}px ({ex.GetType().Name}: {ex.Message})");
+                }
             }
 
-            return (written, anyBackup);
+            return (written, failures, anyBackup);
         }
 
         /// <summary>
         /// Puts the Xbox app's own artwork back across every rendition.
+        ///
+        /// A rendition that cannot be written costs that rendition and no more, for the same reason
+        /// <see cref="ApplyAsync"/> contains its writes: these files live in the app's own live cache,
+        /// the largest - the one most likely to be busy - comes first, and letting its refusal out of
+        /// here would abandon the renditions behind it. A refused rendition keeps both its sidecars,
+        /// so the retry has everything this attempt had.
         /// </summary>
         /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
         /// <param name="renditionFileNames">The game's cached images.</param>
-        /// <returns>Restored when at least one original was put back, BackupMissing when none was.</returns>
-        internal static async Task<ArtworkFiles.RestoreOutcome> RestoreAsync(
+        /// <returns>
+        /// Restored when at least one original was put back, BackupMissing when none was, and why any
+        /// rendition was refused. BackupMissing alongside failures means the backups exist and every
+        /// write was refused - which a caller must not report as there being nothing to restore.
+        /// </returns>
+        internal static async Task<(ArtworkFiles.RestoreOutcome Outcome, IReadOnlyList<string> Failures)> RestoreAsync(
             StorageFolder cacheFolder,
             IReadOnlyList<string> renditionFileNames)
         {
             StorageFolder vault = await XboxTileStore.VaultFolderAsync();
+            List<string> failures = new List<string>();
             bool restoredAny = false;
 
             foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
-                ArtworkFiles.RestoreOutcome outcome = await ArtworkFiles.RestoreOriginalAsync(cacheFolder, fileName, vault);
+                try
+                {
+                    ArtworkFiles.RestoreOutcome outcome = await ArtworkFiles.RestoreOriginalAsync(
+                        cacheFolder, fileName, vault, ArtworkFiles.WriteMode.InPlace);
 
-                restoredAny |= outcome == ArtworkFiles.RestoreOutcome.Restored;
+                    restoredAny |= outcome == ArtworkFiles.RestoreOutcome.Restored;
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{ex.GetType().Name}: {ex.Message}");
+                }
             }
 
-            return restoredAny ? ArtworkFiles.RestoreOutcome.Restored : ArtworkFiles.RestoreOutcome.BackupMissing;
+            return (
+                restoredAny ? ArtworkFiles.RestoreOutcome.Restored : ArtworkFiles.RestoreOutcome.BackupMissing,
+                failures);
         }
 
         /// <summary>
@@ -134,17 +187,28 @@ namespace SteamGridDB.Xbox.Services.Xbox
                     continue;
                 }
 
-                if (await MatchesSavedCustomisationAsync(cacheFolder, vault, fileName))
+                try
                 {
-                    anySaved = true;
+                    if (await MatchesSavedCustomisationAsync(cacheFolder, vault, fileName))
+                    {
+                        anySaved = true;
 
-                    continue;
+                        continue;
+                    }
+
+                    if (await ArtworkFiles.ReapplyCustomisationAsync(cacheFolder, fileName, vault, ArtworkFiles.WriteMode.InPlace)
+                        == ArtworkFiles.ReapplyOutcome.Reapplied)
+                    {
+                        anySaved = true;
+                    }
                 }
-
-                if (await ArtworkFiles.ReapplyCustomisationAsync(cacheFolder, fileName, vault)
-                    == ArtworkFiles.ReapplyOutcome.Reapplied)
+                catch (Exception ex)
                 {
-                    anySaved = true;
+                    // A rendition the cache refuses this load is a stale tile until the next one, not
+                    // a lost game - the same containment ApplyAsync and RestoreAsync give their writes.
+                    // The .new is untouched by a failed write, so the next load simply tries again.
+                    System.Diagnostics.Debug.WriteLine(
+                        $"Could not reapply the customisation of {fileName}: {ex.Message}");
                 }
             }
 
@@ -294,54 +358,54 @@ namespace SteamGridDB.Xbox.Services.Xbox
         }
 
         /// <summary>
-        /// The pixel size of a cached rendition, or 0 when it is gone or unreadable.
+        /// A cached rendition's pixel size and its length on disk, or zeroes when it is gone or
+        /// unreadable.
+        ///
+        /// Both come from the one read. The pixel size says what to encode the tile as; the length says
+        /// how many bytes there are to put it in, which matters because the file is overwritten without
+        /// being resized.
         /// </summary>
-        private static async Task<int> RenditionSizeAsync(StorageFolder cacheFolder, string fileName)
+        private static async Task<(int Size, uint Room)> RenditionAsync(StorageFolder cacheFolder, string fileName)
         {
             IBuffer bytes = await ReadIfPresentAsync(cacheFolder, fileName);
 
-            return await TileImage.WithDecoderAsync(
+            if (bytes == null)
+            {
+                return (0, 0);
+            }
+
+            int size = await TileImage.WithDecoderAsync(
                 bytes,
                 decoder => Task.FromResult((int)decoder.PixelWidth),
                 0,
                 $"Could not measure cached rendition {fileName}");
+
+            return (size, bytes.Length);
         }
 
         /// <summary>
         /// Whether a rendition already holds the bytes that were last applied to it.
         ///
-        /// Compared by length rather than content: both files were written by this app in the same call,
-        /// so they are either the identical buffer or the Xbox app has replaced one of them with a
-        /// download that has no reason to match its size. And by the length the file system reports
-        /// rather than the length of a buffer read from it - reading two files in to compare two
-        /// integers is megabytes of I/O for an answer the directory entry already holds.
+        /// Compared by content, which it did not always have to be. A tile used to be written as a file
+        /// of its own length, so a length that still matched the saved customisation's was proof enough
+        /// and the directory entry answered it without reading anything. Tiles are now written without
+        /// resizing the file - see <see cref="ArtworkFiles.WriteMode"/> - which means a customised tile
+        /// and the Xbox app's own download are the same length as each other and always will be. Length
+        /// stopped being evidence, and kept only the appearance of it: the check would have reported
+        /// every overwritten tile as intact, and put nothing back.
         ///
         /// Reached only for a rendition the caller's vault listing says has a customisation saved at
-        /// all, so a library nobody has customised never gets here.
+        /// all, so a library nobody has customised reads nothing.
         /// </summary>
         private static async Task<bool> MatchesSavedCustomisationAsync(StorageFolder cacheFolder, StorageFolder vault, string fileName)
         {
-            ulong? current = await SizeIfPresentAsync(cacheFolder, fileName);
-            ulong? saved = await SizeIfPresentAsync(vault, ArtworkFiles.CustomisedNameFor(fileName));
+            IBuffer current = await ReadIfPresentAsync(cacheFolder, fileName);
+            IBuffer saved = await ReadIfPresentAsync(vault, ArtworkFiles.CustomisedNameFor(fileName));
 
-            return current.HasValue && saved.HasValue && current.Value == saved.Value;
-        }
-
-        /// <summary>
-        /// A file's size on disk, or null when it is not there.
-        /// </summary>
-        private static async Task<ulong?> SizeIfPresentAsync(StorageFolder folder, string fileName)
-        {
-            try
-            {
-                StorageFile file = await folder.GetFileAsync(fileName);
-
-                return (await file.GetBasicPropertiesAsync()).Size;
-            }
-            catch (Exception ex) when (ex is FileNotFoundException || ex is UnauthorizedAccessException)
-            {
-                return null;
-            }
+            return current != null
+                && saved != null
+                && current.Length == saved.Length
+                && CryptographicBuffer.Compare(current, saved);
         }
 
         /// <summary>

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 
+using Windows.Security.Cryptography;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
@@ -41,6 +42,34 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
         /// <summary>A copy of the applied artwork, kept so it can be re-applied if it is overwritten.</summary>
         internal const string CustomisedExtension = ".new";
+
+        /// <summary>
+        /// How the image itself is written.
+        ///
+        /// First-party tiles live in the Xbox app's own image cache, and the app keeps the ones it is
+        /// showing memory-mapped. Windows lets a mapped file's contents change but not its length, and
+        /// refuses anything that would resize or replace it with ERROR_USER_MAPPED_FILE - so the write
+        /// every other path makes, create-with-replace, fails outright on exactly the tiles the user is
+        /// looking at. Which is to say: it fails whenever they have their library open to see whether it
+        /// worked.
+        /// </summary>
+        internal enum WriteMode
+        {
+            /// <summary>
+            /// Replace the file. What a third-party tile wants: it is this widget's own file in a folder
+            /// the Xbox app only reads, its length is free to change, and replacing it is atomic.
+            /// </summary>
+            Replace,
+
+            /// <summary>
+            /// Overwrite the bytes and leave the length alone, padding the artwork out to the length
+            /// already there - the only write a memory-mapped file accepts. Bytes that cannot fit fall
+            /// back to replacing the file: sidecars saved before padding existed can be longer than
+            /// the tile they go back onto, and a replace is legal on any file the app does not have
+            /// mapped at that moment - and cleanly refused, per file, when it does.
+            /// </summary>
+            InPlace,
+        }
 
         /// <summary>What <see cref="RestoreOriginalAsync"/> found to do.</summary>
         internal enum RestoreOutcome
@@ -153,50 +182,174 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageFileName">The image's name, which the Xbox app owns and this never changes.</param>
         /// <param name="sidecarFolder">Where the .bak and .new go. The image's own folder for third-party tiles.</param>
         /// <param name="tileBytes">The exact bytes to write.</param>
+        /// <param name="mode">How to write the image. See <see cref="WriteMode"/>.</param>
         /// <returns>Whether a backup of the Xbox app's original now exists.</returns>
-        internal static async Task<bool> ApplyEncodedAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder, IBuffer tileBytes)
+        internal static async Task<bool> ApplyEncodedAsync(
+            StorageFolder imageFolder,
+            string imageFileName,
+            StorageFolder sidecarFolder,
+            IBuffer tileBytes,
+            WriteMode mode = WriteMode.Replace)
+        {
+            bool backupExists = await BackupOnceAsync(imageFolder, imageFileName, sidecarFolder);
+
+            // What lands on disk, which under InPlace is the artwork padded out to the length that was
+            // already there. The saved customisation has to be those same bytes rather than the artwork
+            // alone: it is compared against the image to tell a surviving customisation from one the
+            // Xbox app has overwritten, and two files that were never equal to begin with would report
+            // every tile as overwritten on every load.
+            IBuffer written = await WriteImageAsync(imageFolder, imageFileName, tileBytes, mode);
+
+            StorageFile newFile = await sidecarFolder.CreateFileAsync(
+                CustomisedNameFor(imageFileName), CreationCollisionOption.ReplaceExisting);
+
+            await FileIO.WriteBufferAsync(newFile, written);
+
+            return backupExists;
+        }
+
+        /// <summary>
+        /// Preserves the Xbox app's original, once and once only.
+        ///
+        /// Both halves of that matter: writing first would back up the previous customisation instead of
+        /// the Xbox app's artwork, and overwriting an existing backup would do the same on the second
+        /// fix. Either one loses the original permanently.
+        /// </summary>
+        /// <param name="imageFolder">The folder holding the image itself.</param>
+        /// <param name="imageFileName">The image's name.</param>
+        /// <param name="sidecarFolder">Where the .bak goes.</param>
+        /// <returns>Whether a backup now exists.</returns>
+        private static async Task<bool> BackupOnceAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder)
         {
             string backupFileName = BackupNameFor(imageFileName);
-            string newFileName = CustomisedNameFor(imageFileName);
-
-            // The backup is taken before anything is written, and only when there is not one already.
-            // Both halves of that matter: writing first would back up the previous customisation
-            // instead of the Xbox app's artwork, and overwriting an existing backup would do the same
-            // on the second fix. Either one loses the original permanently.
-            bool backupExists = false;
 
             try
             {
                 await sidecarFolder.GetFileAsync(backupFileName);
 
-                backupExists = true;
+                return true;
             }
             catch (FileNotFoundException)
             {
+                // Nothing preserved yet, so this write is the one that would destroy the original
+            }
+
+            try
+            {
+                StorageFile existingImageFile = await imageFolder.GetFileAsync(imageFileName);
+
+                StorageFile backupFile = await sidecarFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
+                IBuffer existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
+
+                await FileIO.WriteBufferAsync(backupFile, existingBuffer);
+
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                // No existing image to back up - a game whose artwork the Xbox app never wrote
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Writes bytes as the image, by whichever of the two routes the file allows.
+        /// </summary>
+        /// <param name="imageFolder">The folder holding the image.</param>
+        /// <param name="imageFileName">The image's name.</param>
+        /// <param name="bytes">The artwork to write.</param>
+        /// <param name="mode">How to write it. See <see cref="WriteMode"/>.</param>
+        /// <returns>The bytes that are now on disk, which under InPlace are padded.</returns>
+        private static async Task<IBuffer> WriteImageAsync(
+            StorageFolder imageFolder,
+            string imageFileName,
+            IBuffer bytes,
+            WriteMode mode)
+        {
+            if (mode == WriteMode.InPlace)
+            {
                 try
                 {
-                    StorageFile existingImageFile = await imageFolder.GetFileAsync(imageFileName);
+                    StorageFile existing = await imageFolder.GetFileAsync(imageFileName);
+                    uint length = (uint)(await existing.GetBasicPropertiesAsync()).Size;
 
-                    StorageFile backupFile = await sidecarFolder.CreateFileAsync(backupFileName, CreationCollisionOption.ReplaceExisting);
-                    IBuffer existingBuffer = await FileIO.ReadBufferAsync(existingImageFile);
+                    if (bytes.Length <= length)
+                    {
+                        return await WriteInPlaceAsync(existing, bytes, length);
+                    }
 
-                    await FileIO.WriteBufferAsync(backupFile, existingBuffer);
-
-                    backupExists = true;
+                    // Longer than the space there is. Applies encode to fit - see
+                    // TileImage.EncodeSquareJpegAsync's byte budget - so this is a sidecar saved
+                    // before padding existed going back onto a tile the Xbox app has since rewritten
+                    // shorter. The only write left is the replace below, which grows the file: legal
+                    // on anything the app does not have mapped at this moment, and cleanly refused by
+                    // the file system when it does - a refusal the callers contain per rendition.
                 }
                 catch (FileNotFoundException)
                 {
-                    // No existing image to back up - a game whose artwork the Xbox app never wrote
+                    // Nothing there to preserve the length of, and nothing there to have mapped either
                 }
             }
 
             StorageFile imageFile = await imageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-            await FileIO.WriteBufferAsync(imageFile, tileBytes);
 
-            StorageFile newFile = await sidecarFolder.CreateFileAsync(newFileName, CreationCollisionOption.ReplaceExisting);
-            await FileIO.WriteBufferAsync(newFile, tileBytes);
+            await FileIO.WriteBufferAsync(imageFile, bytes);
 
-            return backupExists;
+            return bytes;
+        }
+
+        /// <summary>
+        /// Overwrites a file's contents without changing its length.
+        ///
+        /// The stream's Size is deliberately never assigned - that is the one operation here a mapped
+        /// file refuses, and leaving it alone is the whole point. Artwork shorter than the file is
+        /// padded rather than left to trail the previous tile's bytes: a JPEG decoder stops at its
+        /// end-of-image marker either way, but the padding is what makes the result a function of the
+        /// artwork alone, so the same artwork applied twice leaves the same file both times.
+        /// </summary>
+        /// <param name="imageFile">The image to overwrite.</param>
+        /// <param name="bytes">The artwork, no longer than the file. The caller checked.</param>
+        /// <param name="length">The file's current length, which it keeps.</param>
+        /// <returns>The padded bytes that are now on disk.</returns>
+        private static async Task<IBuffer> WriteInPlaceAsync(StorageFile imageFile, IBuffer bytes, uint length)
+        {
+            IBuffer padded = PadTo(bytes, length);
+
+            using (IRandomAccessStream stream = await imageFile.OpenAsync(FileAccessMode.ReadWrite))
+            {
+                stream.Seek(0);
+
+                await stream.WriteAsync(padded);
+                await stream.FlushAsync();
+            }
+
+            return padded;
+        }
+
+        /// <summary>
+        /// The buffer, zero-padded to an exact length. Returned as-is when it is already that long.
+        /// </summary>
+        internal static IBuffer PadTo(IBuffer bytes, uint length)
+        {
+            if (bytes.Length == length)
+            {
+                return bytes;
+            }
+
+            byte[] source = new byte[bytes.Length];
+
+            using (DataReader reader = DataReader.FromBuffer(bytes))
+            {
+                reader.ReadBytes(source);
+            }
+
+            // Via a byte[] because the runtime guarantees it starts zeroed, which is what makes the
+            // padding a stated value rather than whatever the allocator last had there
+            byte[] padded = new byte[length];
+
+            Array.Copy(source, padded, source.Length);
+
+            return CryptographicBuffer.CreateFromByteArray(padded);
         }
 
         /// <summary>
@@ -216,7 +369,12 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageFolder">The folder holding the image itself.</param>
         /// <param name="imageFileName">The image's name.</param>
         /// <param name="sidecarFolder">Where the .bak and .new live.</param>
-        internal static async Task<RestoreOutcome> RestoreOriginalAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder)
+        /// <param name="mode">How to write the image. See <see cref="WriteMode"/>.</param>
+        internal static async Task<RestoreOutcome> RestoreOriginalAsync(
+            StorageFolder imageFolder,
+            string imageFileName,
+            StorageFolder sidecarFolder,
+            WriteMode mode = WriteMode.Replace)
         {
             StorageFile backupFile;
 
@@ -230,15 +388,19 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return RestoreOutcome.BackupMissing;
             }
 
-            try
+            if (mode == WriteMode.InPlace)
             {
-                StorageFile newImageFile = await sidecarFolder.GetFileAsync(CustomisedNameFor(imageFileName));
+                // Copied in rather than moved, because a move is a replace - the write a mapped file
+                // refuses when the artwork does not fit, and the tile being restored is one the Xbox
+                // app is perfectly likely to be showing. Both sidecars survive until the image holds
+                // the original again: the backup is unrecoverable and the customisation is the only
+                // copy of what the user chose, so a refused write has to cost nothing but the retry.
+                await WriteImageAsync(imageFolder, imageFileName, await FileIO.ReadBufferAsync(backupFile), mode);
 
-                await newImageFile.DeleteAsync();
-            }
-            catch (FileNotFoundException)
-            {
-                // Saved customisation doesn't exist, that's okay
+                await DiscardCustomisationAsync(sidecarFolder, imageFileName);
+                await backupFile.DeleteAsync();
+
+                return RestoreOutcome.Restored;
             }
 
             // Move rather than copy-then-delete: ReplaceExisting overwrites the current image in one
@@ -256,7 +418,28 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 await backupFile.MoveAsync(imageFolder, imageFileName, NameCollisionOption.ReplaceExisting);
             }
 
+            await DiscardCustomisationAsync(sidecarFolder, imageFileName);
+
             return RestoreOutcome.Restored;
+        }
+
+        /// <summary>
+        /// Deletes the saved customisation, if there is one. Called only after the image holds what it
+        /// should - the .new is the one copy of the user's choice, and deleting it ahead of a write
+        /// that can be refused would trade it for an error message.
+        /// </summary>
+        private static async Task DiscardCustomisationAsync(StorageFolder sidecarFolder, string imageFileName)
+        {
+            try
+            {
+                StorageFile newImageFile = await sidecarFolder.GetFileAsync(CustomisedNameFor(imageFileName));
+
+                await newImageFile.DeleteAsync();
+            }
+            catch (FileNotFoundException)
+            {
+                // Saved customisation doesn't exist, that's okay
+            }
         }
 
         /// <summary>
@@ -282,7 +465,12 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="imageFolder">The folder holding the image itself.</param>
         /// <param name="imageFileName">The image's name.</param>
         /// <param name="sidecarFolder">Where the .bak and .new live.</param>
-        internal static async Task<ReapplyOutcome> ReapplyCustomisationAsync(StorageFolder imageFolder, string imageFileName, StorageFolder sidecarFolder)
+        /// <param name="mode">How to write the image. See <see cref="WriteMode"/>.</param>
+        internal static async Task<ReapplyOutcome> ReapplyCustomisationAsync(
+            StorageFolder imageFolder,
+            string imageFileName,
+            StorageFolder sidecarFolder,
+            WriteMode mode = WriteMode.Replace)
         {
             StorageFile newFile;
 
@@ -295,11 +483,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return ReapplyOutcome.NothingSaved;
             }
 
-            IBuffer imageBytes = await FileIO.ReadBufferAsync(newFile);
+            IBuffer saved = await FileIO.ReadBufferAsync(newFile);
+            IBuffer written = await WriteImageAsync(imageFolder, imageFileName, saved, mode);
 
-            StorageFile imageFile = await imageFolder.CreateFileAsync(imageFileName, CreationCollisionOption.ReplaceExisting);
-
-            await FileIO.WriteBufferAsync(imageFile, imageBytes);
+            // A customisation written by ApplyEncodedAsync goes back exactly as it came off - it was
+            // saved as the very bytes the tile held. One saved before padding existed is the artwork
+            // at its own length, so what lands differs from it, and the saved copy is brought up to
+            // date the one time that happens: the overwrite check compares the two, and leaving them
+            // unequal would report this tile overwritten - and rewrite it - on every load forever.
+            if (written.Length != saved.Length)
+            {
+                await FileIO.WriteBufferAsync(newFile, written);
+            }
 
             return ReapplyOutcome.Reapplied;
         }

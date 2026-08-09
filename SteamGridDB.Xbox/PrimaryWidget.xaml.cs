@@ -913,17 +913,25 @@ namespace SteamGridDB.Xbox
 
                 foreach (XboxLibrary.Game game in games)
                 {
-                    // Scoped to this one game, for the same reason the third-party walk's is - and
-                    // here the throw is routine rather than exotic: ReapplyOverwrittenAsync writes
-                    // into the Xbox app's own live image cache, so a rendition the app happens to be
-                    // holding open fails with UnauthorizedAccessException. Under the single outer
-                    // catch that used to be the only one, that took every remaining first-party game
-                    // with it.
+                    // Before the thumbnail is decoded, so the row shows what is actually on the tile.
+                    // Outside the row-building try below, deliberately: a customisation that cannot be
+                    // written back this load is a stale tile, not a missing game, and the row is what
+                    // carries the Restore button that can still act on it. ReapplyOverwrittenAsync
+                    // already contains refusals per rendition; this guards what remains around them.
                     try
                     {
-                        // Before the thumbnail is decoded, so the row shows what is actually on the tile
                         await XboxTiles.ReapplyOverwrittenAsync(cacheFolder, game.RenditionFileNames, vaultFileNames);
+                    }
+                    catch (Exception ex)
+                    {
+                        FixLog.Write($"reapply skipped Xbox/{game.StoreId} ({ex.GetType().Name}: {ex.Message})");
+                    }
 
+                    // Scoped to this one game, for the same reason the third-party walk's is: one
+                    // unreadable tile or failed lookup must not take every remaining first-party
+                    // game with it.
+                    try
+                    {
                         string primaryFileName = game.PrimaryFileName;
                         BitmapImage image = null;
 
@@ -1278,7 +1286,7 @@ namespace SteamGridDB.Xbox
                                 (IBuffer Bytes, int ArtworkId) best = await ArtworkDownloader.DownloadBestTileFillingImageAsync(ranked, game.Name, game.OfficialCapsuleUrl);
 
                                 FixLog.Write($"  applied {best.ArtworkId}");
-                                bool downloaded = best.Bytes != null && await ReplaceImageCoreAsync(game, best.Bytes, false, best.ArtworkId);
+                                bool downloaded = best.Bytes != null && (await ReplaceImageCoreAsync(game, best.Bytes, false, best.ArtworkId)).Succeeded;
 
                                 if (downloaded)
                                 {
@@ -1310,7 +1318,7 @@ namespace SteamGridDB.Xbox
                                 if (icons.Count > 0)
                                 {
                                     SteamGridDbGrid bestIcon = ArtworkRanker.RankIcons(icons).First();
-                                    bool downloaded = await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false, bestIcon.Id);
+                                    bool downloaded = (await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false, bestIcon.Id)).Succeeded;
 
                                     if (downloaded)
                                     {
@@ -1447,34 +1455,124 @@ namespace SteamGridDB.Xbox
         /// <param name="imageUrl">The URL of the image to download</param>
         /// <param name="updateStatusText">Whether to update the main status text</param>
         /// <returns>True if successful, false otherwise</returns>
-        private async Task<bool> DownloadAndReplaceImageCoreAsync(GameEntry game, string imageUrl, bool updateStatusText = true, int appliedArtworkId = 0)
+        private async Task<WriteResult> DownloadAndReplaceImageCoreAsync(GameEntry game, string imageUrl, bool updateStatusText = true, int appliedArtworkId = 0)
         {
             IBuffer imageBytes = await ArtworkDownloader.DownloadArtworkAsync(imageUrl);
 
-            return imageBytes != null && await ReplaceImageCoreAsync(game, imageBytes, updateStatusText, appliedArtworkId);
+            return imageBytes == null
+                ? WriteResult.Failed("the artwork could not be downloaded")
+                : await ReplaceImageCoreAsync(game, imageBytes, updateStatusText, appliedArtworkId);
+        }
+
+        /// <summary>
+        /// Whether a write happened, and when it did not, what stopped it.
+        ///
+        /// The reason travels with the answer rather than being written to the status bar where it is
+        /// produced, because the one caller who most needs it cannot see that bar: the picker panel is
+        /// an opaque full-screen sibling of the main grid and covers StatusText completely. Explaining
+        /// a failure there tells it to an empty room, which is how "Failed to download or save image"
+        /// came to be the whole of what a user was told when a tile could not be written.
+        /// </summary>
+        private readonly struct WriteResult
+        {
+            private WriteResult(bool succeeded, string failure)
+            {
+                Succeeded = succeeded;
+                Failure = failure;
+            }
+
+            /// <summary>Whether the artwork is on the tile.</summary>
+            internal bool Succeeded { get; }
+
+            /// <summary>What stopped the write, or null when nothing did.</summary>
+            internal string Failure { get; }
+
+            internal static WriteResult Success => new WriteResult(true, null);
+
+            internal static WriteResult Failed(string failure) => new WriteResult(false, failure);
+        }
+
+        /// <summary>
+        /// What to say after a write that succeeded, at least in part.
+        ///
+        /// A first-party game is several cached images and any of them can be refused on its own, so
+        /// "updated successfully" is only the whole truth when none were. Where some were, the surfaces
+        /// that did change and the ones that did not are both real, and a library still showing the old
+        /// tile is exactly what an unqualified success would fail to explain.
+        /// </summary>
+        /// <param name="game">The game that was written.</param>
+        /// <param name="imageFileName">Its image's name, for a game the manifests never named.</param>
+        /// <param name="writeFailures">Renditions the cache refused, from <see cref="XboxTiles.ApplyAsync"/>.</param>
+        private string AppliedMessage(GameEntry game, string imageFileName, IReadOnlyList<string> writeFailures)
+        {
+            string applied = game.Name == unknownName
+                ? $"Artwork {imageFileName} updated successfully"
+                : $"Artwork for {game.Name} updated successfully";
+
+            return writeFailures.Count == 0
+                ? applied
+                : $"Artwork for {DisplayName(game)} partly updated - "
+                    + $"{writeFailures.Count} tile{(writeFailures.Count == 1 ? string.Empty : "s")} could not be written: "
+                    + string.Join("; ", writeFailures);
         }
 
         /// <summary>
         /// Replaces a game's image with the provided image bytes, backing up the original first.
         /// </summary>
-        private async Task<bool> ReplaceImageCoreAsync(GameEntry game, IBuffer imageBytes, bool updateStatusText = true, int appliedArtworkId = 0)
+        private async Task<WriteResult> ReplaceImageCoreAsync(GameEntry game, IBuffer imageBytes, bool updateStatusText = true, int appliedArtworkId = 0)
         {
             try
             {
                 string imageFileName = Path.GetFileName(game.ImageFilePath);
                 bool backupExists;
 
+                // Renditions the Xbox app's cache refused this write, for the status line. Empty for a
+                // third-party game, which is one file that either wrote or threw.
+                IReadOnlyList<string> writeFailures = Array.Empty<string>();
+
                 if (game.IsXboxTile)
                 {
+                    // The record naming this game's renditions was written when it was first found, and
+                    // the Xbox app caches a tile per surface lazily - so a game seen before its library
+                    // tile had been drawn is recorded as a thumbnail and nothing else. Asked again here,
+                    // where there is artwork in hand to fill whatever has appeared since.
+                    if (updateStatusText)
+                    {
+                        await SetStatusAsync($"Checking the tiles for {DisplayName(game)}...");
+                    }
+
+                    IReadOnlyList<string> renditions = await XboxLibrary.RefreshRenditionsAsync(
+                        game.ImageFolder, game.ExternalPlatformId, game.XboxRenditions);
+
                     // One first-party game is several cached images, one per surface the Xbox app shows
                     // it on, and the tile only changes everywhere when all of them do
-                    (int written, bool hasBackup) = await XboxTiles.ApplyAsync(game.ImageFolder, game.XboxRenditions, imageBytes);
+                    (int written, IReadOnlyList<string> failures, bool hasBackup) =
+                        await XboxTiles.ApplyAsync(game.ImageFolder, renditions, imageBytes);
+
+                    writeFailures = failures;
 
                     if (written == 0)
                     {
-                        return false;
+                        return WriteResult.Failed(failures.Count > 0
+                            ? $"no tile could be written - {string.Join("; ", failures)}"
+                            : "this game has no cached tile to write to");
                     }
 
+                    string primaryPath = Path.Combine(game.ImageFolder.Path, renditions[0]);
+
+                    if (!string.Equals(primaryPath, game.ImageFilePath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // A larger rendition has joined the set, and the largest stands in for the game
+                        // wherever one path is needed. The applied-artwork record is keyed by that path,
+                        // so the old key now describes nothing and would leave a stale In use mark on
+                        // the picker - the same case XboxTiles.ForgetArtworkRecordsAsync exists for.
+                        await AppliedArtworkStore.ClearAsync(game.ImageFilePath);
+
+                        game.ImageFilePath = primaryPath;
+                        imageFileName = Path.GetFileName(primaryPath);
+                    }
+
+                    game.XboxRenditions = renditions;
                     backupExists = hasBackup;
                 }
                 else
@@ -1493,17 +1591,15 @@ namespace SteamGridDB.Xbox
                     imageFileName,
                     newImage,
                     backupExists,
-                    updateStatusText
-                        ? (game.Name == unknownName ? $"Artwork {imageFileName} updated successfully" : $"Artwork for {game.Name} updated successfully")
-                        : null);
+                    updateStatusText ? AppliedMessage(game, imageFileName, writeFailures) : null);
 
-                return true;
+                return WriteResult.Success;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error in ReplaceImageCoreAsync for {game.Name}: {ex.Message}");
 
-                return false;
+                return WriteResult.Failed($"{ex.GetType().Name}: {ex.Message}");
             }
         }
 
@@ -1530,7 +1626,7 @@ namespace SteamGridDB.Xbox
             {
                 IBuffer cropped = await TileImage.CropPortraitToTileAsync(await ArtworkDownloader.DownloadArtworkAsync(candidate.Url));
 
-                if (cropped != null && await ReplaceImageCoreAsync(game, cropped, false, candidate.Id))
+                if (cropped != null && (await ReplaceImageCoreAsync(game, cropped, false, candidate.Id)).Succeeded)
                 {
                     System.Diagnostics.Debug.WriteLine($"Used cropped portrait art {candidate.Id} for {game.Name}");
 
@@ -1830,7 +1926,7 @@ namespace SteamGridDB.Xbox
                 GridLoadingRing.IsActive = true;
 
                 // Use the core download and replace logic
-                bool success = await DownloadAndReplaceImageCoreAsync(CurrentSelectedGame, gridItem.Url, true, gridItem.Id);
+                WriteResult result = await DownloadAndReplaceImageCoreAsync(CurrentSelectedGame, gridItem.Url, true, gridItem.Id);
 
                 // A newer picker session has started while this download was in flight (its own
                 // GridImage_Click check only verified the session at click time, before this method's
@@ -1843,7 +1939,7 @@ namespace SteamGridDB.Xbox
                     return;
                 }
 
-                if (success)
+                if (result.Succeeded)
                 {
                     GridPanelStatus.Text = "Image updated successfully";
 
@@ -1854,7 +1950,9 @@ namespace SteamGridDB.Xbox
                 }
                 else
                 {
-                    GridPanelStatus.Text = "Failed to download or save image";
+                    // The reason, not just the fact. This panel covers the status bar, so whatever it
+                    // does not say here is said nowhere the user is looking.
+                    GridPanelStatus.Text = $"Could not update the artwork: {result.Failure}";
                 }
 
                 GridLoadingRing.IsActive = false;
@@ -2272,12 +2370,33 @@ namespace SteamGridDB.Xbox
 
             try
             {
-                ArtworkFiles.RestoreOutcome outcome = game.IsXboxTile
-                    ? await XboxTiles.RestoreAsync(game.ImageFolder, game.XboxRenditions)
-                    : await ArtworkFiles.RestoreOriginalAsync(game.ImageFolder, imageFileName);
+                ArtworkFiles.RestoreOutcome outcome;
+                IReadOnlyList<string> restoreFailures = Array.Empty<string>();
+
+                if (game.IsXboxTile)
+                {
+                    (outcome, restoreFailures) = await XboxTiles.RestoreAsync(game.ImageFolder, game.XboxRenditions);
+                }
+                else
+                {
+                    outcome = await ArtworkFiles.RestoreOriginalAsync(game.ImageFolder, imageFileName);
+                }
 
                 if (outcome == ArtworkFiles.RestoreOutcome.BackupMissing)
                 {
+                    if (restoreFailures.Count > 0)
+                    {
+                        // The backups exist - every write of them was refused. Saying "not found"
+                        // here would send the user looking for a file that is sitting right there.
+                        if (updateStatusText)
+                        {
+                            await SetStatusAsync(
+                                $"Could not restore backup for {backupGameName}: {string.Join("; ", restoreFailures)}");
+                        }
+
+                        return RestoreBackupResult.Error;
+                    }
+
                     if (updateStatusText)
                     {
                         await SetStatusAsync($"Backup file not found for {backupGameName}");
@@ -2298,12 +2417,21 @@ namespace SteamGridDB.Xbox
                 bool backupRemaining = game.IsXboxTile
                     && XboxTiles.HasBackup(game.XboxRenditions, await XboxTileStore.VaultFileNamesAsync());
 
+                // A first-party restore can succeed on some surfaces and be refused on others, and a
+                // library still showing the old tile somewhere is exactly what an unqualified
+                // success would fail to explain
+                string restoredStatus = restoreFailures.Count == 0
+                    ? $"Backup restored for {backupGameName}"
+                    : $"Backup partly restored for {backupGameName} - "
+                        + $"{restoreFailures.Count} tile{(restoreFailures.Count == 1 ? string.Empty : "s")} could not be written: "
+                        + string.Join("; ", restoreFailures);
+
                 await UpdateSharedEntriesAsync(
                     game,
                     imageFileName,
                     restoredImage,
                     backupRemaining,
-                    updateStatusText ? $"Backup restored for {backupGameName}" : null);
+                    updateStatusText ? restoredStatus : null);
 
                 return RestoreBackupResult.Restored;
             }
