@@ -21,6 +21,14 @@ namespace SteamGridDB.Xbox.Services.Library
     /// largest reduction in the app's outbound traffic available - see that type for why. EA's lookup
     /// is local file reads only and makes no request.
     ///
+    /// One cached answer is not whole, and does not skip the sequence: a miss carrying no name. Its
+    /// SteamGridDB verdict is honoured and its platform-ID lookup is not repeated, but the store's own
+    /// name lookup runs again, because that name comes from the launcher's on-disk manifests and
+    /// installing the game changes it without SteamGridDB changing at all - see
+    /// <see cref="AnswersTheName"/>. Such an entry produces a full "unmatched" audit line rather than a
+    /// "cached" one, which is the intended reading: work was done, and the line carries the store load
+    /// summary that says whether the manifests were read.
+    ///
     /// The cache is neither read nor written when there is no API key. Without one the SteamGridDB
     /// half of this never runs, so the result would be a miss recorded for a question that was never
     /// asked - and adding a key later would then find that miss waiting for it.
@@ -143,6 +151,53 @@ namespace SteamGridDB.Xbox.Services.Library
         }
 
         /// <summary>
+        /// Whether a cached entry answers everything the resolve needs of it, or only half.
+        ///
+        /// The cache remembers what SteamGridDB said, and a miss it recorded stays true for days. The
+        /// name sitting beside that miss is a different kind of fact: on the store-backed platforms it
+        /// comes from the launcher's own on-disk manifests, so it turns from "Unknown" into a real
+        /// title the moment the game is installed - an event SteamGridDB knows nothing about, and one
+        /// the miss's own lifetime therefore has no bearing on. Remembering "Unknown" for two days
+        /// hides exactly the event the user is waiting on: install a game, reopen the widget, and it is
+        /// still nameless, with nothing on screen to say why.
+        ///
+        /// So a nameless miss is treated as half an answer. The SteamGridDB verdict in it is still
+        /// honoured - the platform-ID lookup it already paid for is not asked again - and only the
+        /// store's own name lookup is reopened. That is a local file read on EA, and a local read
+        /// before any request on Epic; where it does reach the network, StoreNameLookup's own caches
+        /// hold the result for the life of the process, so this costs at most one request per nameless
+        /// entry per widget session and none at all per library load.
+        ///
+        /// A miss that carries a real name is a whole answer and returns straight from the cache: the
+        /// name search was performed, and it found nothing.
+        /// </summary>
+        /// <param name="matched">Whether the cached entry says SteamGridDB knows the game.</param>
+        /// <param name="cachedName">The name on the cached entry, if it carries one.</param>
+        /// <param name="unknownName">The sentinel default name.</param>
+        internal static bool AnswersTheName(bool matched, string cachedName, string unknownName)
+        {
+            return matched || !(string.IsNullOrEmpty(cachedName) || cachedName == unknownName);
+        }
+
+        /// <summary>
+        /// Whether a resolve produced anything the cache does not already hold.
+        ///
+        /// Only ever false on a name-only retry - see <see cref="AnswersTheName"/> - that came back as
+        /// nameless as the entry which triggered it. Writing that would stamp a fresh timestamp on a
+        /// verdict this resolve never re-asked, restarting the miss's two-day clock on every library
+        /// load; the platform-ID lookup the lifetime exists to re-ask would then never be re-asked at
+        /// all, and a game added to SteamGridDB after the first miss would stay missing forever.
+        /// Leaving the entry alone lets it age out exactly as it would have.
+        /// </summary>
+        /// <param name="nameOnlyRetry">Whether the cache supplied this resolve's SteamGridDB verdict.</param>
+        /// <param name="gameName">The name the resolve settled on.</param>
+        /// <param name="unknownName">The sentinel default name.</param>
+        internal static bool LearnedSomethingNew(bool nameOnlyRetry, string gameName, string unknownName)
+        {
+            return !nameOnlyRetry || gameName != unknownName;
+        }
+
+        /// <summary>
         /// Whether a fresh resolve of this outcome would have written an audit line, and therefore
         /// whether a cached one should.
         ///
@@ -187,6 +242,11 @@ namespace SteamGridDB.Xbox.Services.Library
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
 
+            // Set when the cache holds this game's SteamGridDB verdict but no name to go with it, and
+            // only the name is being resolved again - see AnswersTheName. The verdict stands, so every
+            // SteamGridDB call below is conditioned on this being false.
+            bool nameOnlyRetry = false;
+
             if (canQuerySteamGridDb)
             {
                 GameMatchCache.Entry? remembered = await GameMatchCache.GetAsync(platform, externalPlatformId, now);
@@ -195,16 +255,21 @@ namespace SteamGridDB.Xbox.Services.Library
                 {
                     GameMatchCache.Entry cached = remembered.Value;
 
-                    // Logged only for the games a fresh resolve would have logged - see WasLoggedFresh.
-                    // Logging every cached game instead made a warm load's audit six times longer than
-                    // a cold one's and of a different shape, which defeats the one thing this log is
-                    // for: comparing two loads to see why a game is still showing as Unknown.
-                    if (WasLoggedFresh(cached.Matched, cached.SteamGridDbGameId))
+                    if (AnswersTheName(cached.Matched, cached.Name, unknownName))
                     {
-                        FixLog.Write($"cached {platform}/{externalPlatformId} name={cached.Name ?? unknownName} sgdbId={cached.SteamGridDbGameId} matched={cached.Matched}");
+                        // Logged only for the games a fresh resolve would have logged - see WasLoggedFresh.
+                        // Logging every cached game instead made a warm load's audit six times longer than
+                        // a cold one's and of a different shape, which defeats the one thing this log is
+                        // for: comparing two loads to see why a game is still showing as Unknown.
+                        if (WasLoggedFresh(cached.Matched, cached.SteamGridDbGameId))
+                        {
+                            FixLog.Write($"cached {platform}/{externalPlatformId} name={cached.Name ?? unknownName} sgdbId={cached.SteamGridDbGameId} matched={cached.Matched}");
+                        }
+
+                        return new Result(cached.Name ?? gameName, cached.Matched, cached.CapsuleUrl, cached.SteamGridDbGameId);
                     }
 
-                    return new Result(cached.Name ?? gameName, cached.Matched, cached.CapsuleUrl, cached.SteamGridDbGameId);
+                    nameOnlyRetry = true;
                 }
             }
 
@@ -219,7 +284,9 @@ namespace SteamGridDB.Xbox.Services.Library
             {
                 string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(platform);
 
-                if (canQuerySteamGridDb && !string.IsNullOrEmpty(platformString))
+                // Skipped outright on a name-only retry: the cache is standing in for this exact call,
+                // and re-asking it would spend the request the cached verdict exists to save
+                if (canQuerySteamGridDb && !nameOnlyRetry && !string.IsNullOrEmpty(platformString))
                 {
                     SteamGridDbGame gameInfo = await sgdbClient.GetGameByPlatformIdAsync(platformString, externalPlatformId);
 
@@ -310,7 +377,8 @@ namespace SteamGridDB.Xbox.Services.Library
                 FixLog.Write(BuildUnmatchedLogLine(platform, externalPlatformId, epicCatalogItemId, storeLoadSummary, gameName, steamGridDbGameId));
             }
 
-            if (ShouldRemember(canQuerySteamGridDb, lookupThrew, unansweredBefore, canQuerySteamGridDb ? sgdbClient.UnansweredResponses : 0))
+            if (LearnedSomethingNew(nameOnlyRetry, gameName, unknownName)
+                && ShouldRemember(canQuerySteamGridDb, lookupThrew, unansweredBefore, canQuerySteamGridDb ? sgdbClient.UnansweredResponses : 0))
             {
                 await GameMatchCache.SetAsync(
                     platform,

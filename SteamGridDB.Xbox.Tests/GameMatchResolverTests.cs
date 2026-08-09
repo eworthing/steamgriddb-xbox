@@ -94,6 +94,63 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Equal("unmatched EA/194814 ea=[3 content ids from C:\\Program Files\\EA Games] name=Unknown sgdbId=0", line);
         }
 
+        // ---- AnswersTheName: which cached entries stand on their own ----
+
+        [Fact]
+        public void A_cached_miss_with_no_name_does_not_stand_on_its_own()
+        {
+            // The verdict is days-old fact; the missing name is not. Installing the game fills it in
+            // without SteamGridDB changing, and holding "Unknown" for two days hides exactly that.
+            Assert.False(GameMatchResolver.AnswersTheName(matched: false, cachedName: "Unknown", unknownName: "Unknown"));
+        }
+
+        [Fact]
+        public void A_cached_miss_carrying_no_name_at_all_does_not_either()
+        {
+            // GameMatchCache omits the name rather than writing an empty one, so both shapes arrive
+            Assert.False(GameMatchResolver.AnswersTheName(matched: false, cachedName: null, unknownName: "Unknown"));
+        }
+
+        [Fact]
+        public void A_cached_miss_with_a_real_name_is_a_whole_answer()
+        {
+            // The name search was performed against this name and found nothing - re-running the store
+            // lookup would produce the same name and the same miss
+            Assert.True(GameMatchResolver.AnswersTheName(matched: false, cachedName: "Plants vs Zombies GW2", unknownName: "Unknown"));
+        }
+
+        [Fact]
+        public void A_cached_match_is_always_a_whole_answer()
+        {
+            // A match's name came from SteamGridDB itself, so there is no local source to reopen
+            Assert.True(GameMatchResolver.AnswersTheName(matched: true, cachedName: "Alan Wake 2", unknownName: "Unknown"));
+        }
+
+        // ---- LearnedSomethingNew: whether a name-only retry may rewrite its entry ----
+
+        [Fact]
+        public void A_name_only_retry_that_found_no_name_must_not_rewrite_its_entry()
+        {
+            // It asked SteamGridDB nothing. Restamping the entry would restart the miss's two-day
+            // clock on every load, so the platform-ID lookup would never be re-asked at all.
+            Assert.False(GameMatchResolver.LearnedSomethingNew(nameOnlyRetry: true, gameName: "Unknown", unknownName: "Unknown"));
+        }
+
+        [Fact]
+        public void A_name_only_retry_that_found_a_name_may()
+        {
+            // A name appeared and was searched for - a genuinely new answer, worth its new timestamp
+            Assert.True(GameMatchResolver.LearnedSomethingNew(nameOnlyRetry: true, gameName: "SimCity 2000 Special Edition", unknownName: "Unknown"));
+        }
+
+        [Fact]
+        public void A_full_resolve_always_may_even_when_it_found_no_name()
+        {
+            // Nothing was standing in for the platform-ID lookup here, so the miss is this resolve's
+            // own finding and dates from now
+            Assert.True(GameMatchResolver.LearnedSomethingNew(nameOnlyRetry: false, gameName: "Unknown", unknownName: "Unknown"));
+        }
+
         // ---- ShouldRemember: what may be written to the match cache ----
 
         [Fact]
