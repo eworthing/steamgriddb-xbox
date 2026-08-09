@@ -17,9 +17,12 @@ namespace SteamGridDB.Xbox.Tests
     /// reading %ProgramData%\EA Desktop\machine.ini - is uncovered, and the parser it hands its text to
     /// is exercised directly here.
     ///
-    /// The XML in these tests is the real shape, trimmed: DiPManifest is what EA writes, and
-    /// contentIDs/gameTitles are its children. The full file also carries build metadata, an uninstall
-    /// block, runtime paths and an install manifest, none of which this reads.
+    /// The XML in these tests is the real shape, trimmed. Both shapes EA writes are here, because both
+    /// are installed side by side under the one install root: the 4.0 manifest current games carry,
+    /// rooted at DiPManifest with contentIDs/gameTitles as its children, and the 3.0 one the re-released
+    /// classics still carry, rooted at game with the title down in metadata/localeInfo. The full files
+    /// also carry build metadata, an uninstall block, runtime paths and an install manifest, none of
+    /// which this reads.
     /// </summary>
     public class EaLibraryTests
     {
@@ -31,6 +34,19 @@ namespace SteamGridDB.Xbox.Tests
     <gameTitle locale=""fr_FR"">Plants contre Zombies La Bataille de Neighborville</gameTitle>
   </gameTitles>
 </DiPManifest>";
+
+        // SimCity 2000 SE as EA actually ships it - the manifest that left it "Unknown" while the two
+        // Plants vs Zombies installs beside it resolved
+        private const string SimCityManifest = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<game gameVersion=""2.0.0.1"" manifestVersion=""3.0"">
+  <contentIDs><contentID>71104</contentID></contentIDs>
+  <metadata>
+    <localeInfo locale=""en_US"">
+      <title>SimCity 2000 Special Edition</title>
+      <eula name=""SimCity 2000 Special Edition End User License Agreement"">/Support/eula/en_US_eula.rtf</eula>
+    </localeInfo>
+  </metadata>
+</game>";
 
         // ---- ParseInstallRoot: machine.ini's configured install location ----
 
@@ -92,6 +108,41 @@ namespace SteamGridDB.Xbox.Tests
 
             Assert.Equal("Plants vs Zombies Battle for Neighborville", manifest.Title);
             Assert.Equal(new[] { "194814" }, manifest.ContentIds);
+        }
+
+        [Fact]
+        public void The_older_manifest_the_re_released_classics_carry_is_read_too()
+        {
+            EaLibrary.InstallerManifest manifest = EaLibrary.ParseInstallerManifest(SimCityManifest);
+
+            Assert.Equal("SimCity 2000 Special Edition", manifest.Title);
+            Assert.Equal(new[] { "71104" }, manifest.ContentIds);
+        }
+
+        [Fact]
+        public void The_older_manifest_takes_its_locale_from_the_element_wrapping_the_title()
+        {
+            // 3.0 tags localeInfo, not the title inside it, so English still has to win here
+            string xml = @"<game manifestVersion=""3.0"">
+  <contentIDs><contentID>1</contentID></contentIDs>
+  <metadata>
+    <localeInfo locale=""de_DE""><title>Ein Spiel</title></localeInfo>
+    <localeInfo locale=""en_US""><title>A Game</title></localeInfo>
+  </metadata>
+</game>";
+
+            Assert.Equal("A Game", EaLibrary.ParseInstallerManifest(xml).Title);
+        }
+
+        [Fact]
+        public void The_older_manifest_with_no_English_title_falls_back_to_the_first_one_it_has()
+        {
+            string xml = @"<game manifestVersion=""3.0"">
+  <contentIDs><contentID>1</contentID></contentIDs>
+  <metadata><localeInfo locale=""de_DE""><title>Ein Spiel</title></localeInfo></metadata>
+</game>";
+
+            Assert.Equal("Ein Spiel", EaLibrary.ParseInstallerManifest(xml).Title);
         }
 
         [Fact]
@@ -174,6 +225,22 @@ namespace SteamGridDB.Xbox.Tests
                 Assert.Equal(2, map.Count);
                 Assert.Equal("Plants vs Zombies Battle for Neighborville", map["194814"]);
                 Assert.Equal("Some Other Game", map["555"]);
+            }
+        }
+
+        [Fact]
+        public async Task Both_manifest_generations_are_indexed_from_the_one_install_root()
+        {
+            using (TempFolder root = new TempFolder())
+            {
+                // Exactly how a real install root looks once a re-released classic is installed
+                WriteGame(root, "PVZ Battle for Neighborville", PvzManifest);
+                WriteGame(root, "SimCity 2000 SE", SimCityManifest);
+
+                Dictionary<string, string> map = await EaLibrary.ReadInstallerManifestsAsync(root.Folder);
+
+                Assert.Equal("Plants vs Zombies Battle for Neighborville", map["194814"]);
+                Assert.Equal("SimCity 2000 Special Edition", map["71104"]);
             }
         }
 

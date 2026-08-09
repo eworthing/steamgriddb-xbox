@@ -141,6 +141,18 @@ namespace SteamGridDB.Xbox.Services.Stores
         }
 
         /// <summary>
+        /// Every element a manifest might hold its titles in, whichever generation wrote it.
+        ///
+        /// EA has used two shapes. Current games carry
+        /// "&lt;DiPManifest version=4.0&gt;...&lt;gameTitles&gt;&lt;gameTitle locale=en_US&gt;", while the
+        /// re-released classics - the ones EA gave away and never repackaged - still carry the 3.0 shape,
+        /// "&lt;game manifestVersion=3.0&gt;...&lt;metadata&gt;&lt;localeInfo locale=en_US&gt;&lt;title&gt;".
+        /// Both are installed side by side under the one install root, so both are read. contentIDs sits
+        /// in the same place in either, which is why only the title needs this.
+        /// </summary>
+        private const string TitleNodes = "//gameTitles/gameTitle | //localeInfo/title";
+
+        /// <summary>
         /// Pulls the title and content IDs out of one installerdata.xml.
         ///
         /// The English title is preferred over the other locales the manifest carries, because it is
@@ -185,7 +197,7 @@ namespace SteamGridDB.Xbox.Services.Stores
 
             string title = null;
 
-            foreach (IXmlNode node in document.SelectNodes("//gameTitles/gameTitle"))
+            foreach (IXmlNode node in document.SelectNodes(TitleNodes))
             {
                 string candidate = node.InnerText?.Trim();
 
@@ -194,12 +206,7 @@ namespace SteamGridDB.Xbox.Services.Stores
                     continue;
                 }
 
-                bool isEnglish = string.Equals(
-                    node.Attributes?.GetNamedItem("locale")?.NodeValue?.ToString(),
-                    "en_US",
-                    StringComparison.OrdinalIgnoreCase);
-
-                if (isEnglish)
+                if (string.Equals(LocaleOf(node), "en_US", StringComparison.OrdinalIgnoreCase))
                 {
                     return new InstallerManifest(candidate, contentIds);
                 }
@@ -208,6 +215,20 @@ namespace SteamGridDB.Xbox.Services.Stores
             }
 
             return new InstallerManifest(title, contentIds);
+        }
+
+        /// <summary>
+        /// The locale a title node is tagged with, or null when it is tagged with none.
+        ///
+        /// The 4.0 shape puts it on the title element itself, the 3.0 shape on the localeInfo element
+        /// wrapping it, so both places are looked at rather than branching on which element this is.
+        /// </summary>
+        private static string LocaleOf(IXmlNode node)
+        {
+            IXmlNode locale = node.Attributes?.GetNamedItem("locale")
+                ?? node.ParentNode?.Attributes?.GetNamedItem("locale");
+
+            return locale?.NodeValue?.ToString();
         }
 
         /// <summary>
