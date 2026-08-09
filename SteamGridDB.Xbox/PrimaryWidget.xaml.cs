@@ -1271,6 +1271,8 @@ namespace SteamGridDB.Xbox
                                 // graded comparison against the previous run meaningless.
                                 errorCount++;
 
+                                FixLog.Write("  square lookup failed - counted as an error");
+
                                 System.Diagnostics.Debug.WriteLine($"Artwork lookup failed for {game.Name}");
 
                                 continue;
@@ -1285,8 +1287,15 @@ namespace SteamGridDB.Xbox
 
                                 (IBuffer Bytes, int ArtworkId) best = await ArtworkDownloader.DownloadBestTileFillingImageAsync(ranked, game.Name, game.OfficialCapsuleUrl);
 
-                                FixLog.Write($"  applied {best.ArtworkId}");
                                 bool downloaded = best.Bytes != null && (await ReplaceImageCoreAsync(game, best.Bytes, false, best.ArtworkId)).Succeeded;
+
+                                // Written after the write rather than before it, so the line records
+                                // what happened rather than what was hoped - this used to say
+                                // "applied 0" when every candidate download failed
+                                FixLog.Write(
+                                    best.Bytes == null ? "  no candidate could be downloaded"
+                                    : downloaded ? $"  applied {best.ArtworkId}"
+                                    : $"  {best.ArtworkId} downloaded but could not be written");
 
                                 if (downloaded)
                                 {
@@ -1310,6 +1319,8 @@ namespace SteamGridDB.Xbox
                                 {
                                     errorCount++;
 
+                                    FixLog.Write("  icon lookup failed - counted as an error");
+
                                     System.Diagnostics.Debug.WriteLine($"Icon lookup failed for {game.Name}");
 
                                     continue;
@@ -1319,6 +1330,10 @@ namespace SteamGridDB.Xbox
                                 {
                                     SteamGridDbGrid bestIcon = ArtworkRanker.RankIcons(icons).First();
                                     bool downloaded = (await DownloadAndReplaceImageCoreAsync(game, bestIcon.Url, false, bestIcon.Id)).Succeeded;
+
+                                    FixLog.Write(downloaded
+                                        ? $"  applied {bestIcon.Id} (icon)"
+                                        : $"  icon {bestIcon.Id} could not be downloaded and written");
 
                                     if (downloaded)
                                     {
@@ -1333,6 +1348,8 @@ namespace SteamGridDB.Xbox
                                 {
                                     notFoundCount++;
 
+                                    FixLog.Write("  nothing on SteamGridDB in any shape - square, portrait or icon");
+
                                     System.Diagnostics.Debug.WriteLine($"No artwork found for {game.Name}");
                                 }
                             }
@@ -1340,6 +1357,8 @@ namespace SteamGridDB.Xbox
                         catch (Exception ex)
                         {
                             errorCount++;
+
+                            FixLog.Write($"  error ({ex.GetType().Name}: {ex.Message})");
 
                             System.Diagnostics.Debug.WriteLine($"Error processing {game.Name}: {ex.Message}");
                         }
@@ -1617,22 +1636,45 @@ namespace SteamGridDB.Xbox
         {
             List<SteamGridDbGrid> portraits = await client.GetPortraitGridsAsync(source);
 
-            if (portraits == null || portraits.Count == 0)
+            // Each outcome says so in the run log. The games that reach this method are exactly the
+            // ones whose entries used to be a capsule line followed by silence, because only the
+            // square-grid path wrote what it did - a run's 8 fallback games looked identical to 8
+            // games nothing happened to.
+            if (portraits == null)
             {
+                FixLog.Write("  portrait lookup failed - trying icons");
+
                 return false;
             }
 
-            foreach (SteamGridDbGrid candidate in ArtworkRanker.RankGrids(portraits, game.Name).Take(ArtworkDownloader.MaxCandidates))
+            if (portraits.Count == 0)
+            {
+                FixLog.Write("  no portrait artwork either - trying icons");
+
+                return false;
+            }
+
+            List<SteamGridDbGrid> ranked = ArtworkRanker.RankGrids(portraits, game.Name)
+                .Take(ArtworkDownloader.MaxCandidates)
+                .ToList();
+
+            FixLog.Write($"  {portraits.Count} portrait candidates, ranked: {string.Join(", ", ranked.Take(5).Select(g => g.Id))}");
+
+            foreach (SteamGridDbGrid candidate in ranked)
             {
                 IBuffer cropped = await TileImage.CropPortraitToTileAsync(await ArtworkDownloader.DownloadArtworkAsync(candidate.Url));
 
                 if (cropped != null && (await ReplaceImageCoreAsync(game, cropped, false, candidate.Id)).Succeeded)
                 {
+                    FixLog.Write($"  applied {candidate.Id} (portrait, cropped)");
+
                     System.Diagnostics.Debug.WriteLine($"Used cropped portrait art {candidate.Id} for {game.Name}");
 
                     return true;
                 }
             }
+
+            FixLog.Write("  no portrait candidate survived download and crop - trying icons");
 
             return false;
         }
