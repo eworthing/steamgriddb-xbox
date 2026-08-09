@@ -101,14 +101,14 @@ namespace SteamGridDB.Xbox.Tests
         {
             // The verdict is days-old fact; the missing name is not. Installing the game fills it in
             // without SteamGridDB changing, and holding "Unknown" for two days hides exactly that.
-            Assert.False(GameMatchResolver.AnswersTheName(matched: false, cachedName: "Unknown", unknownName: "Unknown"));
+            Assert.False(GameMatchResolver.AnswersTheName(GamePlatform.EA, matched: false, cachedName: "Unknown", unknownName: "Unknown"));
         }
 
         [Fact]
         public void A_cached_miss_carrying_no_name_at_all_does_not_either()
         {
             // GameMatchCache omits the name rather than writing an empty one, so both shapes arrive
-            Assert.False(GameMatchResolver.AnswersTheName(matched: false, cachedName: null, unknownName: "Unknown"));
+            Assert.False(GameMatchResolver.AnswersTheName(GamePlatform.EA, matched: false, cachedName: null, unknownName: "Unknown"));
         }
 
         [Fact]
@@ -116,14 +116,49 @@ namespace SteamGridDB.Xbox.Tests
         {
             // The name search was performed against this name and found nothing - re-running the store
             // lookup would produce the same name and the same miss
-            Assert.True(GameMatchResolver.AnswersTheName(matched: false, cachedName: "Plants vs Zombies GW2", unknownName: "Unknown"));
+            Assert.True(GameMatchResolver.AnswersTheName(GamePlatform.EA, matched: false, cachedName: "Plants vs Zombies GW2", unknownName: "Unknown"));
         }
 
         [Fact]
-        public void A_cached_match_is_always_a_whole_answer()
+        public void A_cached_match_is_a_whole_answer_even_carrying_no_name()
         {
-            // A match's name came from SteamGridDB itself, so there is no local source to reopen
-            Assert.True(GameMatchResolver.AnswersTheName(matched: true, cachedName: "Alan Wake 2", unknownName: "Unknown"));
+            // The case that pins the "matched" clause down: a match's name came from SteamGridDB
+            // itself, so there is no installed file to reopen whether or not one was written
+            Assert.True(GameMatchResolver.AnswersTheName(GamePlatform.EA, matched: true, cachedName: null, unknownName: "Unknown"));
+        }
+
+        [Theory]
+        [InlineData(GamePlatform.GOG)]
+        [InlineData(GamePlatform.Ubisoft)]
+        [InlineData(GamePlatform.Steam)]
+        [InlineData(GamePlatform.Custom)]
+        public void A_nameless_miss_stands_where_no_installed_file_would_answer_it(GamePlatform platform)
+        {
+            // GOG's name comes from its API and Ubisoft's from a list on GitHub - no install changes
+            // either, and StoreNameLookup caches nothing when a store is down, so reopening these
+            // would re-ask a failing API on every widget open. Steam and Custom have no lookup at all.
+            Assert.True(GameMatchResolver.AnswersTheName(platform, matched: false, cachedName: "Unknown", unknownName: "Unknown"));
+        }
+
+        // ---- ResolvesNameFromInstalledFiles: which stores an install event can answer ----
+
+        [Fact]
+        public void The_stores_that_read_their_own_installed_files_are_reopened()
+        {
+            // EA reads installerdata.xml and has no online fallback left; Epic tries its own manifests
+            // before the community database. Both answer an installed game from disk.
+            Assert.True(GameMatchResolver.ResolvesNameFromInstalledFiles(GameMatchResolver.StoreNameLookupTarget.Ea));
+            Assert.True(GameMatchResolver.ResolvesNameFromInstalledFiles(GameMatchResolver.StoreNameLookupTarget.Epic));
+        }
+
+        [Fact]
+        public void The_stores_that_ask_the_network_are_not()
+        {
+            // Neither answer is one an install can change, and a store that is down caches nothing -
+            // so reopening these would re-ask a failing API on every widget open
+            Assert.False(GameMatchResolver.ResolvesNameFromInstalledFiles(GameMatchResolver.StoreNameLookupTarget.Gog));
+            Assert.False(GameMatchResolver.ResolvesNameFromInstalledFiles(GameMatchResolver.StoreNameLookupTarget.Ubisoft));
+            Assert.False(GameMatchResolver.ResolvesNameFromInstalledFiles(GameMatchResolver.StoreNameLookupTarget.None));
         }
 
         // ---- LearnedSomethingNew: whether a name-only retry may rewrite its entry ----

@@ -239,6 +239,7 @@ namespace SteamGridDB.Xbox.Tests
 
                 Dictionary<string, string> map = await EaLibrary.ReadInstallerManifestsAsync(root.Folder);
 
+                Assert.Equal(2, map.Count);
                 Assert.Equal("Plants vs Zombies Battle for Neighborville", map["194814"]);
                 Assert.Equal("SimCity 2000 Special Edition", map["71104"]);
             }

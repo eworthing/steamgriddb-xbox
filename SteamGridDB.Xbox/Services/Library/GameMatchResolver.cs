@@ -21,10 +21,10 @@ namespace SteamGridDB.Xbox.Services.Library
     /// largest reduction in the app's outbound traffic available - see that type for why. EA's lookup
     /// is local file reads only and makes no request.
     ///
-    /// One cached answer is not whole, and does not skip the sequence: a miss carrying no name. Its
-    /// SteamGridDB verdict is honoured and its platform-ID lookup is not repeated, but the store's own
-    /// name lookup runs again, because that name comes from the launcher's on-disk manifests and
-    /// installing the game changes it without SteamGridDB changing at all - see
+    /// One cached answer is not whole, and does not skip the sequence: a miss carrying no name, on a
+    /// platform whose name comes out of installed files (EA and Epic). Its SteamGridDB verdict is
+    /// honoured and its platform-ID lookup is not repeated, but the store's own name lookup runs again,
+    /// because installing the game changes that name without SteamGridDB changing at all - see
     /// <see cref="AnswersTheName"/>. Such an entry produces a full "unmatched" audit line rather than a
     /// "cached" one, which is the intended reading: work was done, and the line carries the store load
     /// summary that says whether the manifests were read.
@@ -161,22 +161,63 @@ namespace SteamGridDB.Xbox.Services.Library
         /// hides exactly the event the user is waiting on: install a game, reopen the widget, and it is
         /// still nameless, with nothing on screen to say why.
         ///
-        /// So a nameless miss is treated as half an answer. The SteamGridDB verdict in it is still
-        /// honoured - the platform-ID lookup it already paid for is not asked again - and only the
-        /// store's own name lookup is reopened. That is a local file read on EA, and a local read
-        /// before any request on Epic; where it does reach the network, StoreNameLookup's own caches
-        /// hold the result for the life of the process, so this costs at most one request per nameless
-        /// entry per widget session and none at all per library load.
+        /// So a nameless miss is treated as half an answer, on the platforms where that reasoning holds.
+        /// The SteamGridDB verdict in it is still honoured - the platform-ID lookup it already paid for
+        /// is not asked again - and only the store's own name lookup is reopened.
         ///
-        /// A miss that carries a real name is a whole answer and returns straight from the cache: the
-        /// name search was performed, and it found nothing.
+        /// It holds on exactly the stores whose name comes out of installed files, which is what
+        /// <see cref="ResolvesNameFromInstalledFiles"/> names. Everywhere else the entry is left alone,
+        /// and not only because there is no install event to react to: GOG's name comes from its API
+        /// and Ubisoft's from a list on GitHub, and neither answer is one an install can change. Worse,
+        /// <see cref="StoreNameLookup"/> deliberately caches only what a store actually answered, so a
+        /// store that is down or rate-limiting caches nothing - reopening those entries would re-ask a
+        /// failing API once per nameless game on every single widget open, for as long as it stayed
+        /// down, which is precisely the traffic the cache exists to prevent. The 2-day miss lifetime
+        /// already covers a store having had a bad afternoon.
+        ///
+        /// A miss that carries a real name is a whole answer on every platform and returns straight
+        /// from the cache: the name search was performed, and it found nothing.
         /// </summary>
+        /// <param name="platform">The entry's platform, which decides where its name would come from.</param>
         /// <param name="matched">Whether the cached entry says SteamGridDB knows the game.</param>
         /// <param name="cachedName">The name on the cached entry, if it carries one.</param>
         /// <param name="unknownName">The sentinel default name.</param>
-        internal static bool AnswersTheName(bool matched, string cachedName, string unknownName)
+        internal static bool AnswersTheName(GamePlatform platform, bool matched, string cachedName, string unknownName)
         {
-            return matched || !(string.IsNullOrEmpty(cachedName) || cachedName == unknownName);
+            if (matched || (!string.IsNullOrEmpty(cachedName) && cachedName != unknownName))
+            {
+                return true;
+            }
+
+            return !ResolvesNameFromInstalledFiles(SelectStoreNameLookupTarget(platform));
+        }
+
+        /// <summary>
+        /// Whether this store answers "what is this game called" out of the launcher's own installed
+        /// files rather than off the network.
+        ///
+        /// EA reads installerdata.xml and nothing else - its catalogue API is gone, so there is no
+        /// online fallback to have. Epic tries its own install manifests before the community database,
+        /// so an installed game is answered locally there too. Those are the two names that change the
+        /// moment a game is installed, and the only two worth reopening a cached miss for.
+        ///
+        /// Split out rather than folded into <see cref="AnswersTheName"/> because it is a fact about
+        /// each store, in the same shape and on the same axis as
+        /// <see cref="SelectStoreNameLookupTarget"/> - so a store added there has to be considered here
+        /// too, instead of silently inheriting whichever behaviour the enum's default happened to give
+        /// it.
+        /// </summary>
+        /// <param name="target">The store lookup that applies to the entry's platform.</param>
+        internal static bool ResolvesNameFromInstalledFiles(StoreNameLookupTarget target)
+        {
+            switch (target)
+            {
+                case StoreNameLookupTarget.Ea:
+                case StoreNameLookupTarget.Epic:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
@@ -255,7 +296,7 @@ namespace SteamGridDB.Xbox.Services.Library
                 {
                     GameMatchCache.Entry cached = remembered.Value;
 
-                    if (AnswersTheName(cached.Matched, cached.Name, unknownName))
+                    if (AnswersTheName(platform, cached.Matched, cached.Name, unknownName))
                     {
                         // Logged only for the games a fresh resolve would have logged - see WasLoggedFresh.
                         // Logging every cached game instead made a warm load's audit six times longer than
