@@ -35,6 +35,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
         // ones only appeared in their "PS5 dashboard icon" forms.
         private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|playstation ?[1-5]|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+        // Artwork for the game's soundtrack release rather than the game. It is official art, it is the
+        // right franchise, and it is often striking - so nothing else here catches it. Slay the Spire
+        // shipped the vinyl OST sleeve: it beat the real cover on SteamGridDB's own ordering with every
+        // ranking key tied, and the similarity gate let it stand because a 0.79 colour match is well
+        // above the floor. The real cover was one place further down at 0.93.
+        //
+        // "soundtrack" matches nothing in the library this was measured on - "vinyl" and "ost" catch
+        // that one upload, "album cover" three more across two other games. It is in anyway, because
+        // the hole §4.6b closed was a vocabulary that named one half of an idea more narrowly than the
+        // other, and demoting "OST" while ignoring the word it abbreviates is exactly that shape.
+        private static readonly Regex soundtrackGridMetadata = new Regex(@"\b(vinyl|soundtrack|ost|album cover|album art)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
         // Uploads labelled as sourced from official store artwork ("offical" is a common uploader typo)
         // or citing an official platform-store domain. Press-kit mentions were tried and rejected:
         // press-kit art is often stylistic promo art rather than the game's real cover.
@@ -127,10 +139,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
         /// <summary>
         /// True when the artwork's notes/tags mark it as something other than the game's plain cover:
-        /// a physical-media mockup, art for an edition the game is not, or a console-store reissue with
-        /// a storefront badge on it. Such artwork is ranked last and is never accepted as a replacement
-        /// by the official-artwork gate, which would otherwise rate a badged cover highly for matching
-        /// the real one.
+        /// a physical-media mockup, art for an edition the game is not, a console-store reissue with
+        /// a storefront badge on it, or the soundtrack's sleeve rather than the game's. Such artwork is
+        /// ranked last and is never accepted as a replacement by the official-artwork gate, which would
+        /// otherwise rate a badged cover highly for matching the real one.
         /// </summary>
         /// <param name="grid">Artwork to test.</param>
         /// <param name="gameName">Name of the game the artwork is being ranked for.</param>
@@ -148,6 +160,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         {
             return demotedGridMetadata.IsMatch(metadata)
                 || consoleBadgeGridMetadata.IsMatch(metadata)
+                || soundtrackGridMetadata.IsMatch(metadata)
                 || IsEditionMismatch(metadata, gameName);
         }
 

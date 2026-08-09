@@ -119,6 +119,29 @@ namespace SteamGridDB.Xbox.Tests
             Assert.True(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Far Cry 6"));
         }
 
+        [Theory]
+        [InlineData("Vinyl OST cover")]
+        [InlineData("Official soundtrack sleeve")]
+        [InlineData("Steam album cover w/o branding")]
+        [InlineData("A recreation of the Up for the Ride album cover")]
+        public void Soundtrack_sleeves_are_demoted(string notes)
+        {
+            // Art for the game's soundtrack release, not for the game. Nothing else catches it: it is
+            // official, it is the right franchise, and it can beat the real cover on colour alone.
+            Assert.True(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Slay the Spire"));
+        }
+
+        [Theory]
+        [InlineData("Ghost of Tsushima key art")]
+        [InlineData("Poster crop")]
+        [InlineData("The most recent store art")]
+        public void The_letters_ost_inside_a_word_are_not_a_soundtrack(string notes)
+        {
+            // "ost" is word-bounded for the same reason "box" is: unbounded it would demote a large
+            // share of the library on three letters that appear in ordinary words.
+            Assert.False(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Ghost of Tsushima"));
+        }
+
         [Fact]
         public void A_console_name_without_a_generation_is_not_a_badge()
         {

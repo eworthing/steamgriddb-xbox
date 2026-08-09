@@ -28,6 +28,7 @@ Three evidence sources, all reproducible:
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
 | §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
 | §4.6c corner-badge pixel check | **implemented** — 25 renderings, 603 of 4741 flagged, near-miss band human-reviewed |
+| §4.6d soundtrack sleeves | **implemented** — reported in use; 4 candidates demoted, 1 pick moved |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -645,6 +646,63 @@ Switch. None is described yet.
 An uploader blocklist was considered first and reaches the same 8 picks on this library. It was
 rejected: it names people rather than describing artwork, and it cannot generalise — the pixel check
 found the other two uploaders on its own.
+
+### 4.6d The soundtrack's sleeve is not the game's cover — IMPLEMENTED
+
+Reported from the Xbox app: Slay the Spire's tile was the **vinyl OST sleeve**, and the game's actual
+cover was sitting one place further down the same list.
+
+Nothing in the pipeline was equipped to catch it, and it is worth being precise about why, because
+each layer failed for a different reason:
+
+| layer | why it did not fire |
+| --- | --- |
+| ranking | style, resolution, language, boost and demotion **all tie** between the two — so SteamGridDB's own order decided it, and it put the sleeve first |
+| §4.6a/b vocabulary | the sleeve is not a console reissue and carries no storefront name |
+| §4.6c pixel check | there is no overlay; the whole image is different art |
+| §4.1 gate | it opened nothing, because 0.79 is comfortably above the 0.60 floor |
+
+The gate is the interesting failure. It is built to catch art for the *wrong game*; this is art for
+the *right game and the wrong product*, which lands in a band the floor was never meant to cover:
+
+```
+rank 1  789342  colour 0.91  layout +0.73   skipped, Steam roundel in the corner
+rank 2  747752  colour 0.76  layout +0.47   applied - notes: "Vinyl OST cover"
+rank 3  139815  colour 0.93  layout +0.74   the real cover, never looked at
+```
+
+So this went in as vocabulary, where the evidence is: the uploader wrote down what the art was.
+`soundtrackGridMetadata` demotes `vinyl`, `soundtrack`, `ost`, `album cover` and `album art`.
+Replayed over the library (1402 candidates, 250 games):
+
+```
+candidates newly demoted   4   Slay the Spire (vinyl, ost), Cassette Beasts and
+                               Resident Evil Village x2 (album cover)
+picks that move            1   Slay the Spire only - the other three were already losing on rank
+```
+
+Two notes on the shape of the rule:
+
+- **`soundtrack` matches nothing in this library.** It is in anyway. §4.6b's lesson was that a
+  vocabulary fails when it names one half of an idea more narrowly than the other half in the same
+  regex, and demoting `OST` while ignoring the word it abbreviates is exactly that shape.
+- **Four candidates across three games, not one.** The `MS Store` boost rejected in §4.6b matched a
+  single candidate; this clears that bar, and it demotes rather than boosts, so its failure mode is
+  falling back to the order that was already being used.
+
+**Three alternatives were measured against the whole library and rejected**, all of them attempts to
+make the gate itself smarter rather than to read the notes:
+
+| | change | picks moved | graded |
+| --- | --- | --- | --- |
+| B | gate also opens when the chosen art's layout match is below 0.10 | 15 | no obvious win; and it does not reach this case, whose layout is +0.47 |
+| C | gate opens whenever the chosen art is below the 0.85 ceiling | 17 | no obvious win |
+| D | as C, but the replacement must also beat it by 0.15 | 11 | no obvious win |
+
+B is a different failure entirely — "right palette, wrong picture" — and deserves its own evidence
+rather than being adopted as a side effect of this. C and D are the "rank by similarity" idea that
+§4.1 already rejected, wearing a margin; the margin makes them defensible but the graded set did not
+support any of them.
 
 ### 4.7 Record the applied artwork ID — IMPLEMENTED
 
