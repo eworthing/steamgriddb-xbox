@@ -98,5 +98,57 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 renditions.OrderByDescending(image => image.PixelSize).Select(image => image.FileName).ToList(),
                 ambiguous);
         }
+
+        /// <summary>
+        /// A game's renditions as the cache has them now: everything already recorded for it, plus
+        /// everything a fresh <see cref="Match"/> just attributed to it, largest first.
+        ///
+        /// A union rather than a replacement, and that is the whole point of it. A rendition someone
+        /// has customised no longer holds the artwork that would find it, so a fresh match cannot
+        /// return it - taking the match as the whole answer would drop it from the record, and the
+        /// record is the only route back to that file. What is stranded is the backup holding the Xbox
+        /// app's own artwork, which is the one thing here that cannot be fetched again.
+        ///
+        /// Sizes come from the index rather than from the disk, which keeps this a plain function over
+        /// what the caller already has. A recorded file the index does not know - one the Xbox app
+        /// evicted since the record was written - is kept and sorted last rather than dropped, for the
+        /// same reason <c>XboxLibrary.SurvivingRenditionsAsync</c> refuses to read silence as absence.
+        /// </summary>
+        /// <param name="known">Renditions already recorded for the game, or null when it is new.</param>
+        /// <param name="discovered">What <see cref="Match"/> just attributed to it.</param>
+        /// <param name="cached">The indexed cache, for the sizes to order by.</param>
+        internal static List<string> Merge(
+            IEnumerable<string> known,
+            IEnumerable<string> discovered,
+            IEnumerable<ImageCacheIndex.CachedImage> cached)
+        {
+            Dictionary<string, int> sizes = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (ImageCacheIndex.CachedImage image in cached ?? Enumerable.Empty<ImageCacheIndex.CachedImage>())
+            {
+                if (image?.FileName != null)
+                {
+                    sizes[image.FileName] = image.PixelSize;
+                }
+            }
+
+            List<string> merged = new List<string>();
+            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (string fileName in (known ?? Enumerable.Empty<string>())
+                .Concat(discovered ?? Enumerable.Empty<string>()))
+            {
+                if (!string.IsNullOrEmpty(fileName) && seen.Add(fileName))
+                {
+                    merged.Add(fileName);
+                }
+            }
+
+            // A stable sort, so the files no size is known for keep the order they arrived in behind
+            // the ones that do rather than being shuffled among themselves
+            return merged
+                .OrderByDescending(name => sizes.TryGetValue(name, out int size) ? size : 0)
+                .ToList();
+        }
     }
 }

@@ -207,5 +207,86 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Empty(ImageCacheIndex.CandidateSizes(new List<ImageCacheIndex.CachedImage>()));
             Assert.Empty(ImageCacheIndex.CandidateSizes(null));
         }
+
+        [Fact]
+        public void Merge_keeps_a_customised_rendition_a_fresh_match_can_no_longer_find()
+        {
+            // Fuzion Frenzy's case, and the reason this is a union rather than a replacement. Its 84px
+            // rendition holds someone's chosen artwork, so it no longer matches what the Store serves
+            // and Match cannot return it; its 329px rendition was cached eleven minutes after discovery
+            // ran and still holds the Store's own. Dropping the customised one would leave its backup -
+            // the Xbox app's original, which nothing else can recreate - with no record naming it.
+            var cached = new List<ImageCacheIndex.CachedImage>
+            {
+                Cached("7108528410040166518", 84, "CUSTOMISED"),
+                Cached("8501456819577244772", 329, "STORE-ART"),
+            };
+
+            Assert.Equal(
+                new[] { "8501456819577244772", "7108528410040166518" },
+                TileRenditionMatcher.Merge(new[] { "7108528410040166518" }, new[] { "8501456819577244772" }, cached));
+        }
+
+        [Fact]
+        public void Merge_orders_the_union_largest_first()
+        {
+            // The largest stands in for the game wherever one path is needed - the row's thumbnail, the
+            // applied-artwork key - so a rendition joining the set has to take that place if it is
+            // bigger than what was there
+            var cached = new List<ImageCacheIndex.CachedImage>
+            {
+                Cached("small", 72, "A"),
+                Cached("large", 329, "B"),
+                Cached("medium", 280, "C"),
+            };
+
+            Assert.Equal(
+                new[] { "large", "medium", "small" },
+                TileRenditionMatcher.Merge(new[] { "small", "medium" }, new[] { "large" }, cached));
+        }
+
+        [Fact]
+        public void Merge_claims_a_rendition_only_once_however_it_arrived()
+        {
+            // The ordinary case: a game whose renditions still hold the Store's artwork is re-matched
+            // to exactly what its record already names
+            var cached = new List<ImageCacheIndex.CachedImage> { Cached("tile", 329, "A") };
+
+            Assert.Equal(new[] { "tile" }, TileRenditionMatcher.Merge(new[] { "tile" }, new[] { "tile" }, cached));
+        }
+
+        [Fact]
+        public void Merge_with_nothing_known_is_the_match_alone()
+        {
+            // What the first discovery of a game passes, so that one method serves both callers
+            var cached = new List<ImageCacheIndex.CachedImage>
+            {
+                Cached("small", 84, "A"),
+                Cached("large", 329, "B"),
+            };
+
+            Assert.Equal(new[] { "large", "small" }, TileRenditionMatcher.Merge(null, new[] { "small", "large" }, cached));
+            Assert.Empty(TileRenditionMatcher.Merge(null, new string[0], cached));
+        }
+
+        [Fact]
+        public void Merge_keeps_a_recorded_file_the_cache_no_longer_holds_but_sorts_it_last()
+        {
+            // A rendition the Xbox app has evicted has no entry in the index and so no size to sort by.
+            // It is kept because a record dropped by mistake cannot be rebuilt once artwork has been
+            // applied over the tiles, and sorted last so it never becomes the game's primary.
+            var cached = new List<ImageCacheIndex.CachedImage> { Cached("still-here", 329, "A") };
+
+            Assert.Equal(
+                new[] { "still-here", "evicted" },
+                TileRenditionMatcher.Merge(new[] { "evicted" }, new[] { "still-here" }, cached));
+        }
+
+        [Fact]
+        public void Merge_copes_with_null()
+        {
+            Assert.Empty(TileRenditionMatcher.Merge(null, null, null));
+            Assert.Equal(new[] { "tile" }, TileRenditionMatcher.Merge(new[] { "tile" }, null, null));
+        }
     }
 }

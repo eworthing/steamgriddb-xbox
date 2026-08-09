@@ -243,13 +243,51 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             foreach (StoreCatalog.Product product in undiscovered)
             {
-                List<Response> responses = await ArtworkResponsesAsync(product, sizes);
+                IReadOnlyList<string> renditions = await LocateAsync(cacheFolder, index, sizes, product, null);
 
-                if (responses.Count == 0)
+                if (renditions == null)
                 {
+                    // Either the tile has never been rendered - so the app has never fetched it, and
+                    // the game simply cannot be customised until it has been on screen - or every one
+                    // of its renditions was ambiguous
                     continue;
                 }
 
+                games.Add(new Game(product.StoreId, product.Title, renditions));
+                discovered++;
+            }
+
+            return discovered;
+        }
+
+        /// <summary>
+        /// Matches one product's artwork against the cache and records what it finds, folded in with
+        /// whatever was already known about it.
+        ///
+        /// Shared by the two callers that ask the same question at different moments: the discovery
+        /// pass above, for a game with no record at all, and <see cref="RefreshRenditionsAsync"/>, for
+        /// one whose record may have been written before the app had cached every rendition. Passing
+        /// <paramref name="known"/> as null is what makes it one method rather than two - the merge
+        /// collapses to the matches alone when there is nothing to fold them into.
+        /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
+        /// <param name="index">The indexed cache, hashed in place as candidates emerge.</param>
+        /// <param name="sizes">Widths worth asking the CDN for.</param>
+        /// <param name="product">The game to locate.</param>
+        /// <param name="known">Renditions already recorded for it, or null when it is new.</param>
+        /// <returns>Its renditions, largest first, or null when it has none - neither known nor found.</returns>
+        private static async Task<IReadOnlyList<string>> LocateAsync(
+            StorageFolder cacheFolder,
+            List<ImageCacheIndex.CachedImage> index,
+            IReadOnlyList<int> sizes,
+            StoreCatalog.Product product,
+            IReadOnlyList<string> known)
+        {
+            List<Response> responses = await ArtworkResponsesAsync(product, sizes);
+            List<string> matched = new List<string>();
+
+            if (responses.Count > 0)
+            {
                 // Only the cached files as long as one of these responses can possibly be a match, and
                 // there are rarely more than a handful - so the cache is hashed a few files at a time
                 // rather than in full
@@ -268,24 +306,88 @@ namespace SteamGridDB.Xbox.Services.Xbox
                         + " another product's identical artwork, left alone");
                 }
 
-                if (match.RenditionFileNames.Count == 0)
-                {
-                    // Either the tile has never been rendered - so the app has never fetched it, and
-                    // the game simply cannot be customised until it has been on screen - or every one
-                    // of its renditions was ambiguous
-                    continue;
-                }
-
-                // Saved before anything is applied, and before the game is even returned: once a
-                // rendition is overwritten it no longer matches the artwork that just found it, so
-                // this record becomes the only route back to these files
-                await XboxTileStore.SetAsync(product.StoreId, match.RenditionFileNames);
-
-                games.Add(new Game(product.StoreId, product.Title, match.RenditionFileNames));
-                discovered++;
+                matched.AddRange(match.RenditionFileNames);
             }
 
-            return discovered;
+            List<string> renditions = TileRenditionMatcher.Merge(known, matched, index);
+
+            if (renditions.Count == 0)
+            {
+                return null;
+            }
+
+            // Saved before anything is applied, and before the game is even returned: once a rendition
+            // is overwritten it no longer matches the artwork that just found it, so this record
+            // becomes the only route back to these files
+            if (known == null || !renditions.SequenceEqual(known, StringComparer.OrdinalIgnoreCase))
+            {
+                await XboxTileStore.SetAsync(product.StoreId, renditions);
+            }
+
+            return renditions;
+        }
+
+        /// <summary>
+        /// A game's renditions as the cache has them now, for the moment its artwork is about to be
+        /// written over them.
+        ///
+        /// Discovery runs once per game and its record is taken at its word from then on, which is
+        /// right for a settled library and wrong for a game the Xbox app had only half-cached when it
+        /// was first seen. The app fetches a tile per surface and does it lazily: Fuzion Frenzy's
+        /// 84px thumbnail was cached eleven minutes before the 329px rendition its library grid draws.
+        /// A game discovered inside that window keeps a record naming the thumbnail and nothing else,
+        /// so customising it writes a file no surface shows while the tile stays exactly as it was -
+        /// a write that reports success and changes nothing the user can see.
+        ///
+        /// Asked here rather than on every library load because only here is the answer worth
+        /// anything. A load that claimed a new rendition could not fill it: the saved customisation
+        /// belongs to the renditions that had it applied, and the only source for the new one would be
+        /// upscaling the thumbnail. This runs with the chosen artwork in hand, so every rendition -
+        /// the ones already known and the ones just found - is encoded from it at its own size.
+        ///
+        /// Never blocks the write. A catalogue that cannot be reached, a product with no square
+        /// artwork, a cache that matches nothing: each returns what was already known, which is
+        /// exactly what would have been applied had this never been asked.
+        /// </summary>
+        /// <param name="cacheFolder">The Xbox app's image cache folder.</param>
+        /// <param name="storeId">The game's Microsoft Store product ID.</param>
+        /// <param name="known">The renditions already recorded for it.</param>
+        internal static async Task<IReadOnlyList<string>> RefreshRenditionsAsync(
+            StorageFolder cacheFolder,
+            string storeId,
+            IReadOnlyList<string> known)
+        {
+            try
+            {
+                StoreCatalog.Product product;
+
+                // Asked again rather than carried down from the library load, which would mean a field
+                // on GameEntry threaded through the widget for the sake of one request on a deliberate
+                // user action. It also picks up artwork the Store has replaced since that load.
+                using (StoreCatalog catalog = new StoreCatalog())
+                {
+                    product = (await catalog.GetByStoreIdsAsync(new[] { storeId }))
+                        .FirstOrDefault(p => string.Equals(p.StoreId, storeId, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (product.TileArtworkUris == null || product.TileArtworkUris.Count == 0)
+                {
+                    return known;
+                }
+
+                List<ImageCacheIndex.CachedImage> index = await ImageCacheIndex.BuildAsync(cacheFolder);
+
+                return await LocateAsync(cacheFolder, index, ImageCacheIndex.CandidateSizes(index), product, known)
+                    ?? known;
+            }
+            catch (Exception ex)
+            {
+                // One game's renditions going unchecked means its artwork lands where it would have
+                // landed before this existed, which is not a failed write
+                System.Diagnostics.Debug.WriteLine($"Could not re-check the renditions of {storeId}: {ex.Message}");
+
+                return known;
+            }
         }
 
         /// <summary>What the CDN returned for one artwork at one width.</summary>
