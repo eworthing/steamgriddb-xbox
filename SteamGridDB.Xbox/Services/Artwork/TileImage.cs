@@ -71,14 +71,42 @@ namespace SteamGridDB.Xbox.Services.Artwork
         }
 
         /// <summary>
-        /// Reads an image as BGRA at the requested size, optionally from a sub-rectangle.
+        /// The frame worth reading pixels from - the largest, which for everything but an .ico is the
+        /// only one.
+        ///
+        /// BitmapDecoder reads a file's first frame unless told otherwise, and .ico files list theirs
+        /// smallest first - so a seven-frame icon was being read at its 16px frame and upscaled to a
+        /// 329px tile, a mush of squares, while a crisp 256px frame sat unread in the same file.
+        /// About half of all icon artwork is .ico, so this is the routine case for icons rather than
+        /// an oddity. Single-frame images return the decoder itself and cost nothing.
         /// </summary>
         /// <param name="decoder">Decoder for the image.</param>
+        public static async Task<IBitmapFrame> LargestFrameAsync(BitmapDecoder decoder)
+        {
+            IBitmapFrame largest = decoder;
+
+            for (uint i = 1; i < decoder.FrameCount; i++)
+            {
+                BitmapFrame frame = await decoder.GetFrameAsync(i);
+
+                if (frame.PixelWidth > largest.PixelWidth)
+                {
+                    largest = frame;
+                }
+            }
+
+            return largest;
+        }
+
+        /// <summary>
+        /// Reads an image as BGRA at the requested size, optionally from a sub-rectangle.
+        /// </summary>
+        /// <param name="frame">The image frame to read - a BitmapDecoder is its own first frame.</param>
         /// <param name="bounds">Region to read, or null for the whole image.</param>
         /// <param name="width">Width to scale to.</param>
         /// <param name="height">Height to scale to.</param>
         /// <param name="alphaMode">How to treat the alpha channel.</param>
-        public static async Task<byte[]> ScaledPixelsAsync(BitmapDecoder decoder, BitmapBounds? bounds, uint width, uint height, BitmapAlphaMode alphaMode)
+        public static async Task<byte[]> ScaledPixelsAsync(IBitmapFrame frame, BitmapBounds? bounds, uint width, uint height, BitmapAlphaMode alphaMode)
         {
             var transform = new BitmapTransform
             {
@@ -92,7 +120,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 transform.Bounds = bounds.Value;
             }
 
-            PixelDataProvider data = await decoder.GetPixelDataAsync(
+            PixelDataProvider data = await frame.GetPixelDataAsync(
                 BitmapPixelFormat.Bgra8,
                 alphaMode,
                 transform,
@@ -111,17 +139,17 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// full-resolution bounds alongside a scale silently throws, which is how the official-artwork
         /// gate came to fail on every game while looking like it was simply declining to act.
         /// </summary>
-        /// <param name="decoder">Decoder for the image.</param>
+        /// <param name="frame">The image frame to read - a BitmapDecoder is its own first frame.</param>
         /// <param name="size">Width and height of the square to return.</param>
-        public static async Task<byte[]> CentreSquarePixelsAsync(BitmapDecoder decoder, uint size)
+        public static async Task<byte[]> CentreSquarePixelsAsync(IBitmapFrame frame, uint size)
         {
             // Scale the whole image so its short side is exactly the square we want, then take the
             // middle out of the result. No dependency on the order the platform applies transforms.
-            double scale = (double)size / Math.Min(decoder.PixelWidth, decoder.PixelHeight);
-            uint scaledWidth = Math.Max(size, (uint)Math.Round(decoder.PixelWidth * scale));
-            uint scaledHeight = Math.Max(size, (uint)Math.Round(decoder.PixelHeight * scale));
+            double scale = (double)size / Math.Min(frame.PixelWidth, frame.PixelHeight);
+            uint scaledWidth = Math.Max(size, (uint)Math.Round(frame.PixelWidth * scale));
+            uint scaledHeight = Math.Max(size, (uint)Math.Round(frame.PixelHeight * scale));
 
-            byte[] scaled = await ScaledPixelsAsync(decoder, null, scaledWidth, scaledHeight, BitmapAlphaMode.Ignore);
+            byte[] scaled = await ScaledPixelsAsync(frame, null, scaledWidth, scaledHeight, BitmapAlphaMode.Ignore);
 
             uint left = (scaledWidth - size) / 2;
             uint top = (scaledHeight - size) / 2;
@@ -240,7 +268,9 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
             return await WithDecoderAsync(imageBytes, async decoder =>
             {
-                byte[] square = await CentreSquarePixelsAsync(decoder, (uint)pixels);
+                // The largest frame, because artwork can be a multi-frame .ico and the first frame of
+                // one is its smallest - see LargestFrameAsync
+                byte[] square = await CentreSquarePixelsAsync(await LargestFrameAsync(decoder), (uint)pixels);
 
                 using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(
                     square.AsBuffer(), BitmapPixelFormat.Bgra8, pixels, pixels, BitmapAlphaMode.Ignore))
@@ -289,7 +319,13 @@ namespace SteamGridDB.Xbox.Services.Artwork
             // Better a mislabelled tile that renders than no tile at all, hence the original bytes on failure
             return await WithDecoderAsync(imageBytes, async decoder =>
             {
-                using (SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
+                // The largest frame, for the same reason EncodeSquareJpegAsync reads it: half of all
+                // icon artwork is a multi-frame .ico, and its first frame is its smallest. Both
+                // BitmapDecoder and BitmapFrame carry the software-bitmap read, but only through this
+                // interface.
+                var frame = (IBitmapFrameWithSoftwareBitmap)await LargestFrameAsync(decoder);
+
+                using (SoftwareBitmap bitmap = await frame.GetSoftwareBitmapAsync(
                     BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied))
                 {
                     return await EncodePngAsync(bitmap);

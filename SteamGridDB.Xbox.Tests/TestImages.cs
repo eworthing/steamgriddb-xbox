@@ -38,6 +38,55 @@ namespace SteamGridDB.Xbox.Tests
             return CryptographicBuffer.CreateFromByteArray(Encoding.UTF8.GetBytes(content));
         }
 
+        /// <summary>
+        /// A real multi-frame .ico, each frame a solid-colour PNG. Frames go in the order given -
+        /// pass them smallest first, because that is the order real icons use and the reason reading
+        /// "the" frame of one used to mean reading its worst.
+        /// </summary>
+        internal static async Task<IBuffer> IcoAsync(params (int Size, byte R, byte G, byte B)[] frames)
+        {
+            var payloads = new List<byte[]>();
+
+            foreach ((int Size, byte R, byte G, byte B) frame in frames)
+            {
+                payloads.Add(ToArray(await SolidColorPngAsync(frame.R, frame.G, frame.B, frame.Size, frame.Size)));
+            }
+
+            using (var stream = new System.IO.MemoryStream())
+            using (var writer = new System.IO.BinaryWriter(stream))
+            {
+                writer.Write((ushort)0);              // reserved
+                writer.Write((ushort)1);              // type: icon
+                writer.Write((ushort)frames.Length);
+
+                int offset = 6 + (16 * frames.Length);
+
+                for (int i = 0; i < frames.Length; i++)
+                {
+                    // A directory dimension of 0 means 256, the largest the format can name
+                    writer.Write((byte)(frames[i].Size >= 256 ? 0 : frames[i].Size));
+                    writer.Write((byte)(frames[i].Size >= 256 ? 0 : frames[i].Size));
+                    writer.Write((byte)0);            // palette
+                    writer.Write((byte)0);            // reserved
+                    writer.Write((ushort)1);          // colour planes
+                    writer.Write((ushort)32);         // bits per pixel
+                    writer.Write(payloads[i].Length);
+                    writer.Write(offset);
+
+                    offset += payloads[i].Length;
+                }
+
+                foreach (byte[] payload in payloads)
+                {
+                    writer.Write(payload);
+                }
+
+                writer.Flush();
+
+                return CryptographicBuffer.CreateFromByteArray(stream.ToArray());
+            }
+        }
+
         /// <summary>A buffer's contents, for comparing what was written against what was handed in.</summary>
         internal static byte[] ToArray(IBuffer buffer)
         {

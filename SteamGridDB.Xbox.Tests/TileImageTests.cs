@@ -223,12 +223,64 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Equal(unbounded.Length, generous.Length);
         }
 
+        // ---- Multi-frame icons: the largest frame, not the first ----
+
+        [Fact]
+        public async Task EncodeSquareJpeg_reads_an_icons_largest_frame_not_its_first()
+        {
+            // A .ico lists its frames smallest first and BitmapDecoder reads the first by default, so
+            // a seven-frame icon was written to a 329px tile from its 16px frame - a mush of squares -
+            // while a crisp 256px frame sat unread in the same file.
+            IBuffer icon = await TestImages.IcoAsync((16, 255, 0, 0), (64, 0, 0, 255));
+
+            IBuffer tile = await TileImage.EncodeSquareJpegAsync(icon, 64);
+
+            Assert.NotNull(tile);
+
+            // The 16px frame is red and the 64px frame is blue. JPEG shifts values a little, so the
+            // assertion is which channel dominates rather than an exact colour.
+            (byte B, byte R) centre = await CentrePixelAsync(tile);
+
+            Assert.True(centre.B > centre.R, $"tile centre is B={centre.B} R={centre.R} - encoded from the small red frame");
+        }
+
+        [Fact]
+        public async Task EnsurePng_converts_an_icons_largest_frame()
+        {
+            // The third-party write path: a .ico is re-encoded as PNG to match the name the Xbox app
+            // owns, and the PNG must carry the icon's best frame rather than its 16px one.
+            IBuffer icon = await TestImages.IcoAsync((16, 255, 0, 0), (64, 0, 0, 255));
+
+            IBuffer png = await TileImage.EnsurePngAsync(icon);
+
+            Assert.True(TestImages.IsPng(TestImages.ToArray(png)));
+            Assert.Equal((64u, 64u), await SizeOfAsync(png));
+        }
+
         [Fact]
         public async Task EncodeSquareJpeg_returns_nothing_for_a_budget_it_cannot_meet()
         {
             // Handing back the smallest it managed would only move the refusal to the write, where there
             // is less to say about why
             Assert.Null(await TileImage.EncodeSquareJpegAsync(await TestImages.QuadrantPngAsync(329), 329, 64));
+        }
+
+        /// <summary>The blue and red channels of an image's centre pixel.</summary>
+        private static async Task<(byte B, byte R)> CentrePixelAsync(IBuffer image)
+        {
+            return await TileImage.WithDecoderAsync(
+                image,
+                async decoder =>
+                {
+                    byte[] pixels = await TileImage.ScaledPixelsAsync(
+                        decoder, null, decoder.PixelWidth, decoder.PixelHeight, Windows.Graphics.Imaging.BitmapAlphaMode.Ignore);
+
+                    int centre = (((int)decoder.PixelHeight / 2 * (int)decoder.PixelWidth) + ((int)decoder.PixelWidth / 2)) * 4;
+
+                    return (pixels[centre], pixels[centre + 2]);
+                },
+                ((byte)0, (byte)0),
+                "decode failed");
         }
 
         private static Task<(uint Width, uint Height)> SizeOfAsync(IBuffer image)
