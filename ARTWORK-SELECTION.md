@@ -27,7 +27,7 @@ Three evidence sources, all reproducible:
 | §4.6 request-side filters | **implemented** — no behaviour change, by design |
 | console-store badge vocabulary | **implemented** — found by grading, not by analysis |
 | §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
-| §4.6c corner-badge pixel check | **implemented** — 19 renderings, 540 of 4741 flagged, 0 false positives |
+| §4.6c corner-badge pixel check | **implemented** — 25 renderings, 603 of 4741 flagged, near-miss band human-reviewed |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -579,47 +579,47 @@ different games* separates the overlay (constant) from the art showing past it (
 the mask from the data instead of drawing it by hand. `BadgeOverlay` then measures mean per-channel
 distance to that reference over those pixels only.
 
-One reference per **rendering**, not per badge design — the hardest-won part. The dark tab is drawn
-by several uploaders at slightly different scales, and a reference averaged across them matches any
-dark corner: one such fit claimed 226 of 861 candidates. Fitted per rendering, the same images
+One reference per **rendering**, not per badge design — the hardest-won part. The dark Steam tab is
+drawn by several uploaders at slightly different scales, and a reference averaged across them matches
+any dark corner: one such fit claimed 226 of 861 candidates. Fitted per rendering, the same images
 separate by a factor of thirty.
 
-**Nineteen renderings** are now described, found by clustering corner overlays across the catalogue
-rather than by reacting to reports one at a time:
+**Twenty-five renderings** are described: the Steam roundel tab in five, the "STEAM" case spine, a PC
+corner tab and two PC spines, a "PC monitor" tab, the PlayStation 3/4/5 and Xbox One/Series/360
+spines, and the Epic, Ubisoft, Wii, Play Store and Nintendo Switch badges. 603 of 4741 candidates
+flagged; worst flagged 7.9, smallest per-rendering margin 14.6, limit 10.0.
 
-| family | renderings | flags |
+**The corpus is deliberately not this developer's library** — 1000 of the most-owned Steam titles plus
+a broad autocomplete sweep, 5.5× the library the first version was measured on. Its near-miss band was
+then reviewed candidate by candidate by a human, which is where five of these renderings came from and
+which is the only reason the two rules below exist.
+
+### What review caught that measurement did not
+
+**A rendering must flag more than one game, and those games must not be one franchise.** Two failures
+established this, and neither was visible in any statistic:
+
+| admitted | "overlay" | why it was wrong |
 | --- | --- | --- |
-| Steam tab (light and three dark) | 4 | 240 |
-| "STEAM" case spine | 1 | 92 |
-| PC spine | 2 | 172 |
-| Xbox 360 spine | 1 | 47 |
-| Nintendo Switch | 1 | 29 |
-| Xbox One / Series / PS4 / PS5 spines | 5 | 25 |
-| Play Store | 2 | 10 |
-| Ubisoft | 1 | 7 |
-| LEGO | 1 | 3 |
-| Epic | 1 | 2 |
+| LEGO 2K Drive | the LEGO brick logo | the game's own title art |
+| Bloons TD 6 | shared cover pixels | fitted across two uploads of the *same cover*, one badged and one not — so it flagged the clean one |
 
-540 of 4741 candidates flagged, every sampled one confirmed badged by eye.
+A later automated sweep reproduced the same failure one level up: four Half-Life 2 titles sharing
+title art, two Capcom Arcade Stadiums, two Jackbox packs. A storefront badge is by definition
+something that appears on unrelated games; franchise art is constant across a franchise's uploads for
+a quite different reason, and nothing but the spread of games distinguishes them.
 
-**The corpus is deliberately not this developer's library.** 1000 of the most-owned Steam titles plus
-a broad autocomplete sweep — 5.5× the library the first version was measured on. "No false positives"
-measured only against the games one person happens to have installed is not a claim worth much.
+### Rejected rather than admitted at a lower bar
 
-Measured through the app's own decoder on full-size artwork rather than thumbnails:
-
-```
-badged   n=120   max  7.84
-clean    n=300   min 23.55        limit 10.0
-```
-
-No misses, no false positives. Per rendering, the tightest margin any one leaves is 15.0; most are
-above 20.
-
-Two candidates were measured and **rejected** rather than admitted at a lower bar: a second Epic
-variant, which flagged 215 candidates with no margin at all, and the "PlayStation Hits" banner, whose
-two renderings left margins of 6.9 and 1.5. A badge nobody has complained about is not worth a rule
-that might drop good artwork.
+- A second Epic variant — flagged 215 candidates with **no margin at all**.
+- The "PlayStation Hits" banner — two renderings, margins 6.9 and 1.5.
+- A **Nintendo Switch** rendering on Bayonetta, present on that one game and nothing else in 4741
+  candidates, so indistinguishable from Bayonetta's own art. It is the nearest unflagged candidate in
+  the corpus at 17.1 — a known miss, kept as one rather than guessed at.
+- **Games for Windows Live** — a single sample, which cannot be fitted at all.
+- Two consistent *non-badge* templates: floppy-disk mockups with handwritten labels across 27 games,
+  and a glossy rounded-icon frame across 9. Both make poor tiles, but neither is a storefront badge —
+  the mockups belong to the notes vocabulary and the icon frames to the tile-fill check.
 
 It lives in `ArtworkDownloader`, not in `ArtworkRanker`: ranking has no pixels, and the downloader
 already walks candidates in rank order decoding each one. A badged candidate is skipped the way one

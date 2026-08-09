@@ -34,29 +34,44 @@ namespace SteamGridDB.Xbox.Services.Artwork
     /// signal, and it is why <see cref="badgeDistanceLimit"/> sits in open space rather than on a
     /// boundary.
     ///
-    /// Nineteen renderings are described, covering the Steam tab in four renderings, the "STEAM"
-    /// case spine, the PlayStation 4/5 and Xbox One/Series/360 spines, a PC spine in two renderings,
-    /// and the Epic, Ubisoft, LEGO, Play Store and Nintendo Switch badges. Together they flag 540 of
-    /// 4741 candidates, every sampled one confirmed badged by eye, with each rendering's worst
-    /// flagged image well below the limit and its nearest unflagged one well above:
-    ///
-    ///   worst flagged across all renderings   7.9
-    ///   nearest unflagged, smallest margin   15.0
+    /// Twenty-five renderings are described: the Steam roundel tab in five, the "STEAM" case spine,
+    /// a PC corner tab and two PC spines, a "PC monitor" tab, the PlayStation 3/4/5 and Xbox
+    /// One/Series/360 spines, and the Epic, Ubisoft, Wii, Play Store and Nintendo Switch badges.
+    /// Together they flag 603 of 4741 candidates, the worst flagged image sitting at 7.9 and the
+    /// smallest margin any one rendering leaves at 14.6.
     ///
     /// That corpus is deliberately not this developer's library. It is 1000 of the most-owned Steam
     /// titles plus a broad autocomplete sweep, 5.5x the size of the library the first version was
     /// measured on - because "no false positives" measured only against the games one person has
-    /// installed is not a claim worth much.
+    /// installed is not a claim worth much. Its near-miss band has also been reviewed candidate by
+    /// candidate by a human, which is where five of these renderings came from.
+    ///
+    /// **A rendering must flag more than one game, and those games must not be one franchise.**
+    /// This is the guard against the two failures review caught. A LEGO 2K Drive reference was
+    /// admitted whose "overlay" was the LEGO brick logo - the game's own title art - and a Bloons
+    /// TD 6 one was fitted across two uploads of the *same cover*, one badged and one not, so its
+    /// mask locked onto the artwork they shared and it then flagged the clean upload. A later sweep
+    /// produced the same failure one level up: four Half-Life 2 titles sharing title art, two Capcom
+    /// Arcade Stadiums, two Jackbox packs. A storefront badge is by definition something that
+    /// appears on unrelated games; franchise art is constant across a franchise's uploads for a
+    /// quite different reason, and nothing but the spread of games distinguishes them.
     ///
     /// Adding a rendering means measuring one, not tuning this: grow the group from a reported
     /// upload, confirm the members by eye, average them, and keep the pixels whose spread across
     /// different games is lowest. A group whose members do not then sit far below the limit is not
     /// one rendering, and must be split rather than admitted.
     ///
-    /// Two candidate renderings were measured and rejected rather than admitted at a lower bar: a
-    /// second Epic variant, which flagged 215 candidates with no margin at all, and the "PlayStation
-    /// Hits" banner, whose two renderings left margins of 6.9 and 1.5. A badge nobody has complained
-    /// about is not worth a rule that might drop good artwork.
+    /// Rejected rather than admitted at a lower bar: a second Epic variant that flagged 215
+    /// candidates with no margin at all; the "PlayStation Hits" banner, whose two renderings left
+    /// margins of 6.9 and 1.5; a Nintendo Switch rendering that exists on Bayonetta and nothing else
+    /// in 4741 candidates, and so cannot be told from Bayonetta's own art; and a Games for Windows
+    /// Live badge with a single sample, which cannot be fitted at all. Bayonetta is the nearest
+    /// unflagged candidate in the corpus at 17.1 - a known miss, kept rather than guessed at.
+    ///
+    /// Two consistent non-badge templates were also found and deliberately left out: floppy-disk
+    /// mockups with handwritten labels across 27 games, and a glossy rounded-icon frame across 9.
+    /// Both would make poor tiles, but neither is a storefront badge - the mockups belong to
+    /// <see cref="ArtworkRanker"/>'s vocabulary and the icon frames to the tile-fill check.
     /// </summary>
     internal static class BadgeOverlay
     {
@@ -69,8 +84,8 @@ namespace SteamGridDB.Xbox.Services.Artwork
         internal const int CornerSize = 16;
 
         // Mean per-channel difference from the nearest rendering, over that rendering's pixels only.
-        // Across all nineteen, the worst badged artwork measures 7.9 and the nearest unflagged
-        // artwork measures 15.0, so this sits inside a gap rather than on a boundary - the lesson
+        // Across all twenty-five, the worst badged artwork measures 7.9 and the smallest margin any
+        // single rendering leaves is 14.6, so this sits inside a gap rather than on a boundary - the lesson
         // ARTWORK-SELECTION.md records from the official-artwork gate's thresholds, which did sit on
         // one and had to be widened twice. Most renderings are far tighter than that pair; 15.0 is
         // the single smallest margin any of them leaves.
@@ -88,7 +103,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         private static readonly uint[][] renderings =
         {
-            // SteamTabLight - 90 px, flags 196, worst 3.3, nearest 29.8
+            // SteamTabLight - 90 px, 196 flags across 175 games, worst 3.3, nearest 29.8
             new uint[]
             {
                 0x041A81B0, 0x051680B0, 0x061780B0, 0x071780B0, 0x081780B0, 0x091780B0,
@@ -107,7 +122,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x87167EAE, 0x88167FB0, 0x901780B0, 0x911780B0, 0x921780B1, 0x93177FB1,
                 0x94127DAF, 0x950F7BAE, 0x96117CAE, 0x97147FB1, 0xA01780B0, 0xA11780B0,
             },
-            // FramedPlate - 109 px, flags 92, worst 0.0, nearest 19.0
+            // FramedPlate - 109 px, 92 flags across 91 games, worst 0.0, nearest 19.0
             new uint[]
             {
                 0x02444444, 0x03444444, 0x04424242, 0x07616060, 0x08656464, 0x09646363,
@@ -130,7 +145,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xE9392A29, 0xEA352523, 0xEB352623, 0xED352522, 0xF6595B5C, 0xF8372A29,
                 0xFA645A59,
             },
-            // LeftSpine1 - 90 px, flags 86, worst 7.4, nearest 22.1
+            // LeftSpine1 - 90 px, 86 flags across 85 games, worst 7.4, nearest 22.1
             new uint[]
             {
                 0x002378D5, 0x012378D5, 0x022378D5, 0x032378D5, 0x042476D5, 0x102274CD,
@@ -149,7 +164,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xD40F2E55, 0xD50E6EA1, 0xE00D2D51, 0xE10D2D51, 0xE20D2D51, 0xE30D2D51,
                 0xE40C294C, 0xF00C2847, 0xF10C2847, 0xF20C2847, 0xF30C2847, 0xF40C2341,
             },
-            // LeftSpine3 - 90 px, flags 86, worst 7.9, nearest 23.2
+            // LeftSpine3 - 90 px, 86 flags across 85 games, worst 7.9, nearest 23.2
             new uint[]
             {
                 0x002378D5, 0x012378D5, 0x022378D5, 0x032378D5, 0x042476D4, 0x051299EE,
@@ -168,7 +183,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xD50872AA, 0xE00D2D51, 0xE10D2D51, 0xE20D2D51, 0xE30D2D51, 0xE40D284B,
                 0xF00C2847, 0xF10C2847, 0xF20C2847, 0xF30C2847, 0xF40C2340, 0xF5086EA0,
             },
-            // Xbox360Spine - 90 px, flags 47, worst 2.1, nearest 23.1
+            // Xbox360Spine - 90 px, 47 flags across 44 games, worst 2.1, nearest 23.1
             new uint[]
             {
                 0x04DCE23E, 0x05DEE23E, 0x107CC11C, 0x117BC01C, 0x127EC11C, 0x17DFE23E,
@@ -187,7 +202,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xE024A008, 0xE126A109, 0xE228A30A, 0xE52EA50D, 0xE62CA10D, 0xF0229F07,
                 0xF227A109, 0xF32AA30A, 0xF42CA50B, 0xF52EA60D, 0xF631A70D, 0xF734A90E,
             },
-            // SteamTabDarkA - 90 px, flags 34, worst 0.8, nearest 28.3
+            // SteamTabDarkA - 90 px, 34 flags across 33 games, worst 0.8, nearest 28.3
             new uint[]
             {
                 0x000C1B32, 0x010C1C33, 0x020C1D34, 0x030C1D35, 0x040C1E36, 0x050C1F37,
@@ -206,7 +221,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x900C223B, 0x910D223C, 0x920D233C, 0x930B233C, 0x94061E39, 0x95152D46,
                 0x97051F3A, 0xA00D223C, 0xA10D233D, 0xA20D243E, 0xA30D253F, 0xA50B253F,
             },
-            // SwitchRoundel - 106 px, flags 29, worst 0.1, nearest 17.1
+            // SwitchRoundel - 106 px, 29 flags across 25 games, worst 0.1, nearest 17.1
             new uint[]
             {
                 0x00000000, 0x04FF0000, 0x05FF0000, 0x06FF0000, 0x07FF0000, 0x08FF0000,
@@ -228,7 +243,46 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x96FF0000, 0x97FF0000, 0x98FF0000, 0xA0FF0000, 0xA5FF0000, 0xB0FF0000,
                 0xC0FF0000, 0xD0FF0000, 0xE0FF0000, 0xF0FF0000,
             },
-            // ConsoleSpine2 - 146 px, flags 8, worst 0.0, nearest 38.9
+            // PcCornerTab - 90 px, 25 flags across 15 games, worst 0.0, nearest 39.8
+            new uint[]
+            {
+                0x00000000, 0x0106090C, 0x021D3141, 0x032A465D, 0x042A475E, 0x052A475E,
+                0x062A475E, 0x072A475E, 0x082A475E, 0x092A475E, 0x0A2A475E, 0x10060B0E,
+                0x11243C4F, 0x122B4A61, 0x132A475E, 0x142A475E, 0x152A475E, 0x162A475E,
+                0x172A475E, 0x182A475E, 0x192A475E, 0x20203647, 0x212B4A61, 0x222A475E,
+                0x2327445B, 0x2426435B, 0x2525435A, 0x2625425A, 0x2726435B, 0x2826445B,
+                0x292A475E, 0x302A475E, 0x3128465D, 0x32365167, 0x33B7C1C9, 0x34C2CAD1,
+                0x355E7485, 0x3698A6B1, 0x37C3CCD2, 0x38596F81, 0x402A475E, 0x4127455C,
+                0x423B566B, 0x43ECEFF1, 0x44E9ECEE, 0x45DFE3E7, 0x46F3F4F6, 0x47EEF0F2,
+                0x48AEB9C1, 0x49224058, 0x502A475E, 0x5127455C, 0x523A556B, 0x53E7EBED,
+                0x54F1F3F4, 0x55D4DADE, 0x56F1F3F4, 0x57788A99, 0x58496175, 0x602A475E,
+                0x6127455C, 0x623B566A, 0x63EEF1F2, 0x64A7B3BC, 0x65667B8B, 0x66F5F6F7,
+                0x67D0D7DC, 0x68A1AEB8, 0x702A475E, 0x7127455C, 0x723B566B, 0x73E7EBED,
+                0x74526A7C, 0x75344F65, 0x76DBE0E3, 0x77F5F7F8, 0x788999A6, 0x802A475E,
+                0x812A475E, 0x822D4960, 0x83496275, 0x84324E64, 0x8526445B, 0x863B566B,
+                0x874B6477, 0x882B485F, 0x902A475E, 0x912A475E, 0x9429465D, 0xA02A475E,
+            },
+            // Xbox360SpineAlt - 93 px, 14 flags across 14 games, worst 5.3, nearest 24.1
+            new uint[]
+            {
+                0x15D8E03C, 0x16C3D93C, 0x17A7CE3C, 0x239ACA3F, 0x24B7D53E, 0x3179BF43,
+                0x3277BE43, 0x3375BE42, 0x3476BE41, 0x3580C140, 0x3699CA3F, 0x37BCD73D,
+                0x38D7E13D, 0x4179BF43, 0x4279BF43, 0x4379BF43, 0x4479BF43, 0x4578BF43,
+                0x4675BE43, 0x4777BE41, 0x4888C43F, 0x5279BF43, 0x5379BF43, 0x5479BF43,
+                0x5579BF43, 0x5679BF43, 0x5779BF43, 0x5877BE42, 0x6170BE43, 0x6279BF43,
+                0x637CC042, 0x647CC043, 0x657ABF43, 0x6679BF43, 0x6779BF43, 0x6879BF43,
+                0x734CB444, 0x7460B944, 0x7571BE43, 0x767AC042, 0x777CC042, 0x787ABF43,
+                0x8228AA47, 0x8326A946, 0x8427A946, 0x8530AC45, 0x8643B144, 0x875AB844,
+                0x8871BE43, 0x913EB548, 0x9337B148, 0x9432AE47, 0x952CAB47, 0x9627AA47,
+                0x9830AC45, 0xA240B648, 0xA340B649, 0xA440B648, 0xA53EB547, 0xA63AB348,
+                0xA733AF48, 0xA82CAC47, 0xB140B648, 0xB240B648, 0xB340B648, 0xB440B648,
+                0xB540B647, 0xB640B648, 0xB740B648, 0xB83EB548, 0xC144B746, 0xC340B648,
+                0xC440B648, 0xC540B648, 0xC640B648, 0xC740B648, 0xC840B648, 0xD14CB343,
+                0xD244B245, 0xD33EB246, 0xD43CB247, 0xD53EB548, 0xD640B748, 0xD742B748,
+                0xD841B648, 0xE33BAB43, 0xE43AAA43, 0xE532A742, 0xE62AA744, 0xE72CAB45,
+                0xE837B248, 0xF54BAF43, 0xF73AA844,
+            },
+            // ConsoleSpine2 - 146 px, 8 flags across 8 games, worst 0.0, nearest 38.9
             new uint[]
             {
                 0x00107B13, 0x01107B13, 0x02107C13, 0x030E7910, 0x040C780F, 0x050F7912,
@@ -257,7 +311,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xF1107B13, 0xF2107B13, 0xF3107B13, 0xF4107B13, 0xF5107B13, 0xF6107B13,
                 0xF7107B13, 0xF8107B13,
             },
-            // PlayBadge2 - 93 px, flags 8, worst 0.3, nearest 32.0
+            // PlayBadge2 - 93 px, 8 flags across 8 games, worst 0.3, nearest 32.0
             new uint[]
             {
                 0x00000000, 0x0430DE81, 0x0530DD81, 0x0630DD81, 0x0730DD81, 0x0830DD81,
@@ -277,7 +331,28 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x9030DD81, 0x9130DD81, 0x9230DE81, 0x9330DE81, 0x9430DE81, 0x9530DE81,
                 0x9630DE81, 0xA030DD81, 0xA530DD81,
             },
-            // ConsoleSpine5 - 92 px, flags 7, worst 0.3, nearest 15.0
+            // Ps3Spine - 98 px, 8 flags across 8 games, worst 0.0, nearest 22.6
+            new uint[]
+            {
+                0x007F7D82, 0x017F7D82, 0x027F7D82, 0x037F7D82, 0x047E7C81, 0x057E7C81,
+                0x067F7D82, 0x077F7D82, 0x087F7D82, 0x107B797E, 0x117B797E, 0x127B797E,
+                0x14807F83, 0x187B797E, 0x20767479, 0x21767479, 0x22767479, 0x23727075,
+                0x24AAA9AB, 0x25E7E7E7, 0x28747277, 0x30716F74, 0x31716F74, 0x32716F74,
+                0x35F0F0F0, 0x406C6A6F, 0x416C6A6F, 0x45E9E9E9, 0x47FCFCFC, 0x487D7C80,
+                0x50666668, 0x53858587, 0x55E8E8E8, 0x61919192, 0x62DCDCDC, 0x70575759,
+                0x75E8E8E8, 0x77C9C9CA, 0x78A3A3A4, 0x80555557, 0x81515153, 0x8458585A,
+                0x86717173, 0x8758585A, 0x884E4E50, 0x904E4E50, 0x914E4E50, 0x924E4E50,
+                0x934E4E50, 0x944D4D4F, 0x954A4A4C, 0x964B4B4D, 0x974D4D4F, 0x984E4E50,
+                0xA048484A, 0xA148484A, 0xA248484A, 0xA348484A, 0xA448484A, 0xA548484A,
+                0xA648484A, 0xA748484A, 0xA848484A, 0xB0424244, 0xB1424244, 0xB2424244,
+                0xB3424244, 0xB4424244, 0xB5424244, 0xB6424244, 0xB7424244, 0xB8424244,
+                0xC03C3C3D, 0xC13C3C3D, 0xC23C3C3D, 0xC33C3C3D, 0xC53C3C3D, 0xC63C3C3D,
+                0xC73C3C3D, 0xC83C3C3D, 0xD0363637, 0xD2363637, 0xD3363637, 0xD5363637,
+                0xD7363637, 0xD8363637, 0xE1303032, 0xE4303032, 0xE6303032, 0xF02A2A2A,
+                0xF12A2A2A, 0xF22A2A2A, 0xF32A2A2A, 0xF42A2A2A, 0xF52A2A2A, 0xF62A2A2A,
+                0xF72A2A2A, 0xF82A2A2A,
+            },
+            // ConsoleSpine5 - 92 px, 7 flags across 7 games, worst 0.3, nearest 15.0
             new uint[]
             {
                 0x002F87C6, 0x012F87C7, 0x022F87C7, 0x032F87C7, 0x042F87C8, 0x052C86C9,
@@ -297,7 +372,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xE42979BC, 0xE52678BE, 0xF02977BB, 0xF12977BC, 0xF22977BC, 0xF32977BC,
                 0xF42977BC, 0xF52577BE,
             },
-            // UbisoftBadge - 90 px, flags 7, worst 0.0, nearest 22.2
+            // UbisoftBadge - 90 px, 7 flags across 6 games, worst 0.0, nearest 22.2
             new uint[]
             {
                 0x00000000, 0x01001620, 0x020274A8, 0x0303A7F1, 0x0403A9F5, 0x0503A9F4,
@@ -316,7 +391,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x8103A9F4, 0x8201A8F4, 0x8300A6F4, 0x8400A6F4, 0x8500A6F4, 0x8600A6F4,
                 0x8700A6F4, 0x9003A9F4, 0x9103A9F4, 0xA003A9F4, 0xA103A9F4, 0xA403A9F4,
             },
-            // SteamTabDarkC - 97 px, flags 6, worst 0.1, nearest 23.6
+            // SteamTabDarkC - 97 px, 6 flags across 6 games, worst 0.1, nearest 23.6
             new uint[]
             {
                 0x00000000, 0x01030407, 0x020C1420, 0x03101C2D, 0x040A1728, 0x05071426,
@@ -337,7 +412,26 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x96465364, 0xA0132235, 0xA1132237, 0xA3132439, 0xA4112238, 0xA50D1F36,
                 0xA60E2137,
             },
-            // ConsoleSpinePs4Alt - 147 px, flags 5, worst 0.0, nearest 25.2
+            // SteamTabDarkD - 90 px, 6 flags across 6 games, worst 0.0, nearest 29.6
+            new uint[]
+            {
+                0x00000000, 0x05004F9A, 0x06004F9A, 0x07004F9A, 0x08004F9A, 0x09004F9A,
+                0x0A004F9A, 0x14004996, 0x15004996, 0x16004996, 0x17004D99, 0x18004F9A,
+                0x19004F9A, 0x1A004F9A, 0x2100529F, 0x22004D99, 0x230A559D, 0x246595C2,
+                0x259CBAD7, 0x2682A9CD, 0x272065A6, 0x28004C97, 0x2900509A, 0x31004E9A,
+                0x320A549C, 0x33B2CAE1, 0x34FFFFFF, 0x35FCFDFE, 0x36B6CCE2, 0x37B4CBE1,
+                0x382769A8, 0x39004D98, 0x41004996, 0x426192C0, 0x43FFFFFF, 0x44FFFFFF,
+                0x459EBBD8, 0x46286BA9, 0x476D9AC5, 0x4897B7D6, 0x49004B98, 0x50004F9A,
+                0x51004C98, 0x523E79B2, 0x53BDD2E5, 0x54D3E0ED, 0x552165A6, 0x563774AF,
+                0x5794B5D4, 0x58CBDBEA, 0x5900509A, 0x60004F9A, 0x61004D99, 0x622065A6,
+                0x633271AD, 0x641B62A4, 0x654C83B7, 0x66C9DAE9, 0x67FFFFFF, 0x68ADC7DE,
+                0x69004B98, 0x70004F9A, 0x71004D99, 0x721D62A4, 0x73BCD1E4, 0x748CAFD1,
+                0x75DAE6F0, 0x76FFFFFF, 0x77F3F6FA, 0x783A77B0, 0x80004F9A, 0x81004F9A,
+                0x82004C98, 0x832165A6, 0x849BBAD7, 0x85C9DAE9, 0x86AAC5DD, 0x873C78B1,
+                0x88004B97, 0x90004F9A, 0x91004F9A, 0x93004D99, 0x94004B97, 0x9500509A,
+                0x96004C98, 0xA0004F9A, 0xA1004F9A, 0xA300509A, 0xA5004F99, 0xA600509A,
+            },
+            // ConsoleSpinePs4Alt - 147 px, 5 flags across 5 games, worst 0.0, nearest 25.2
             new uint[]
             {
                 0x003086C7, 0x013086C7, 0x023086C7, 0x032E85C7, 0x044793CA, 0x05418FC8,
@@ -366,7 +460,26 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xF02977BB, 0xF12977BB, 0xF22977BB, 0xF32977BB, 0xF42977BC, 0xF52977BB,
                 0xF62977BC, 0xF72977BB, 0xF82977BB,
             },
-            // SteamTabDarkB - 90 px, flags 4, worst 6.2, nearest 22.1
+            // WiiBadge - 90 px, 5 flags across 4 games, worst 0.0, nearest 19.6
+            new uint[]
+            {
+                0x00000000, 0x0414B6EC, 0x0514B5EB, 0x0614B5EB, 0x0714B5EB, 0x0814B5EB,
+                0x0914B5EB, 0x0A14B5EB, 0x1411B4EB, 0x1514B5EB, 0x1614B5EB, 0x1714B5EB,
+                0x1814B5EB, 0x1914B5EB, 0x1A14B5EB, 0x2114BBF3, 0x2213B5EB, 0x231EB8EC,
+                0x2426BAEC, 0x2512B4EB, 0x2613B5EB, 0x2714B5EB, 0x2814B5EB, 0x2914B5EB,
+                0x2A14B5EB, 0x320FB3EB, 0x335DCCF1, 0x3492DCF5, 0x3520B8EC, 0x3613B5EB,
+                0x3713B5EB, 0x3814B5EB, 0x3914B5EB, 0x3A14B5EB, 0x4014B5EB, 0x4114B5EB,
+                0x420FB4EB, 0x4349C5EF, 0x44B9E9F9, 0x4580D7F4, 0x467BD5F3, 0x4734BFEE,
+                0x4811B4EB, 0x5014B5EB, 0x5114B5EB, 0x5210B4EB, 0x5338C0EE, 0x54C0EBF9,
+                0x55CDEFFA, 0x56E8F8FD, 0x5767CFF2, 0x580FB3EB, 0x5913B5EB, 0x6014B5EB,
+                0x6114B5EB, 0x620FB4EB, 0x6343C3EF, 0x64E1F5FC, 0x65D0F0FB, 0x66D6F2FB,
+                0x6784D8F4, 0x6811B4EB, 0x6913B5EB, 0x7014B5EB, 0x7114B5EB, 0x7212B5EB,
+                0x7320B9EC, 0x747ED6F4, 0x75D6F2FB, 0x76C0EBF9, 0x7756C9F0, 0x7810B4EB,
+                0x8014B5EB, 0x8114B5EB, 0x8214B5EB, 0x8312B4EB, 0x841AB7EB, 0x853EC2EE,
+                0x862EBDED, 0x8718B6EB, 0x8813B5EB, 0x9014B5EB, 0x9114B5EB, 0x9213B5EB,
+                0x9313B5EB, 0x9610B4EB, 0xA014B5EB, 0xA114B5EB, 0xA214B5EB, 0xA514B5EB,
+            },
+            // SteamTabDarkB - 90 px, 4 flags across 4 games, worst 6.2, nearest 22.1
             new uint[]
             {
                 0x00000000, 0x01070A0D, 0x02112D43, 0x03113F61, 0x040D3F63, 0x050A3D62,
@@ -385,7 +498,27 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x99314662, 0xA00E4165, 0xA10E4166, 0xA20F4165, 0xA30F4165, 0xA40C3E63,
                 0xA71E4364, 0xB00A4167, 0xC0094268, 0xD0094168, 0xE0094169, 0xF00A4169,
             },
-            // ConsoleSpine4 - 158 px, flags 3, worst 0.0, nearest 39.6
+            // Ps5SpineAlt - 93 px, 4 flags across 4 games, worst 0.0, nearest 24.9
+            new uint[]
+            {
+                0x00FFFFFF, 0x01FFFFFF, 0x02FFFFFF, 0x03FFFFFF, 0x04FFFFFF, 0x05FFFFFF,
+                0x10FFFFFF, 0x11FFFFFF, 0x12FFFFFF, 0x13FFFFFF, 0x14FFFFFF, 0x15FFFFFF,
+                0x20FFFFFF, 0x21FFFFFF, 0x22BFBFBF, 0x23A1A1A1, 0x24F0F0F0, 0x25FFFFFF,
+                0x30FFFFFF, 0x31FFFFFF, 0x32858585, 0x332D2D2D, 0x34575757, 0x35FFFFFF,
+                0x40FFFFFF, 0x41F8F8F8, 0x427A7A7A, 0x434E4E4E, 0x44535353, 0x50B1B1B1,
+                0x515E5E5E, 0x52464646, 0x53484848, 0x54676767, 0x60E3E3E3, 0x61C5C5C5,
+                0x62A5A5A5, 0x637B7B7B, 0x64A5A5A5, 0x70FFFFFF, 0x71FFFFFF, 0x72FFFFFF,
+                0x73FFFFFF, 0x74FFFFFF, 0x75FFFFFF, 0x80FFFFFF, 0x81FFFFFF, 0x82FFFFFF,
+                0x83FFFFFF, 0x84FFFFFF, 0x85FFFFFF, 0x90FFFFFF, 0x91FFFFFF, 0x92FFFFFF,
+                0x93FFFFFF, 0x94FFFFFF, 0x95FFFFFF, 0xA0FFFFFF, 0xA1FFFFFF, 0xA2FFFFFF,
+                0xA3FFFFFF, 0xA4FFFFFF, 0xA5FFFFFF, 0xB0FFFFFF, 0xB1FFFFFF, 0xB2FFFFFF,
+                0xB3FFFFFF, 0xB4FFFFFF, 0xB5FFFFFF, 0xC0FFFFFF, 0xC1FFFFFF, 0xC2FFFFFF,
+                0xC3FFFFFF, 0xC4FFFFFF, 0xC5FFFFFF, 0xD0FFFFFF, 0xD1FFFFFF, 0xD2FFFFFF,
+                0xD3FFFFFF, 0xD4FFFFFF, 0xD5FFFFFF, 0xE0FFFFFF, 0xE1FFFFFF, 0xE2FFFFFF,
+                0xE3FFFFFF, 0xE4FFFFFF, 0xE5FFFFFF, 0xF0FFFFFF, 0xF1FFFFFF, 0xF2FFFFFF,
+                0xF3FFFFFF, 0xF4FFFFFF, 0xF5FFFFFF,
+            },
+            // ConsoleSpine4 - 158 px, 3 flags across 3 games, worst 0.0, nearest 39.6
             new uint[]
             {
                 0x00474747, 0x01474747, 0x02474747, 0x03454545, 0x04434343, 0x05454545,
@@ -416,27 +549,27 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xF2474747, 0xF3474747, 0xF4474747, 0xF5474747, 0xF6474747, 0xF7474747,
                 0xF8474747, 0xF9474747,
             },
-            // LegoBadge4 - 92 px, flags 3, worst 0.1, nearest 21.0
+            // PcMonitorBadge - 94 px, 3 flags across 3 games, worst 0.1, nearest 19.4
             new uint[]
             {
-                0x00CFB7DB, 0x01816DB5, 0x025354A6, 0x035C5CA7, 0x04615FA5, 0x056460A3,
-                0x10E9DEEE, 0x11DBCDE6, 0x129589C8, 0x135D5EB3, 0x20EFC9F3, 0x21E8D3F0,
-                0x22E4DDEE, 0x23B7AFDB, 0x30F4A6F8, 0x31EDB3F5, 0x32E6C5F1, 0x40F68FFA,
-                0x41F396F9, 0x42EEA4F6, 0x43EBC6F4, 0x50F895FC, 0x51F891FB, 0x52F596F9,
-                0x53F2ADF8, 0x60FCA4FD, 0x61FCA1FC, 0x62FA9DFB, 0x63F8A3FB, 0x70FDB2FE,
-                0x71FDB1FE, 0x72FCAEFE, 0x73FBADFD, 0x80FEC0FE, 0x81FDBEFE, 0x82FDBCFD,
-                0x83FDBBFE, 0x90FDD9FD, 0x91FECEFD, 0x92FEC7FE, 0x93FDC5FE, 0x94FEC4FD,
-                0xA0FEFEFE, 0xA1FEF1FE, 0xA2FEDDFD, 0xA3FDCEFE, 0xA4FECCFE, 0xB0FFFFFF,
-                0xB1FEFFFE, 0xB2FFFEFE, 0xB3FEF1FE, 0xB4FDDCFE, 0xB5FED3FE, 0xC0FFFFFF,
-                0xC1FFFFFE, 0xC2FFFFFF, 0xC3FFFFFE, 0xC4FFFDFF, 0xC5FEF0FD, 0xD0FFFFFF,
-                0xD1FFFFFF, 0xD2FFFFFF, 0xD3FFFFFF, 0xD4FFFFFF, 0xD5FFFFFF, 0xD6FEFDFE,
-                0xD7FEEEFD, 0xE0FFFFFF, 0xE1FFFFFF, 0xE2FFFFFF, 0xE3FFFFFF, 0xE4FFFFFF,
-                0xE5FFFFFF, 0xE6FFFFFF, 0xE7FFFFFE, 0xE8FEFCFE, 0xF0FFFFFF, 0xF1FFFFFF,
-                0xF2FFFFFF, 0xF3FFFFFF, 0xF4FFFFFF, 0xF5FFFFFF, 0xF6FFFFFF, 0xF7FFFFFF,
-                0xF8FFFFFF, 0xF9FFFFFF, 0xFAFEF9FE, 0xFBFEE6FE, 0xFCFDD6FE, 0xFDFCCDFD,
-                0xFEFACDFD, 0xFFF8D4FE,
+                0x00000000, 0x0404BBFF, 0x0503BAFF, 0x0603BAFF, 0x0703BAFF, 0x0803BAFF,
+                0x0903BAFF, 0x0A03BAFF, 0x1300B9FF, 0x1400B8FF, 0x1500B9FF, 0x1600B9FF,
+                0x1700B8FF, 0x1801BAFF, 0x1903BAFF, 0x1A03BAFF, 0x2208BBFF, 0x2339C7FF,
+                0x243EC8FF, 0x253EC8FF, 0x263EC8FF, 0x273EC8FF, 0x2812BEFF, 0x2A03BAFE,
+                0x3100B8FF, 0x3236C7FF, 0x3364D2FF, 0x3437C7FF, 0x3539C8FF, 0x3637C7FF,
+                0x3751CDFF, 0x3857CEFF, 0x3900B9FF, 0x3A03BAFE, 0x4100B8FF, 0x423BC8FF,
+                0x4337C7FF, 0x4400B6FF, 0x4500B8FF, 0x4600B7FF, 0x471BBFFF, 0x4858CEFF,
+                0x4900B9FF, 0x4A03BAFE, 0x5003BAFF, 0x5100B9FF, 0x523BC8FF, 0x5337C7FF,
+                0x5400B6FF, 0x5500B7FF, 0x5600B7FF, 0x571BBFFF, 0x585ACEFF, 0x5900B9FF,
+                0x5A03BAFF, 0x6003BAFF, 0x6100B9FF, 0x622EC5FF, 0x6371D5FF, 0x6452CCFF,
+                0x656AD4FF, 0x6657CEFF, 0x6765D1FF, 0x684DCCFF, 0x6900B9FF, 0x6A03BAFE,
+                0x7003BAFF, 0x7103BAFF, 0x7203BAFF, 0x731EC0FF, 0x7473D7FF, 0x75FFFFFF,
+                0x769CE2FF, 0x772AC3FF, 0x7806BBFF, 0x8003BAFF, 0x8103BAFF, 0x8202BAFF,
+                0x8309BBFF, 0x845BD0FF, 0x8569D4FF, 0x8665D3FF, 0x8718BFFF, 0x8801B9FF,
+                0x9003BAFF, 0x9103BAFF, 0x9400B9FF, 0x9500B8FF, 0x9600B8FF, 0xA003BAFF,
+                0xA103BAFF, 0xA303BAFE, 0xA403BAFE, 0xA503BAFF,
             },
-            // ConsoleSpine3 - 159 px, flags 2, worst 0.0, nearest 33.6
+            // ConsoleSpine3 - 159 px, 2 flags across 2 games, worst 0.0, nearest 33.6
             new uint[]
             {
                 0x00FFFFFF, 0x01FFFFFF, 0x02FFFFFF, 0x03FFFFFF, 0x04E0E0E0, 0x05EAEAEA,
@@ -467,7 +600,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0xF1FFFFFF, 0xF2FFFFFF, 0xF3FFFFFF, 0xF4FFFFFF, 0xF5FFFFFF, 0xF6FFFFFF,
                 0xF7FFFFFF, 0xF8FFFFFF, 0xF9FFFFFF,
             },
-            // EpicRoundel2 - 91 px, flags 2, worst 0.0, nearest 22.6
+            // EpicRoundel2 - 91 px, 2 flags across 2 games, worst 0.0, nearest 22.6
             new uint[]
             {
                 0x00000000, 0x01010101, 0x02010101, 0x03020202, 0x04020202, 0x05030303,
@@ -487,25 +620,25 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 0x85989898, 0x87555555, 0x880F0F0F, 0x90050505, 0x91060606, 0x94000000,
                 0xA0060606,
             },
-            // PlayBadge1 - 94 px, flags 2, worst 0.3, nearest 50.3
+            // EpicRoundelAlt - 95 px, 2 flags across 2 games, worst 0.0, nearest 23.2
             new uint[]
             {
-                0x2D3EE4FA, 0x2E3EE5FA, 0x2F3FE6FB, 0x3C3EE8FB, 0x3D3FE8FA, 0x3E42E8FA,
-                0x3F46EAFA, 0x4C45EAFC, 0x4D48EBFA, 0x4E4CECFA, 0x4F52ECFA, 0x5C4EF1FE,
-                0x5D50F3FF, 0x5E58F2FF, 0x5F61F0FC, 0x6E7ED5DE, 0x6F75F1FC, 0x7E98CCD0,
-                0x7F86F3FC, 0x8CF23E3E, 0x8E90FCFF, 0x8F96F6FE, 0x9BD4777F, 0x9DC4F2F4,
-                0x9EBEFBFE, 0x9FB7F9FE, 0xAAC7C2C4, 0xABCCCACB, 0xACC3FAFC, 0xADC6FAFC,
-                0xAECAFBFE, 0xAFD0FCFE, 0xB88AF6FF, 0xB98EF7FF, 0xBA92FBFF, 0xBBA0FCFF,
-                0xBCB3FAFE, 0xBDC3FBFF, 0xBED1FFFF, 0xBFDCFFFF, 0xC384F5FE, 0xC488F8FF,
-                0xC58EF2FD, 0xC792F2FA, 0xC899FAFF, 0xC99CF7FE, 0xCAA0F7FE, 0xCBA4F8FE,
-                0xCCAFFCFF, 0xCDB8FAFC, 0xCEAADAC5, 0xCF93B68D, 0xD28AF6FF, 0xD38FFAFF,
-                0xD490DAE9, 0xD58094AC, 0xD6828AA4, 0xD77C95B4, 0xD898DFF2, 0xD9AAFEFF,
-                0xDAADFBFF, 0xDBB4FCFF, 0xDCA2DBBC, 0xDD6B9446, 0xDE44660A, 0xDF3E5F00,
-                0xE297FBFF, 0xE399E3F2, 0xE469708B, 0xE52C2B36, 0xE63E414E, 0xE7767998,
-                0xE86A7AAF, 0xE9A2D5EE, 0xEAB0E8F6, 0xEBA0D3B4, 0xEC5E8012, 0xED436400,
-                0xEE426407, 0xEF3C5A0A, 0xF2A2F8FE, 0xF3748DA7, 0xF4262632, 0xF51A1B22,
-                0xF622232B, 0xF760657C, 0xF84D5177, 0xF9606499, 0xFA7A82B8, 0xFB6F8C36,
-                0xFC567808, 0xFD3C5A14, 0xFE32432E, 0xFF454F4B,
+                0x00000000, 0x01010101, 0x02040404, 0x03050505, 0x04060606, 0x05080808,
+                0x060A0A0A, 0x070C0C0C, 0x080E0E0E, 0x09101010, 0x0A131313, 0x10010101,
+                0x11040404, 0x12040404, 0x13000000, 0x14000000, 0x15020202, 0x16050505,
+                0x17070707, 0x180F0F0F, 0x19131313, 0x1A151515, 0x20040404, 0x21040404,
+                0x22060606, 0x233F3F3F, 0x24535353, 0x25555555, 0x26575757, 0x27505050,
+                0x28181818, 0x2A181818, 0x30050505, 0x31040404, 0x32101010, 0x33C3C3C3,
+                0x34B8B8B8, 0x35B0B0B0, 0x36B1B1B1, 0x37D5D5D5, 0x38363636, 0x40060606,
+                0x41060606, 0x42151515, 0x43ABABAB, 0x447B7B7B, 0x45646464, 0x46747474,
+                0x47CECECE, 0x48383838, 0x49161616, 0x4A1D1D1D, 0x50080808, 0x51080808,
+                0x52151515, 0x53BABABA, 0x54A3A3A3, 0x55CBCBCB, 0x56959595, 0x57C8C8C8,
+                0x583B3B3B, 0x600A0A0A, 0x610A0A0A, 0x62161616, 0x63CDCDCD, 0x64BDBDBD,
+                0x65B5B5B5, 0x66AFAFAF, 0x67DDDDDD, 0x683D3D3D, 0x691A1A1A, 0x700C0C0C,
+                0x710D0D0D, 0x72101010, 0x73919191, 0x74E1E1E1, 0x75D7D7D7, 0x76E4E4E4,
+                0x77B1B1B1, 0x782B2B2B, 0x800E0E0E, 0x81111111, 0x82121212, 0x830F0F0F,
+                0x84343434, 0x85646464, 0x86444444, 0x871B1B1B, 0x881E1E1E, 0x90111111,
+                0x91131313, 0x92151515, 0x971F1F1F, 0xA0131313, 0xA1151515,
             },
         };
 
