@@ -10,8 +10,12 @@ namespace SteamGridDB.Xbox.Tests
     /// looks exactly like a game whose tile has never been rendered.
     ///
     /// The content-pack case is the one worth pinning. A single Call of Duty install leaves a dozen
-    /// folders beside the game that carry a Store ID exactly as it does; the only thing separating
-    /// them at this level is an empty TitleId.
+    /// folders beside the game that carry a Store ID exactly as it does; what separates them at this
+    /// level is that each names the main package it is content for.
+    ///
+    /// The classics are the other half of the same rule, and the reason it is not the TitleId test it
+    /// used to be. Wolfenstein 3D carries a Store ID, no TitleId and no main package, and under the old
+    /// rule it was dropped as if it were a content pack - a game silently missing from the library.
     /// </summary>
     public class XboxGameConfigTests
     {
@@ -28,6 +32,27 @@ namespace SteamGridDB.Xbox.Tests
   <ShellVisuals DefaultDisplayName=""MWII PC MS DLC03 Cross-Gen Pack 02"" />
   <StoreId>9N57K40Q94MV</StoreId>
   <TitleId></TitleId>
+  <AllowedProducts>
+    <AllowedProduct>9N201KQXS5BM</AllowedProduct>
+  </AllowedProducts>
+  <DesktopRegistration>
+    <MainPackageDependency Name=""38985CA0.COREBase"" />
+    <ProcessorArchitecture>x64</ProcessorArchitecture>
+  </DesktopRegistration>
+</Game>";
+
+        /// <summary>
+        /// Wolfenstein 3D's own config, trimmed. The Store's re-released classics ship one of these:
+        /// a real game, with a Store ID and no TitleId at all.
+        /// </summary>
+        private const string classicConfig = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Game configVersion=""1"">
+  <Identity Name=""BethesdaSoftworks.Wolfenstein3D"" Publisher=""CN=21E520D9"" Version=""1.6.3.0"" />
+  <StoreId>9P7Z1D3N8KR7</StoreId>
+  <ShellVisuals DefaultDisplayName=""Wolfenstein 3D"" PublisherDisplayName=""Bethesda Softworks"" />
+  <DesktopRegistration>
+    <ProcessorArchitecture>x86</ProcessorArchitecture>
+  </DesktopRegistration>
 </Game>";
 
         [Fact]
@@ -43,12 +68,6 @@ namespace SteamGridDB.Xbox.Tests
         }
 
         [Fact]
-        public void Reads_the_title_id()
-        {
-            Assert.Equal("68d51b74", XboxGameConfig.Parse(gameConfig).TitleId);
-        }
-
-        [Fact]
         public void A_game_looks_like_a_game()
         {
             Assert.True(XboxGameConfig.Parse(gameConfig).LooksLikeGame);
@@ -59,11 +78,23 @@ namespace SteamGridDB.Xbox.Tests
         {
             XboxGameConfig.Result result = XboxGameConfig.Parse(contentPackConfig);
 
-            // It still carries a Store ID - that is exactly why the empty TitleId has to be what
+            // It still carries a Store ID - that is exactly why naming a main package has to be what
             // decides, rather than the presence of an ID
             Assert.Equal("9N57K40Q94MV", result.StoreId);
-            Assert.Null(result.TitleId);
+            Assert.True(result.IsContentPack);
             Assert.False(result.LooksLikeGame);
+        }
+
+        [Fact]
+        public void A_classic_with_no_title_id_still_looks_like_a_game()
+        {
+            XboxGameConfig.Result result = XboxGameConfig.Parse(classicConfig);
+
+            // It has a DesktopRegistration like a content pack does, and no TitleId like a content pack
+            // does. What it does not have is a main package it belongs to.
+            Assert.Equal("9P7Z1D3N8KR7", result.StoreId);
+            Assert.False(result.IsContentPack);
+            Assert.True(result.LooksLikeGame);
         }
 
         [Fact]
@@ -74,6 +105,19 @@ namespace SteamGridDB.Xbox.Tests
 
             Assert.Null(result.StoreId);
             Assert.False(result.LooksLikeGame);
+        }
+
+        [Fact]
+        public void Ignores_a_main_package_dependency_that_is_not_under_DesktopRegistration()
+        {
+            // Guards the XPath the same way the Store ID's is guarded: a MainPackageDependency
+            // somewhere else in the document would otherwise silently drop a real game
+            XboxGameConfig.Result result = XboxGameConfig.Parse(
+                @"<Game configVersion=""1""><StoreId>9NS86BQ33SPX</StoreId>
+                  <ExtendedAttributeList><MainPackageDependency Name=""Elsewhere"" /></ExtendedAttributeList></Game>");
+
+            Assert.False(result.IsContentPack);
+            Assert.True(result.LooksLikeGame);
         }
 
         [Fact]
@@ -98,7 +142,7 @@ namespace SteamGridDB.Xbox.Tests
 
             Assert.Null(result.StoreId);
             Assert.Null(result.DisplayName);
-            Assert.Null(result.TitleId);
+            Assert.False(result.IsContentPack);
             Assert.False(result.LooksLikeGame);
         }
 
@@ -106,10 +150,9 @@ namespace SteamGridDB.Xbox.Tests
         public void Trims_surrounding_whitespace()
         {
             XboxGameConfig.Result result = XboxGameConfig.Parse(
-                "<Game>\n  <StoreId>\n    9NS86BQ33SPX\n  </StoreId>\n  <TitleId> 68d51b74 </TitleId>\n</Game>");
+                "<Game>\n  <StoreId>\n    9NS86BQ33SPX\n  </StoreId>\n</Game>");
 
             Assert.Equal("9NS86BQ33SPX", result.StoreId);
-            Assert.Equal("68d51b74", result.TitleId);
         }
     }
 }

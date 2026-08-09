@@ -24,23 +24,32 @@ namespace SteamGridDB.Xbox.Tests
     /// </summary>
     public class XboxInstalledGamesTests
     {
-        private static string ConfigXml(string storeId, string titleId, string displayName = "A Game")
+        private static string ConfigXml(string storeId, bool contentPack = false, string displayName = "A Game")
         {
+            string mainPackage = contentPack
+                ? @"<DesktopRegistration><MainPackageDependency Name=""Base"" /></DesktopRegistration>"
+                : string.Empty;
+
             return $@"<?xml version=""1.0"" encoding=""utf-8""?>
 <Game configVersion=""1"">
   <ShellVisuals DefaultDisplayName=""{displayName}"" />
   <StoreId>{storeId}</StoreId>
-  <TitleId>{titleId}</TitleId>
+  {mainPackage}
 </Game>";
         }
 
-        private static async Task WriteGameAsync(TempFolder root, string folderName, string storeId, string titleId)
+        private static async Task WriteGameAsync(TempFolder root, string folderName, string storeId, bool contentPack = false)
         {
             StorageFolder gameFolder = await root.Folder.CreateFolderAsync(folderName, CreationCollisionOption.ReplaceExisting);
             StorageFolder contentFolder = await gameFolder.CreateFolderAsync(XboxInstalledGames.ContentFolderName);
             StorageFile file = await contentFolder.CreateFileAsync(XboxGameConfig.FileName);
 
-            await FileIO.WriteTextAsync(file, ConfigXml(storeId, titleId));
+            await FileIO.WriteTextAsync(file, ConfigXml(storeId, contentPack));
+        }
+
+        private static StoreCatalog.Product Product(string storeId, string title, string productKind)
+        {
+            return new StoreCatalog.Product(storeId, title, productKind, new[] { "https://art" });
         }
 
         [Fact]
@@ -48,8 +57,8 @@ namespace SteamGridDB.Xbox.Tests
         {
             using (var root = new TempFolder())
             {
-                await WriteGameAsync(root, "Wobbly Life", "9NS86BQ33SPX", "68d51b74");
-                await WriteGameAsync(root, "Fortnite", "BT5P2X999VH2", "0FF4B5BD");
+                await WriteGameAsync(root, "Wobbly Life", "9NS86BQ33SPX");
+                await WriteGameAsync(root, "Fortnite", "BT5P2X999VH2");
 
                 List<XboxGameConfig.Result> configs = await XboxInstalledGames.ReadGameConfigsAsync(root.Folder);
 
@@ -64,7 +73,7 @@ namespace SteamGridDB.Xbox.Tests
         {
             using (var root = new TempFolder())
             {
-                await WriteGameAsync(root, "Wobbly Life", "9NS86BQ33SPX", "68d51b74");
+                await WriteGameAsync(root, "Wobbly Life", "9NS86BQ33SPX");
 
                 // A game mid-install, or a folder the Xbox app left behind
                 await root.Folder.CreateFolderAsync("GameSave");
@@ -102,8 +111,8 @@ namespace SteamGridDB.Xbox.Tests
         {
             using (var root = new TempFolder())
             {
-                await WriteGameAsync(root, "9NS86BQ33SPX", "9NS86BQ33SPX", "68d51b74");
-                await WriteGameAsync(root, "MW3 PC MS DLC01 Game Stub 01", "9PMD021RZT4Z", string.Empty);
+                await WriteGameAsync(root, "9NS86BQ33SPX", "9NS86BQ33SPX");
+                await WriteGameAsync(root, "MW3 PC MS DLC01 Game Stub 01", "9PMD021RZT4Z", contentPack: true);
 
                 List<XboxGameConfig.Result> configs = await XboxInstalledGames.ReadGameConfigsAsync(root.Folder);
 
@@ -118,9 +127,9 @@ namespace SteamGridDB.Xbox.Tests
         {
             var configs = new[]
             {
-                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX", "68d51b74")),
-                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX", "68d51b74")),
-                XboxGameConfig.Parse(ConfigXml("BT5P2X999VH2", "0FF4B5BD")),
+                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX")),
+                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX")),
+                XboxGameConfig.Parse(ConfigXml("BT5P2X999VH2")),
             };
 
             Assert.Equal(new[] { "9NS86BQ33SPX", "BT5P2X999VH2" }, XboxInstalledGames.SelectGameStoreIds(configs).ToArray());
@@ -131,8 +140,8 @@ namespace SteamGridDB.Xbox.Tests
         {
             var configs = new[]
             {
-                XboxGameConfig.Parse(ConfigXml("BT5P2X999VH2", "0FF4B5BD")),
-                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX", "68d51b74")),
+                XboxGameConfig.Parse(ConfigXml("BT5P2X999VH2")),
+                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX")),
             };
 
             Assert.Equal(new[] { "BT5P2X999VH2", "9NS86BQ33SPX" }, XboxInstalledGames.SelectGameStoreIds(configs).ToArray());
@@ -143,8 +152,8 @@ namespace SteamGridDB.Xbox.Tests
         {
             var configs = new[]
             {
-                XboxGameConfig.Parse(ConfigXml("9ns86bq33spx", "68d51b74")),
-                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX", "68d51b74")),
+                XboxGameConfig.Parse(ConfigXml("9ns86bq33spx")),
+                XboxGameConfig.Parse(ConfigXml("9NS86BQ33SPX")),
             };
 
             Assert.Single(XboxInstalledGames.SelectGameStoreIds(configs));
@@ -154,6 +163,66 @@ namespace SteamGridDB.Xbox.Tests
         public void SelectGameStoreIds_copes_with_null()
         {
             Assert.Empty(XboxInstalledGames.SelectGameStoreIds(null));
+        }
+
+        [Fact]
+        public void SelectGames_keeps_only_what_the_catalogue_calls_a_game()
+        {
+            var products = new[]
+            {
+                Product("9P7Z1D3N8KR7", "Wolfenstein 3D", "Game"),
+                Product("9P2T5HJ4BQ90", "DOOM: The Dark Ages | Revelations", "Durable"),
+            };
+
+            // The content pack reached the catalogue because its config named no main package to rule
+            // it out. This is where a sweep guessing wide costs a lookup rather than a wrong row.
+            Assert.Equal(new[] { "Wolfenstein 3D" }, XboxInstalledGames.SelectGames(products).Select(p => p.Title).ToArray());
+        }
+
+        [Fact]
+        public void SelectGames_collapses_a_product_both_lookups_returned()
+        {
+            var products = new[]
+            {
+                Product("9WZDNCRFHWCP", "Microsoft Mahjong", "Game"),
+                Product("9wzdncrfhwcp", "Microsoft Mahjong", "Game"),
+            };
+
+            Assert.Single(XboxInstalledGames.SelectGames(products));
+        }
+
+        [Fact]
+        public void SelectGames_copes_with_null()
+        {
+            Assert.Empty(XboxInstalledGames.SelectGames(null));
+        }
+
+        [Fact]
+        public async Task A_package_folder_with_no_manifest_is_not_a_game()
+        {
+            using (var root = new TempFolder())
+            {
+                Assert.False(await XboxInstalledGames.DeclaresXboxLiveGameAsync(root.Folder));
+            }
+        }
+
+        [Fact]
+        public async Task A_package_folder_whose_manifest_declares_an_xbox_live_title_is_a_game()
+        {
+            using (var root = new TempFolder())
+            {
+                StorageFile file = await root.Folder.CreateFileAsync(PackageManifest.FileName);
+
+                await FileIO.WriteTextAsync(file, @"<?xml version=""1.0"" encoding=""utf-8""?>
+<Package xmlns=""http://schemas.microsoft.com/appx/manifest/foundation/windows10""
+         xmlns:uap=""http://schemas.microsoft.com/appx/manifest/uap/windows10"">
+  <Applications><Application Id=""App""><Extensions>
+    <uap:Extension Category=""windows.protocol""><uap:Protocol Name=""xboxliveapp-1297290225"" /></uap:Extension>
+  </Extensions></Application></Applications>
+</Package>");
+
+                Assert.True(await XboxInstalledGames.DeclaresXboxLiveGameAsync(root.Folder));
+            }
         }
     }
 }

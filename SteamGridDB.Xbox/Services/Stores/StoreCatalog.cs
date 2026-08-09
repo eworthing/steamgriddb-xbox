@@ -126,6 +126,39 @@ namespace SteamGridDB.Xbox.Services.Stores
         }
 
         /// <summary>
+        /// Looks up products by package family name, one request apiece.
+        ///
+        /// This is the only way to name the product behind a package that carries no
+        /// MicrosoftGame.config, and it is markedly more expensive than the lookup above: the bigIds
+        /// endpoint takes twenty product IDs in one request, while this one takes a single alternate ID
+        /// and answers an empty list for a comma-separated pair rather than resolving both. A round
+        /// trip per package is only affordable because so few packages ever reach here - the manifest
+        /// test in <see cref="PackageManifest"/> reduces an ordinary machine's hundred-odd installed
+        /// packages to the handful that are games.
+        /// </summary>
+        /// <param name="packageFamilyNames">Package family names to look up.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        internal async Task<List<Product>> GetByPackageFamilyNamesAsync(
+            IEnumerable<string> packageFamilyNames,
+            CancellationToken cancellationToken = default)
+        {
+            List<Product> products = new List<Product>();
+            List<string> pending = packageFamilyNames?.Where(name => !string.IsNullOrEmpty(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+                ?? new List<string>();
+
+            foreach (string familyName in pending)
+            {
+                string url = $"{baseUrl}/lookup?alternateId=PackageFamilyName&value={Uri.EscapeDataString(familyName)}"
+                    + $"&market={market}&languages={language}&fieldsTemplate=Details";
+
+                products.AddRange(ParseProducts(await GetStringAsync(url, cancellationToken)));
+            }
+
+            return products;
+        }
+
+        /// <summary>
         /// Reads a catalogue response into products. Kept separate from the request so the shape of the
         /// document - which is deeply nested and mostly irrelevant - is pinned by tests against a
         /// captured response rather than by running against a live service.

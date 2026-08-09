@@ -145,6 +145,7 @@
     <Compile Include="Services\SteamGridDB\SteamGridDbClient.cs" />
     <Compile Include="Services\Stores\EaLibrary.cs" />
     <Compile Include="Services\Stores\EpicLibrary.cs" />
+    <Compile Include="Services\Stores\PackageManifest.cs" />
     <Compile Include="Services\Stores\StoreCatalog.cs" />
     <Compile Include="Services\Stores\StoreNameLookup.cs" />
     <Compile Include="Services\Stores\XboxGameConfig.cs" />
