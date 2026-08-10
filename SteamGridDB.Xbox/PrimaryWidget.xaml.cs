@@ -10,13 +10,13 @@ using Windows.Data.Json;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Core;
-using Windows.UI.ViewManagement.Core;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Media.Imaging;
 
+using SteamGridDB.Xbox.Controls;
 using SteamGridDB.Xbox.Models;
 using SteamGridDB.Xbox.Services;
 using SteamGridDB.Xbox.Services.Artwork;
@@ -62,10 +62,6 @@ namespace SteamGridDB.Xbox
         private const string imageExtension = ".png";
         private const string manifestFileExtension = ".manifest";
         private const string busyStatusText = "Another library operation is still running - please wait for it to finish";
-
-        // Artwork is shown in an 80px list thumbnail; decoding the 512-1024px source at full size would
-        // hold tens of megabytes of bitmaps for a large library. 160px covers 2x display scaling.
-        private const int thumbnailDecodePixelWidth = 160;
 
         private enum RestoreBackupResult
         {
@@ -344,73 +340,14 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Decodes a game image at list-thumbnail size on the UI thread and releases the file handle
-        /// as soon as decoding finishes.
+        /// Decodes a game image at list-thumbnail size. See <see cref="ThumbnailDecoder"/>, which owns
+        /// the dispatcher handling; this only supplies the page's own dispatcher.
         /// </summary>
         /// <param name="file">Image file to decode.</param>
         /// <returns>The decoded image, or null when it could not be decoded.</returns>
         private async Task<BitmapImage> CreateThumbnailAsync(StorageFile file)
         {
-            IRandomAccessStream imageStream = await file.OpenReadAsync();
-
-            try
-            {
-                // Every caller reaches this from a UI event handler, so decoding happens inline - no
-                // dispatcher round trip that could leave the await hanging if the handler never runs
-                if (Dispatcher.HasThreadAccess)
-                {
-                    return await DecodeThumbnailAsync(file, imageStream);
-                }
-
-                // BitmapImage must be created and sourced on the UI thread because it is owned by it
-                TaskCompletionSource<BitmapImage> decoded = new TaskCompletionSource<BitmapImage>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, async () =>
-                {
-                    // The lambda is async void: an exception escaping it is lost to the dispatcher, so
-                    // without this catch nothing would ever complete the source and the await below
-                    // would hang forever - taking the library-operation guard with it, leaving every
-                    // header button disabled and the widget stuck on its last status line with no
-                    // error to explain it. Faulting the task instead surfaces it to the caller's own
-                    // handler, the way the same failure on the inline path already does.
-                    try
-                    {
-                        decoded.TrySetResult(await DecodeThumbnailAsync(file, imageStream));
-                    }
-                    catch (Exception ex)
-                    {
-                        decoded.TrySetException(ex);
-                    }
-                });
-
-                return await decoded.Task;
-            }
-            finally
-            {
-                imageStream.Dispose();
-            }
-        }
-
-        /// <summary>
-        /// Decodes an already-open image stream at thumbnail size. Must run on the UI thread.
-        /// </summary>
-        /// <returns>The decoded image, or null when it could not be decoded.</returns>
-        private static async Task<BitmapImage> DecodeThumbnailAsync(StorageFile file, IRandomAccessStream imageStream)
-        {
-            try
-            {
-                BitmapImage image = new BitmapImage { DecodePixelWidth = thumbnailDecodePixelWidth };
-
-                await image.SetSourceAsync(imageStream);
-
-                return image;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Could not decode {file.Name}: {ex.Message}");
-
-                return null;
-            }
+            return await ThumbnailDecoder.CreateAsync(Dispatcher, file);
         }
 
         /// <summary>
@@ -2410,59 +2347,27 @@ namespace SteamGridDB.Xbox
         }
 
         /// <summary>
-        /// Handles the GotFocus event for the game search box, positioning the cursor at the end of the text and
-        /// displaying the virtual keyboard when appropriate.
+        /// Puts the caret at the end of whatever the search box already holds, and asks for the
+        /// on-screen keyboard - which <see cref="VirtualKeyboard"/> supplies only for focus that
+        /// arrived without a pointer.
         /// </summary>
-        /// <remarks>The virtual keyboard is shown only when focus is received via keyboard or gamepad
-        /// navigation, not when using mouse or touch input. This behavior ensures that the keyboard does not appear
-        /// unintentionally when the user clicks or taps the search box.</remarks>
-        /// <param name="sender">The source of the event, expected to be a TextBox representing the game search box.</param>
-        /// <param name="e">The event data associated with the GotFocus event.</param>
         private async void GameSearchBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            // Position cursor at the end of the text
             if (sender is TextBox textBox)
             {
                 textBox.SelectionStart = textBox.Text.Length;
                 textBox.SelectionLength = 0;
 
-                // Only show virtual keyboard for gamepad/controller input
-                // FocusState.Keyboard indicates focus via keyboard/gamepad navigation
-                // FocusState.Pointer indicates mouse/touch click - don't show keyboard for this
-                if (textBox.FocusState == FocusState.Keyboard)
-                {
-                    // Delay showing the keyboard to prevent Game Bar from hiding on first focus
-                    await Task.Delay(100);
-
-                    try
-                    {
-                        CoreInputView.GetForCurrentView().TryShow((CoreInputViewKind)7); // 7 = keyboard gamepad
-                    }
-                    catch
-                    {
-                        // Keyboard input view not available or failed to show
-                    }
-                }
+                await VirtualKeyboard.ShowForAsync(textBox.FocusState);
             }
         }
 
         /// <summary>
-        /// Handles the LostFocus event for the game search box to hide the virtual keyboard when the control loses
-        /// focus.
+        /// Takes the on-screen keyboard back down with the focus that called for it.
         /// </summary>
-        /// <param name="sender">The source of the event, typically the game search box control.</param>
-        /// <param name="e">The event data associated with the LostFocus event.</param>
         private void GameSearchBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            // Hide virtual keyboard when focus is lost
-            try
-            {
-                CoreInputView.GetForCurrentView().TryHide();
-            }
-            catch
-            {
-                // Keyboard input view not available or failed to hide
-            }
+            VirtualKeyboard.Hide();
         }
     }
 }

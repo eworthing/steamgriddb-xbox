@@ -115,6 +115,8 @@
       <DependentUpon>PrimaryWidget.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Controls\ThumbnailDecoder.cs" />
+    <Compile Include="Controls\VirtualKeyboard.cs" />
     <Compile Include="Services\Artwork\AppliedArtworkStore.cs" />
     <Compile Include="Services\Artwork\ArtworkDownloader.cs" />
     <Compile Include="Services\Artwork\ArtworkFiles.cs" />
