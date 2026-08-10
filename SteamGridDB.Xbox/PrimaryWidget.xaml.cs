@@ -542,7 +542,7 @@ namespace SteamGridDB.Xbox
 
                 string directoryNames = string.Join(", ", folders.Select(f => f.Name));
 
-                await SetStatusAsync($"Found {folders.Count} director{(folders.Count == 1 ? "y" : "ies")} ({directoryNames}). Loading and sorting...");
+                await SetStatusAsync($"Found {OperationReport.Plural(folders.Count, "directory", "directories")} ({directoryNames}). Loading and sorting...");
 
                 // Temporary list to collect games before sorting
                 List<GameEntry> tmpGameList = new List<GameEntry>();
@@ -700,7 +700,7 @@ namespace SteamGridDB.Xbox
                             thirdPartySection.Add(game);
                         }
 
-                        StatusText.Text = $"Found {sortedGames.Count} game{(sortedGames.Count == 1 ? string.Empty : "s")}"
+                        StatusText.Text = $"Found {OperationReport.Plural(sortedGames.Count, "game")}"
                             + " - looking for Xbox app games...";
                     });
 
@@ -722,7 +722,7 @@ namespace SteamGridDB.Xbox
                         xboxSection.Add(game);
                     }
 
-                    string summary = $"Found {GameEntries.Count} game{(GameEntries.Count == 1 ? string.Empty : "s")}";
+                    string summary = $"Found {OperationReport.Plural(GameEntries.Count, "game")}";
 
                     if (staleEntryCount > 0)
                     {
@@ -735,7 +735,7 @@ namespace SteamGridDB.Xbox
                         // every one was either absent from the Xbox app or a leftover of a store folder
                         // it had abandoned. The count stays because a library that silently shrinks is
                         // worse than one that says why - see last-load.log for which entries they were.
-                        summary += $", {staleEntryCount} other entr{(staleEntryCount == 1 ? "y" : "ies")} the Xbox app is not showing";
+                        summary += $", {OperationReport.Plural(staleEntryCount, "other entry", "other entries")} the Xbox app is not showing";
                     }
 
                     if (!canQuerySteamGridDb)
@@ -1188,7 +1188,7 @@ namespace SteamGridDB.Xbox
 
                 string firstPartyClause = OperationReport.When(
                     firstPartyCount,
-                    $"{firstPartyCount} Xbox app {(firstPartyCount == 1 ? "game" : "games")} left alone (they already have the Store's own artwork)");
+                    $"{OperationReport.Plural(firstPartyCount, "Xbox app game")} left alone (they already have the Store's own artwork)");
 
                 if (eligibleGames.Count == 0)
                 {
@@ -1530,9 +1530,7 @@ namespace SteamGridDB.Xbox
 
             return writeFailures.Count == 0
                 ? applied
-                : $"Artwork for {DisplayName(game)} partly updated - "
-                    + $"{writeFailures.Count} tile{(writeFailures.Count == 1 ? string.Empty : "s")} could not be written: "
-                    + string.Join("; ", writeFailures);
+                : $"Artwork for {DisplayName(game)} partly updated - " + OperationReport.WriteFailureClause(writeFailures);
         }
 
         /// <summary>
@@ -1908,7 +1906,7 @@ namespace SteamGridDB.Xbox
             int gridCount = grids?.Count ?? 0;
             int iconCount = icons?.Count ?? 0;
 
-            GridPanelStatus.Text = $"Found {gridCount} grid{(gridCount == 1 ? "" : "s")} and {iconCount} icon{(iconCount == 1 ? "" : "s")} ({sortedArtworks.Count} total)";
+            GridPanelStatus.Text = $"Found {OperationReport.Plural(gridCount, "grid")} and {OperationReport.Plural(iconCount, "icon")} ({sortedArtworks.Count} total)";
 
             // Focus the first artwork for controller navigation
             var _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
@@ -2236,7 +2234,7 @@ namespace SteamGridDB.Xbox
                         SearchResultsListView.Items.Add(game);
                     }
 
-                    SearchPanelStatus.Text = $"Found {results.Count} game{(results.Count == 1 ? "" : "s")}";
+                    SearchPanelStatus.Text = $"Found {OperationReport.Plural(results.Count, "game")}";
                 }
 
                 SearchLoadingRing.IsActive = false;
@@ -2464,9 +2462,7 @@ namespace SteamGridDB.Xbox
                 // success would fail to explain
                 string restoredStatus = restoreFailures.Count == 0
                     ? $"Backup restored for {backupGameName}"
-                    : $"Backup partly restored for {backupGameName} - "
-                        + $"{restoreFailures.Count} tile{(restoreFailures.Count == 1 ? string.Empty : "s")} could not be written: "
-                        + string.Join("; ", restoreFailures);
+                    : $"Backup partly restored for {backupGameName} - " + OperationReport.WriteFailureClause(restoreFailures);
 
                 await UpdateSharedEntriesAsync(
                     game,

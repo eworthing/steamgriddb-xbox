@@ -65,6 +65,18 @@ namespace SteamGridDB.Xbox.Services.Library
         }
 
         /// <summary>
+        /// A count with its noun pluralised, e.g. "1 directory" or "2 directories" - for nouns whose
+        /// plural is not just the singular plus "s".
+        /// </summary>
+        /// <param name="count">How many.</param>
+        /// <param name="singular">The noun in its singular form.</param>
+        /// <param name="plural">The noun in its plural form.</param>
+        internal static string Plural(int count, string singular, string plural)
+        {
+            return count == 1 ? $"{count} {singular}" : $"{count} {plural}";
+        }
+
+        /// <summary>
         /// An opening statement followed by whichever clauses have something to say, comma separated.
         /// Null and empty clauses are dropped, so a caller can pass a clause that is only sometimes
         /// worth mentioning without wrapping it in an if.
@@ -93,6 +105,20 @@ namespace SteamGridDB.Xbox.Services.Library
         internal static string When(int count, string clause)
         {
             return count > 0 ? clause : null;
+        }
+
+        /// <summary>
+        /// The trailing clause of a "partly updated"/"partly restored" message: which tiles a write
+        /// touched some but not all surfaces of, and why each was refused, e.g.
+        /// "2 tiles could not be written: grid; icon". A first-party game is several cached renditions
+        /// and either an artwork write or a backup restore can succeed on some and be refused on
+        /// others - this names the ones that were. Callers prefix their own opening sentence, since the
+        /// noun, word order and name source differ between an artwork write and a backup restore.
+        /// </summary>
+        /// <param name="failures">One entry per tile that could not be written.</param>
+        internal static string WriteFailureClause(IReadOnlyList<string> failures)
+        {
+            return $"{Plural(failures.Count, "tile")} could not be written: " + string.Join("; ", failures);
         }
     }
 }

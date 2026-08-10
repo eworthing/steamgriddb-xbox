@@ -8,6 +8,7 @@ using Windows.Data.Xml.Dom;
 using Windows.Storage;
 
 using SteamGridDB.Xbox.Services;
+using SteamGridDB.Xbox.Services.Library;
 
 namespace SteamGridDB.Xbox.Services.Stores
 {
@@ -291,7 +292,7 @@ namespace SteamGridDB.Xbox.Services.Stores
                 StorageFolder folder = await StorageFolder.GetFolderFromPathAsync(installRoot);
                 Dictionary<string, string> map = await ReadInstallerManifestsAsync(folder);
 
-                LoadSummary = $"{map.Count} content id{(map.Count == 1 ? string.Empty : "s")} from {installRoot}";
+                LoadSummary = $"{OperationReport.Plural(map.Count, "content id")} from {installRoot}";
 
                 return map;
             }

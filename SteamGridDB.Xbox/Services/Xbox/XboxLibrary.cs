@@ -8,6 +8,7 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 
 using SteamGridDB.Xbox.Services.Artwork;
+using SteamGridDB.Xbox.Services.Library;
 using SteamGridDB.Xbox.Services.Stores;
 
 namespace SteamGridDB.Xbox.Services.Xbox
@@ -103,7 +104,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
             // claiming them rather than being swept for not having claimed them yet
             await ForgetOrphanedArtworkRecordsAsync(cacheFolder);
 
-            LoadSummary = $"{games.Count} of {products.Count} game{(products.Count == 1 ? string.Empty : "s")} located"
+            LoadSummary = $"{games.Count} of {OperationReport.Plural(products.Count, "game")} located"
                 + $" ({discovered} newly discovered); {XboxInstalledGames.LoadSummary}";
 
             return games;

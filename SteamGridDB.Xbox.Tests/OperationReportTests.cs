@@ -64,6 +64,15 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Equal(expected, OperationReport.Plural(count, "error"));
         }
 
+        [Theory]
+        [InlineData(0, "0 directories")]
+        [InlineData(1, "1 directory")]
+        [InlineData(2, "2 directories")]
+        public void Pluralises_a_counted_noun_with_an_irregular_plural(int count, string expected)
+        {
+            Assert.Equal(expected, OperationReport.Plural(count, "directory", "directories"));
+        }
+
         [Fact]
         public void A_summary_with_nothing_to_add_is_just_its_opening()
         {
@@ -126,6 +135,20 @@ namespace SteamGridDB.Xbox.Tests
                     "Fixing library is complete: 10 updated, 2 had no artwork in the database",
                     OperationReport.When(0, "0 skipped (unsupported platform)"),
                     OperationReport.Plural(0, "error")));
+        }
+
+        [Fact]
+        public void States_which_tile_a_partial_write_could_not_write()
+        {
+            Assert.Equal("1 tile could not be written: grid",
+                OperationReport.WriteFailureClause(new[] { "grid" }));
+        }
+
+        [Fact]
+        public void Pluralises_the_tile_count_in_a_partial_write_clause()
+        {
+            Assert.Equal("2 tiles could not be written: grid; icon",
+                OperationReport.WriteFailureClause(new[] { "grid", "icon" }));
         }
     }
 }

@@ -8,6 +8,8 @@ using Windows.ApplicationModel;
 using Windows.Management.Deployment;
 using Windows.Storage;
 
+using SteamGridDB.Xbox.Services.Library;
+
 namespace SteamGridDB.Xbox.Services.Stores
 {
     /// <summary>
@@ -86,8 +88,8 @@ namespace SteamGridDB.Xbox.Services.Stores
 
             LoadSummary = asked == 0
                 ? $"no installed games found ({fromFolders} from {GamesFolderName}, {sweep.Configs.Count} from packages)"
-                : $"{games.Count} game{(games.Count == 1 ? string.Empty : "s")} "
-                    + $"from {asked} product{(asked == 1 ? string.Empty : "s")} "
+                : $"{OperationReport.Plural(games.Count, "game")} "
+                    + $"from {OperationReport.Plural(asked, "product")} "
                     + $"({fromFolders} from {GamesFolderName}, {sweep.Configs.Count} from packages, "
                     + $"{sweep.ConfiglessGameFamilyNames.Count} by package family)";
 
