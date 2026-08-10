@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
+using Windows.Graphics.Imaging;
 using Windows.Security.Cryptography;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -65,21 +66,60 @@ namespace SteamGridDB.Xbox.Services.Xbox
             int written = 0;
             bool anyBackup = false;
 
+            // Every rendition's size and the room its own file has, read from the files that are
+            // already there - nothing about this pass touches the artwork.
+            var renditions = new List<(string FileName, int Size, uint Room)>();
+
             foreach (string fileName in renditionFileNames ?? EmptyNames)
             {
                 (int size, uint room) = await RenditionAsync(cacheFolder, fileName);
 
-                if (size <= 0)
+                if (size > 0)
                 {
-                    continue;
+                    renditions.Add((fileName, size, room));
                 }
+            }
 
-                // The tile is written without resizing the file, so the Store's own download sets how
-                // many bytes there are to work with - see ArtworkFiles.WriteMode
-                IBuffer tileBytes = await TileImage.EncodeSquareJpegAsync(artworkBytes, size, room);
+            // The artwork is decoded and its largest frame read exactly once here, no matter how many
+            // renditions there are - see the class doc - and every rendition's square is cut from that
+            // one frame and encoded to its own size and byte budget. This has to stay separate from the
+            // write loop below: WithDecoderAsync's blanket catch must not be the thing standing between
+            // one rendition's write failure and the rest of them, which is the whole reason ApplyAsync
+            // contains its writes in the first place.
+            var noArtwork = new List<(string FileName, int Size, uint Room, IBuffer TileBytes)>();
 
+            foreach ((string fileName, int size, uint room) in renditions)
+            {
+                noArtwork.Add((fileName, size, room, null));
+            }
+
+            List<(string FileName, int Size, uint Room, IBuffer TileBytes)> encoded = await TileImage.WithDecoderAsync(
+                artworkBytes,
+                async decoder =>
+                {
+                    IBitmapFrame frame = await TileImage.LargestFrameAsync(decoder);
+                    var results = new List<(string FileName, int Size, uint Room, IBuffer TileBytes)>();
+
+                    foreach ((string fileName, int size, uint room) in renditions)
+                    {
+                        results.Add((fileName, size, room, await TileImage.EncodeSquareJpegFromFrameAsync(frame, size, room)));
+                    }
+
+                    return results;
+                },
+                // If the artwork itself will not decode, every rendition still needs its own failure
+                // line below - a decode failure that produced one entry total left the caller with
+                // written == 0 and no failures either, which reports "no tile to write to" instead of
+                // why nothing was written.
+                noArtwork,
+                "Could not encode a tile from this artwork");
+
+            foreach ((string fileName, int size, uint room, IBuffer tileBytes) in encoded)
+            {
                 if (tileBytes == null)
                 {
+                    // The tile is written without resizing the file, so the Store's own download sets how
+                    // many bytes there are to work with - see ArtworkFiles.WriteMode
                     failures.Add($"{size}px (this artwork will not compress into the {room} bytes the cached tile has room for)");
 
                     continue;
@@ -361,26 +401,47 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// A cached rendition's pixel size and its length on disk, or zeroes when it is gone or
         /// unreadable.
         ///
-        /// Both come from the one read. The pixel size says what to encode the tile as; the length says
-        /// how many bytes there are to put it in, which matters because the file is overwritten without
-        /// being resized.
+        /// The pixel size says what to encode the tile as; the length says how many bytes there are to
+        /// put it in, which matters because the file is overwritten without being resized. Read from the
+        /// file's header and its directory entry rather than its full bytes - the same header-only
+        /// pattern <see cref="ImageCacheIndex.BuildAsync"/> uses, for the same reason: this runs once per
+        /// rendition and only two numbers come out of it.
         /// </summary>
         private static async Task<(int Size, uint Room)> RenditionAsync(StorageFolder cacheFolder, string fileName)
         {
-            IBuffer bytes = await ReadIfPresentAsync(cacheFolder, fileName);
+            StorageFile file;
+            uint room;
+            IRandomAccessStream stream;
 
-            if (bytes == null)
+            try
+            {
+                file = await cacheFolder.GetFileAsync(fileName);
+                room = (uint)(await file.GetBasicPropertiesAsync()).Size;
+                stream = await file.OpenReadAsync();
+            }
+            catch (Exception ex) when (ex is FileNotFoundException || ex is UnauthorizedAccessException)
             {
                 return (0, 0);
             }
 
-            int size = await TileImage.WithDecoderAsync(
-                bytes,
-                decoder => Task.FromResult((int)decoder.PixelWidth),
-                0,
-                $"Could not measure cached rendition {fileName}");
+            // Disposed before this returns, and well before ApplyAsync's write loop reaches the same
+            // file - a handle left open here is exactly the collision ImageCacheIndexHandleTests exists
+            // to catch, just one module over.
+            using (stream)
+            {
+                try
+                {
+                    BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
 
-            return (size, bytes.Length);
+                    return ((int)decoder.PixelWidth, room);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Could not measure cached rendition {fileName}: {ex.Message}");
+
+                    return (0, room);
+                }
+            }
         }
 
         /// <summary>

@@ -265,31 +265,49 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return null;
             }
 
-            return await WithDecoderAsync(imageBytes, async decoder =>
-            {
+            return await WithDecoderAsync(
+                imageBytes,
                 // The largest frame, because artwork can be a multi-frame .ico and the first frame of
                 // one is its smallest - see LargestFrameAsync
-                byte[] square = await CentreSquarePixelsAsync(await LargestFrameAsync(decoder), (uint)pixels);
+                async decoder => await EncodeSquareJpegFromFrameAsync(await LargestFrameAsync(decoder), pixels, maxBytes),
+                null,
+                $"Could not encode a {pixels}px tile");
+        }
 
-                using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(
-                    square.AsBuffer(), BitmapPixelFormat.Bgra8, pixels, pixels, BitmapAlphaMode.Ignore))
+        /// <summary>
+        /// The per-size half of <see cref="EncodeSquareJpegAsync"/>: crops and encodes an already-open
+        /// frame, without opening a decoder of its own.
+        ///
+        /// Split out so a caller producing several tile sizes from one piece of source artwork - a
+        /// first-party game's cached renditions, in <see cref="Xbox.XboxTiles.ApplyAsync"/> - can decode
+        /// once and call this once per size, instead of paying <see cref="WithDecoderAsync{T}"/>'s
+        /// stream copy and decode again for every rendition of the same picture.
+        /// </summary>
+        /// <param name="frame">The image frame to read - a BitmapDecoder is its own first frame.</param>
+        /// <param name="pixels">Width and height the result must have.</param>
+        /// <param name="maxBytes">Largest the result may be, or 0 for no limit.</param>
+        public static async Task<IBuffer> EncodeSquareJpegFromFrameAsync(IBitmapFrame frame, int pixels, uint maxBytes = 0)
+        {
+            byte[] square = await CentreSquarePixelsAsync(frame, (uint)pixels);
+
+            using (SoftwareBitmap bitmap = SoftwareBitmap.CreateCopyFromBuffer(
+                square.AsBuffer(), BitmapPixelFormat.Bgra8, pixels, pixels, BitmapAlphaMode.Ignore))
+            {
+                foreach (double quality in tileJpegQualitySteps)
                 {
-                    foreach (double quality in tileJpegQualitySteps)
+                    IBuffer encoded = await EncodeJpegAsync(bitmap, quality);
+
+                    if (encoded == null || maxBytes == 0 || encoded.Length <= maxBytes)
                     {
-                        IBuffer encoded = await EncodeJpegAsync(bitmap, quality);
-
-                        if (encoded == null || maxBytes == 0 || encoded.Length <= maxBytes)
-                        {
-                            return encoded;
-                        }
+                        return encoded;
                     }
-
-                    // Every step tried and none fit. Returning null rather than the smallest anyway: the
-                    // caller cannot write it, and handing back bytes that will be refused only moves the
-                    // failure somewhere with less to say about it.
-                    return null;
                 }
-            }, null, $"Could not encode a {pixels}px tile");
+
+                // Every step tried and none fit. Returning null rather than the smallest anyway: the
+                // caller cannot write it, and handing back bytes that will be refused only moves the
+                // failure somewhere with less to say about it.
+                return null;
+            }
         }
 
         /// <summary>
