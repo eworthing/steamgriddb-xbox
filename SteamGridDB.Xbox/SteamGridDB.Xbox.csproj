@@ -132,6 +132,7 @@
     <Compile Include="Services\Library\GameImages.cs" />
     <Compile Include="Services\Library\GameMatchCache.cs" />
     <Compile Include="Services\Library\GameMatchResolver.cs" />
+    <Compile Include="Services\Library\ILibraryGame.cs" />
     <Compile Include="Services\Library\LibraryOperationGuard.cs" />
     <Compile Include="Services\Library\ManifestEntryIdentity.cs" />
     <Compile Include="Services\Library\ManifestEntryImage.cs" />

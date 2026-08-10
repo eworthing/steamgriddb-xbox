@@ -7,9 +7,21 @@ using Windows.Storage;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Media.Imaging;
 
+using SteamGridDB.Xbox.Services.Library;
+
 namespace SteamGridDB.Xbox.Models
 {
-    public class GameEntry : INotifyPropertyChanged
+    /// <summary>
+    /// A library row, with the two things only the UI needs: the decoded thumbnail and the
+    /// visibilities derived from it and from the flags below.
+    ///
+    /// Implements <see cref="ILibraryGame"/>, which is every member of this class except those two -
+    /// see that interface for why the split exists. Nothing here changes to satisfy it: the twelve
+    /// members it names were already public getters. The point is the other direction, that the load
+    /// and the bulk operations can now be written against rows without naming this type and so
+    /// without naming Windows.UI.Xaml.
+    /// </summary>
+    public class GameEntry : INotifyPropertyChanged, ILibraryGame
     {
         private string name;
         private string externalPlatformId;
