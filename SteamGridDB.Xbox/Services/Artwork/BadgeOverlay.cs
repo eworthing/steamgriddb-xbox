@@ -655,6 +655,22 @@ namespace SteamGridDB.Xbox.Services.Artwork
         internal static IReadOnlyList<uint[]> Renderings => renderings;
 
         /// <summary>
+        /// Whether this frame carries a storefront badge burned into its corner - see
+        /// <see cref="CarriesBadgeAsync(IBuffer)"/> for the buffer-taking entry point. Takes an
+        /// already-open frame so a caller that also runs
+        /// <see cref="TileImage.FillsTileAsync(IBitmapFrame)"/> on the same candidate can share one
+        /// decode - a frame is not single-use, the same way <see cref="ArtworkSignature"/> already
+        /// reads one twice at different sizes.
+        /// </summary>
+        /// <param name="frame">Frame to inspect - a BitmapDecoder is its own first frame.</param>
+        internal static async Task<bool> CarriesBadgeAsync(IBitmapFrame frame)
+        {
+            return BadgeDistance(
+                await TileImage.ScaledPixelsAsync(frame, null, ScaledSize, ScaledSize, BitmapAlphaMode.Ignore))
+                <= badgeDistanceLimit;
+        }
+
+        /// <summary>
         /// Whether this artwork carries a storefront badge burned into its corner.
         ///
         /// Undecodable artwork returns false. A tile that cannot be read is the download's problem to
@@ -666,10 +682,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         {
             return await TileImage.WithDecoderAsync(
                 imageBytes,
-                async decoder => BadgeDistance(
-                    await TileImage.ScaledPixelsAsync(
-                        decoder, null, ScaledSize, ScaledSize, BitmapAlphaMode.Ignore))
-                    <= badgeDistanceLimit,
+                decoder => CarriesBadgeAsync(decoder),
                 false,
                 "Error inspecting artwork for a storefront badge");
         }

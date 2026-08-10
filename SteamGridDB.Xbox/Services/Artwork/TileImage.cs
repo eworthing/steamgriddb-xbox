@@ -363,43 +363,53 @@ namespace SteamGridDB.Xbox.Services.Artwork
         }
 
         /// <summary>
+        /// True when the frame is opaque in its corners - see <see cref="FillsTileAsync(IBuffer)"/> for
+        /// the buffer-taking entry point and the transparent-corner rule itself. Takes an already-open
+        /// frame so a caller that also runs <see cref="BadgeOverlay.CarriesBadgeAsync(IBitmapFrame)"/>
+        /// on the same candidate can share one decode - a frame is not single-use, the same way
+        /// <see cref="ArtworkSignature"/> already reads one twice at different sizes.
+        /// </summary>
+        /// <param name="frame">The image frame to read - a BitmapDecoder is its own first frame.</param>
+        public static async Task<bool> FillsTileAsync(IBitmapFrame frame)
+        {
+            byte[] pixels = await ScaledPixelsAsync(frame, null, 32, 32, BitmapAlphaMode.Straight);
+
+            // Sample a 6x6 block in each corner of the 32x32 image; a corner counts as
+            // transparent when over 40% of its pixels have near-zero alpha
+            int transparentCorners = 0;
+
+            foreach (var corner in new[] { (X: 0, Y: 0), (X: 26, Y: 0), (X: 0, Y: 26), (X: 26, Y: 26) })
+            {
+                int transparentPixels = 0;
+
+                for (int y = corner.Y; y < corner.Y + 6; y++)
+                {
+                    for (int x = corner.X; x < corner.X + 6; x++)
+                    {
+                        if (pixels[(((y * 32) + x) * 4) + 3] < 64)
+                        {
+                            transparentPixels++;
+                        }
+                    }
+                }
+
+                if (transparentPixels > 14)
+                {
+                    transparentCorners++;
+                }
+            }
+
+            return transparentCorners < 2;
+        }
+
+        /// <summary>
         /// True when the image is opaque in its corners. Case mockups and rounded icon-style uploads
         /// have transparent corners; legitimate box art fills the whole square.
         /// </summary>
         public static async Task<bool> FillsTileAsync(IBuffer imageBytes)
         {
             // Undecodable here - accept and let the normal pipeline handle it
-            return await WithDecoderAsync(imageBytes, async decoder =>
-            {
-                byte[] pixels = await ScaledPixelsAsync(decoder, null, 32, 32, BitmapAlphaMode.Straight);
-
-                // Sample a 6x6 block in each corner of the 32x32 image; a corner counts as
-                // transparent when over 40% of its pixels have near-zero alpha
-                int transparentCorners = 0;
-
-                foreach (var corner in new[] { (X: 0, Y: 0), (X: 26, Y: 0), (X: 0, Y: 26), (X: 26, Y: 26) })
-                {
-                    int transparentPixels = 0;
-
-                    for (int y = corner.Y; y < corner.Y + 6; y++)
-                    {
-                        for (int x = corner.X; x < corner.X + 6; x++)
-                        {
-                            if (pixels[(((y * 32) + x) * 4) + 3] < 64)
-                            {
-                                transparentPixels++;
-                            }
-                        }
-                    }
-
-                    if (transparentPixels > 14)
-                    {
-                        transparentCorners++;
-                    }
-                }
-
-                return transparentCorners < 2;
-            }, true, "Error inspecting image corners");
+            return await WithDecoderAsync(imageBytes, decoder => FillsTileAsync(decoder), true, "Error inspecting image corners");
         }
 
         /// <summary>

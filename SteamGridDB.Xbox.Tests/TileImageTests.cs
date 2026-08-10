@@ -78,6 +78,24 @@ namespace SteamGridDB.Xbox.Tests
             Assert.False(await TileImage.FillsTileAsync(roundedIcon));
         }
 
+        // ---- FillsTileAsync(IBitmapFrame) ----
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Frame_taking_overload_agrees_with_the_buffer_taking_one(bool opaque)
+        {
+            // The buffer-taking entry point is now a thin wrapper opening one decoder and handing it to
+            // this overload (see ArtworkDownloader, which shares that same open decoder with
+            // BadgeOverlay.CarriesBadgeAsync). Pinned here so the two paths cannot silently drift apart.
+            IBuffer image = opaque ? await TestImages.OpaquePngAsync() : await TestImages.PngWithTransparentCornersAsync();
+
+            bool viaFrame = await TileImage.WithDecoderAsync(
+                image, decoder => TileImage.FillsTileAsync(decoder), true, "decode failed");
+
+            Assert.Equal(await TileImage.FillsTileAsync(image), viaFrame);
+        }
+
         // ---- CropPortraitToTileAsync ----
 
         [Fact]

@@ -94,14 +94,30 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 // pixels, and this is the only pass that decodes candidates in rank order anyway.
                 // Kept out of the fallback above deliberately: a badged cover still beats no tile,
                 // so if every candidate in reach carries one the best-ranked is written as before.
-                if (await BadgeOverlay.CarriesBadgeAsync(imageBytes))
+                //
+                // Both checks read pixels from the one decoder opened here rather than each opening
+                // its own - a frame is not single-use (ArtworkSignature already reads one twice, at
+                // different sizes). The badge check still runs first and short-circuits before the
+                // fill check, exactly as it did as two separate calls, so a badged candidate costs one
+                // measurement rather than two.
+                (bool Badge, bool Fills) verdict = await TileImage.WithDecoderAsync(imageBytes, async decoder =>
+                {
+                    if (await BadgeOverlay.CarriesBadgeAsync(decoder))
+                    {
+                        return (true, false);
+                    }
+
+                    return (false, await TileImage.FillsTileAsync(decoder));
+                }, (false, true), "Error inspecting artwork candidate");
+
+                if (verdict.Badge)
                 {
                     FixLog.Write($"  {rankedGrids[i].Id}: storefront badge in the corner - skipped");
 
                     continue;
                 }
 
-                if (await TileImage.FillsTileAsync(imageBytes))
+                if (verdict.Fills)
                 {
                     (IBuffer Bytes, int ArtworkId) replacement = await FindOfficialLookalikeAsync(rankedGrids, i, imageBytes, gameName, officialCapsuleUrl);
 

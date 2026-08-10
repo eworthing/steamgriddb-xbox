@@ -116,7 +116,12 @@ namespace SteamGridDB.Xbox.Tests
             // The download reports an unreadable image its own way. Answering "badged" here would drop
             // the candidate for a reason that has nothing to do with badges.
             Assert.False(await BadgeOverlay.CarriesBadgeAsync(TestImages.Bytes("this is not an image")));
-            Assert.False(await BadgeOverlay.CarriesBadgeAsync(null));
+
+            // Cast needed only because the new IBitmapFrame overload (see BadgeOverlay's frame-taking
+            // CarriesBadgeAsync) makes a bare null ambiguous between it and this IBuffer overload - both
+            // are unrelated reference types a null literal converts to equally well. Still the same
+            // IBuffer overload, same assertion; nothing about what this pins has changed.
+            Assert.False(await BadgeOverlay.CarriesBadgeAsync((IBuffer)null));
         }
 
         [Fact]
@@ -135,6 +140,24 @@ namespace SteamGridDB.Xbox.Tests
             // white roundel as well as the blue, so a flat tab is not a badge.
             Assert.False(await BadgeOverlay.CarriesBadgeAsync(
                 await TestImages.SolidColorPngAsync(r: 0x17, g: 0x80, b: 0xB0, width: 64, height: 64)));
+        }
+
+        // ---- CarriesBadgeAsync(IBitmapFrame) ----
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Frame_taking_overload_agrees_with_the_buffer_taking_one(bool badged)
+        {
+            // The buffer-taking entry point is now a thin wrapper opening one decoder and handing it to
+            // this overload (see ArtworkDownloader, which shares that same open decoder with
+            // TileImage.FillsTileAsync). Pinned here so the two paths cannot silently drift apart.
+            IBuffer image = await TestImages.BadgedPngAsync(badged: badged);
+
+            bool viaFrame = await TileImage.WithDecoderAsync(
+                image, decoder => BadgeOverlay.CarriesBadgeAsync(decoder), false, "decode failed");
+
+            Assert.Equal(await BadgeOverlay.CarriesBadgeAsync(image), viaFrame);
         }
     }
 }
