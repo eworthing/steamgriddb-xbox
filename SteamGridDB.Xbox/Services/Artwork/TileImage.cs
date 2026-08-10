@@ -353,7 +353,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <summary>
         /// True when the buffer starts with the PNG signature.
         /// </summary>
-        private static bool IsPng(IBuffer imageBytes)
+        internal static bool IsPng(IBuffer imageBytes)
         {
             byte[] signature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
 
@@ -374,6 +374,31 @@ namespace SteamGridDB.Xbox.Services.Artwork
                     {
                         return false;
                     }
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// True when the bytes start with the PNG signature. Internal only so that
+        /// <c>TileImageTests</c>/<c>ArtworkFilesTests</c> can check what actually got written to disk
+        /// against the same signature check the app itself uses, rather than a second copy of it.
+        /// </summary>
+        internal static bool IsPng(byte[] bytes)
+        {
+            byte[] signature = { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A };
+
+            if (bytes == null || bytes.Length < signature.Length)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < signature.Length; i++)
+            {
+                if (bytes[i] != signature[i])
+                {
+                    return false;
                 }
             }
 

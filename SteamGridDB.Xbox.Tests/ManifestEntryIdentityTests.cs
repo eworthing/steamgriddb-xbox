@@ -63,53 +63,27 @@ namespace SteamGridDB.Xbox.Tests
             Assert.Equal(string.Empty, result.ExternalPlatformId);
         }
 
-        [Fact]
-        public void Non_epic_store_platforms_strip_the_prefix_up_to_the_first_colon()
+        // Non-Epic platforms strip the prefix up to the first colon.
+        //
+        // The three Epic rows cover "epic:<namespace>:<catalogItemId>:<appName>" - SteamGridDB wants
+        // appName, the name source (EpicLibrary/GetEpicGameNameAsync) wants catalogItemId - and the
+        // boundary the raw code guards explicitly: parts.Length >= 3 for the split, >= 4 for the
+        // catalog item. A mutation flipping either comparison would pass every other row here silently
+        // without the three- and fewer-than-three-segment cases.
+        [Theory]
+        [InlineData(GamePlatform.GOG, "gog:1234567890", "1234567890", null)]
+        [InlineData(GamePlatform.Epic, "epic:ns123:catalog456:Sugar", "Sugar", "catalog456")]
+        [InlineData(GamePlatform.Epic, "epic:ns123:Sugar", "Sugar", null)]
+        [InlineData(GamePlatform.Epic, "epic:Sugar", "Sugar", null)]
+        public void Platform_specific_ids_are_parsed_into_the_external_platform_id_and_epic_catalog_item_id(
+            GamePlatform platform, string entryId, string expectedExternalPlatformId, string expectedEpicCatalogItemId)
         {
             JsonObject entry = Parse(@"{}");
 
-            ManifestEntryIdentity.Result result = ManifestEntryIdentity.Derive(entry, GamePlatform.GOG, entryId: "gog:1234567890", unknownGameNameDefault: "Unknown");
+            ManifestEntryIdentity.Result result = ManifestEntryIdentity.Derive(entry, platform, entryId, unknownGameNameDefault: "Unknown");
 
-            Assert.Equal("1234567890", result.ExternalPlatformId);
-            Assert.Null(result.EpicCatalogItemId);
-        }
-
-        [Fact]
-        public void Epic_four_segment_id_yields_the_app_name_and_the_catalog_item_id_separately()
-        {
-            // "epic:<namespace>:<catalogItemId>:<appName>" - SteamGridDB wants appName, the name
-            // source (EpicLibrary/GetEpicGameNameAsync) wants catalogItemId.
-            JsonObject entry = Parse(@"{}");
-
-            ManifestEntryIdentity.Result result = ManifestEntryIdentity.Derive(entry, GamePlatform.Epic, entryId: "epic:ns123:catalog456:Sugar", unknownGameNameDefault: "Unknown");
-
-            Assert.Equal("Sugar", result.ExternalPlatformId);
-            Assert.Equal("catalog456", result.EpicCatalogItemId);
-        }
-
-        [Fact]
-        public void Epic_three_segment_id_yields_the_app_name_with_no_catalog_item_id()
-        {
-            // Boundary the raw code guards explicitly (parts.Length >= 3 for the split, >= 4 for the
-            // catalog item): a mutation flipping either comparison would pass every other test here
-            // silently without this case.
-            JsonObject entry = Parse(@"{}");
-
-            ManifestEntryIdentity.Result result = ManifestEntryIdentity.Derive(entry, GamePlatform.Epic, entryId: "epic:ns123:Sugar", unknownGameNameDefault: "Unknown");
-
-            Assert.Equal("Sugar", result.ExternalPlatformId);
-            Assert.Null(result.EpicCatalogItemId);
-        }
-
-        [Fact]
-        public void Epic_id_with_fewer_than_three_segments_falls_back_to_the_plain_prefix_strip()
-        {
-            JsonObject entry = Parse(@"{}");
-
-            ManifestEntryIdentity.Result result = ManifestEntryIdentity.Derive(entry, GamePlatform.Epic, entryId: "epic:Sugar", unknownGameNameDefault: "Unknown");
-
-            Assert.Equal("Sugar", result.ExternalPlatformId);
-            Assert.Null(result.EpicCatalogItemId);
+            Assert.Equal(expectedExternalPlatformId, result.ExternalPlatformId);
+            Assert.Equal(expectedEpicCatalogItemId, result.EpicCatalogItemId);
         }
 
         [Fact]

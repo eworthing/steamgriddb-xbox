@@ -34,6 +34,12 @@ namespace SteamGridDB.Xbox.Tests
             };
         }
 
+        /// <summary>Builds a single-grid result, the shape most of these tests need.</summary>
+        private static GridSelectionItems.Result Only(SteamGridDbGrid grid, int? applied = null, string unknownAuthor = UnknownAuthor)
+        {
+            return GridSelectionItems.BuildOrdered(new List<SteamGridDbGrid> { grid }, null, "Game", applied, 0, unknownAuthor).Single();
+        }
+
         // ---- Ordering: ranked grids first, then ranked icons ----
 
         [Fact]
@@ -60,11 +66,7 @@ namespace SteamGridDB.Xbox.Tests
         [Fact]
         public void Null_icons_list_yields_grids_only()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(7) };
-
-            List<GridSelectionItems.Result> result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor);
-
-            Assert.Equal(new[] { 7 }, result.Select(r => r.Id).ToArray());
+            Assert.Equal(7, Only(Grid(7)).Id);
         }
 
         [Fact]
@@ -89,93 +91,50 @@ namespace SteamGridDB.Xbox.Tests
         [Fact]
         public void Missing_thumbnail_falls_back_to_the_full_size_url()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, url: "https://example.test/full.png", thumb: null) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.Equal("https://example.test/full.png", result.ThumbUrl);
+            Assert.Equal(
+                "https://example.test/full.png",
+                Only(Grid(1, url: "https://example.test/full.png", thumb: null)).ThumbUrl);
         }
 
         [Fact]
         public void Present_thumbnail_is_used_as_is()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, thumb: "https://example.test/thumb.png") };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.Equal("https://example.test/thumb.png", result.ThumbUrl);
+            Assert.Equal("https://example.test/thumb.png", Only(Grid(1, thumb: "https://example.test/thumb.png")).ThumbUrl);
         }
 
         [Fact]
         public void Missing_author_falls_back_to_the_caller_supplied_unknown_name()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, author: null) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, "Nobody").Single();
-
-            Assert.Equal("Nobody", result.Author);
+            Assert.Equal("Nobody", Only(Grid(1, author: null), unknownAuthor: "Nobody").Author);
         }
 
         [Fact]
         public void Present_author_name_is_used_as_is()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, author: "Some Uploader") };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.Equal("Some Uploader", result.Author);
+            Assert.Equal("Some Uploader", Only(Grid(1, author: "Some Uploader")).Author);
         }
 
         [Fact]
         public void Missing_style_falls_back_to_default()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, style: null) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.Equal("default", result.Style);
+            Assert.Equal("default", Only(Grid(1, style: null)).Style);
         }
 
         [Fact]
         public void Present_style_is_used_as_is()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, style: "alternate") };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.Equal("alternate", result.Style);
+            Assert.Equal("alternate", Only(Grid(1, style: "alternate")).Style);
         }
 
         // ---- IsApplied ----
 
-        [Fact]
-        public void Tile_matching_the_applied_artwork_id_is_marked_applied()
+        [Theory]
+        [InlineData(42, true)]
+        [InlineData(99, false)]
+        [InlineData(null, false)]
+        public void IsApplied_reflects_whether_the_tile_matches_the_applied_artwork_id(int? appliedArtworkId, bool expected)
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(42) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", 42, 0, UnknownAuthor).Single();
-
-            Assert.True(result.IsApplied);
-        }
-
-        [Fact]
-        public void Tile_not_matching_the_applied_artwork_id_is_not_marked_applied()
-        {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(42) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", 99, 0, UnknownAuthor).Single();
-
-            Assert.False(result.IsApplied);
-        }
-
-        [Fact]
-        public void Null_applied_artwork_id_marks_nothing_applied()
-        {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(42) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
-
-            Assert.False(result.IsApplied);
+            Assert.Equal(expected, Only(Grid(42), applied: appliedArtworkId).IsApplied);
         }
 
         // ---- SessionId stamping ----
@@ -196,9 +155,7 @@ namespace SteamGridDB.Xbox.Tests
         [Fact]
         public void Width_and_height_pass_through_unchanged()
         {
-            List<SteamGridDbGrid> grids = new List<SteamGridDbGrid> { Grid(1, width: 1024, height: 512) };
-
-            GridSelectionItems.Result result = GridSelectionItems.BuildOrdered(grids, null, "Game", null, 0, UnknownAuthor).Single();
+            GridSelectionItems.Result result = Only(Grid(1, width: 1024, height: 512));
 
             Assert.Equal(1024, result.Width);
             Assert.Equal(512, result.Height);

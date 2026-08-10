@@ -354,7 +354,7 @@ namespace SteamGridDB.Xbox.Tests
                 await ArtworkFiles.ApplyEncodedAsync(images.Folder, image, vault.Folder, jpeg);
 
                 Assert.Equal(TestImages.ToArray(jpeg), images.ReadBytes(image));
-                Assert.False(TestImages.IsPng(images.ReadBytes(image)));
+                Assert.False(TileImage.IsPng(images.ReadBytes(image)));
             }
         }
 

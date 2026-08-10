@@ -70,9 +70,7 @@ namespace SteamGridDB.Xbox.Tests
                 await ArtworkFiles.ApplyEncodedAsync(
                     temp.Folder, image, temp.Folder, TestImages.Bytes("artwork"), ArtworkFiles.WriteMode.InPlace);
 
-                Assert.Equal(
-                    TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image))),
-                    TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(customised))));
+                Assert.Equal(temp.ReadBytes(image), temp.ReadBytes(customised));
             }
         }
 
@@ -86,7 +84,7 @@ namespace SteamGridDB.Xbox.Tests
                 await ArtworkFiles.ApplyEncodedAsync(
                     temp.Folder, image, temp.Folder, TestImages.Bytes("artwork"), ArtworkFiles.WriteMode.InPlace);
 
-                byte[] onDisk = TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image)));
+                byte[] onDisk = temp.ReadBytes(image);
                 byte[] artwork = TestImages.ToArray(TestImages.Bytes("artwork"));
 
                 Assert.Equal(artwork, onDisk[0..artwork.Length]);
@@ -147,7 +145,7 @@ namespace SteamGridDB.Xbox.Tests
             {
                 await WriteCachedTileAsync(temp, 64);
 
-                IBuffer original = await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image));
+                byte[] original = temp.ReadBytes(image);
 
                 await ArtworkFiles.ApplyEncodedAsync(
                     temp.Folder, image, temp.Folder, TestImages.Bytes("artwork"), ArtworkFiles.WriteMode.InPlace);
@@ -156,9 +154,7 @@ namespace SteamGridDB.Xbox.Tests
                     ArtworkFiles.RestoreOutcome.Restored,
                     await ArtworkFiles.RestoreOriginalAsync(temp.Folder, image, temp.Folder, ArtworkFiles.WriteMode.InPlace));
 
-                Assert.Equal(
-                    TestImages.ToArray(original),
-                    TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image))));
+                Assert.Equal(original, temp.ReadBytes(image));
 
                 await Assert.ThrowsAsync<System.IO.FileNotFoundException>(
                     () => temp.Folder.GetFileAsync(backup).AsTask());
@@ -175,7 +171,7 @@ namespace SteamGridDB.Xbox.Tests
                 await ArtworkFiles.ApplyEncodedAsync(
                     temp.Folder, image, temp.Folder, TestImages.Bytes("artwork"), ArtworkFiles.WriteMode.InPlace);
 
-                byte[] applied = TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image)));
+                byte[] applied = temp.ReadBytes(image);
 
                 // The Xbox app re-downloads its own artwork over the tile, at the same length it always is
                 await temp.WriteAsync(image, new string('z', 128));
@@ -184,7 +180,7 @@ namespace SteamGridDB.Xbox.Tests
                     ArtworkFiles.ReapplyOutcome.Reapplied,
                     await ArtworkFiles.ReapplyCustomisationAsync(temp.Folder, image, temp.Folder, ArtworkFiles.WriteMode.InPlace));
 
-                Assert.Equal(applied, TestImages.ToArray(await FileIO.ReadBufferAsync(await temp.Folder.GetFileAsync(image))));
+                Assert.Equal(applied, temp.ReadBytes(image));
             }
         }
 

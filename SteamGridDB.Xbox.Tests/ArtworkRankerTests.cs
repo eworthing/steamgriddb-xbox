@@ -47,6 +47,9 @@ namespace SteamGridDB.Xbox.Tests
 
         // ---- Style priority ----
 
+        // Preferring one title-bearing style over another surfaced mis-tagged fan art, and any of
+        // them already matches the native Xbox look - so all three rank equally (0) rather than one
+        // being preferred over the others.
         [Theory]
         [InlineData("alternate")]
         [InlineData("white_logo")]
@@ -63,16 +66,6 @@ namespace SteamGridDB.Xbox.Tests
         public void Styles_that_look_like_plain_icons_rank_last(string style)
         {
             Assert.Equal(1, ArtworkRanker.GridStylePriority(style));
-        }
-
-        [Fact]
-        public void Title_bearing_styles_rank_equally_with_each_other()
-        {
-            // Preferring one over another surfaced mis-tagged fan art, and any of them already matches
-            // the native Xbox look.
-            Assert.Equal(
-                ArtworkRanker.GridStylePriority("alternate"),
-                ArtworkRanker.GridStylePriority("blurred"));
         }
 
         // ---- Demotion ----

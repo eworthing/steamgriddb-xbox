@@ -50,53 +50,26 @@ namespace SteamGridDB.Xbox.Tests
 
         // ---- ParseInstallRoot: machine.ini's configured install location ----
 
-        [Fact]
-        public void The_configured_install_root_is_read_from_machine_ini()
-        {
-            string ini = "machine.downloadinplacedir=D:\\Games\\EA\nmachine.updatebucket=80\n";
-
-            Assert.Equal("D:\\Games\\EA", EaLibrary.ParseInstallRoot(ini));
-        }
-
-        [Fact]
-        public void The_trailing_separator_EA_writes_is_stripped()
-        {
-            // StorageFolder.GetFolderFromPathAsync rejects the trailing separator EA writes
-            Assert.Equal(
-                "C:\\Program Files\\EA Games",
-                EaLibrary.ParseInstallRoot("machine.downloadinplacedir=C:\\Program Files\\EA Games\\\n"));
-        }
-
-        [Fact]
-        public void A_drive_root_keeps_its_separator()
-        {
-            // "D:" alone means the drive's current directory, not its root - a different place
-            Assert.Equal("D:\\", EaLibrary.ParseInstallRoot("machine.downloadinplacedir=D:\\\n"));
-        }
-
-        [Fact]
-        public void A_value_containing_equals_signs_is_not_truncated()
-        {
-            // machine.ini holds JSON values next to this key; splitting on every '=' would cut them
-            string ini = "machine.telemetry.updatestats={\"a\":\"b=c\"}\nmachine.downloadinplacedir=E:\\EA=Games\n";
-
-            Assert.Equal("E:\\EA=Games", EaLibrary.ParseInstallRoot(ini));
-        }
-
-        [Fact]
-        public void Carriage_returns_are_not_left_on_the_value()
-        {
-            Assert.Equal("D:\\EA", EaLibrary.ParseInstallRoot("machine.downloadinplacedir=D:\\EA\r\nmachine.updatebucket=80\r\n"));
-        }
-
+        // Per-row reasoning for the cases below that are not self-explanatory from their bytes:
+        // - The trailing separator: StorageFolder.GetFolderFromPathAsync rejects the trailing
+        //   separator EA writes, so it has to be stripped.
+        // - The drive root: "D:" alone means the drive's current directory, not its root - a
+        //   different place - so the lone separator has to survive there and nowhere else.
+        // - The embedded '=': machine.ini holds JSON values next to this key; splitting on every '='
+        //   would cut them.
         [Theory]
-        [InlineData("")]
-        [InlineData(null)]
-        [InlineData("machine.updatebucket=80\n")]
-        [InlineData("no separator on this line\n")]
-        public void Machine_ini_naming_no_install_root_yields_null(string ini)
+        [InlineData("machine.downloadinplacedir=D:\\Games\\EA\nmachine.updatebucket=80\n", "D:\\Games\\EA")]
+        [InlineData("machine.downloadinplacedir=C:\\Program Files\\EA Games\\\n", "C:\\Program Files\\EA Games")]
+        [InlineData("machine.downloadinplacedir=D:\\\n", "D:\\")]
+        [InlineData("machine.telemetry.updatestats={\"a\":\"b=c\"}\nmachine.downloadinplacedir=E:\\EA=Games\n", "E:\\EA=Games")]
+        [InlineData("machine.downloadinplacedir=D:\\EA\r\nmachine.updatebucket=80\r\n", "D:\\EA")]
+        [InlineData("", null)]
+        [InlineData(null, null)]
+        [InlineData("machine.updatebucket=80\n", null)]
+        [InlineData("no separator on this line\n", null)]
+        public void ParseInstallRoot_reads_or_declines_the_configured_install_root(string ini, string expected)
         {
-            Assert.Null(EaLibrary.ParseInstallRoot(ini));
+            Assert.Equal(expected, EaLibrary.ParseInstallRoot(ini));
         }
 
         // ---- ParseInstallerManifest: one game's installerdata.xml ----

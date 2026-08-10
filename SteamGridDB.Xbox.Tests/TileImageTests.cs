@@ -33,11 +33,11 @@ namespace SteamGridDB.Xbox.Tests
             // broken tile rather than failing loudly.
             IBuffer jpeg = await TestImages.JpegAsync();
 
-            Assert.False(TestImages.IsPng(TestImages.ToArray(jpeg)));
+            Assert.False(TileImage.IsPng(TestImages.ToArray(jpeg)));
 
             IBuffer result = await TileImage.EnsurePngAsync(jpeg);
 
-            Assert.True(TestImages.IsPng(TestImages.ToArray(result)));
+            Assert.True(TileImage.IsPng(TestImages.ToArray(result)));
         }
 
         [Fact]
@@ -113,13 +113,7 @@ namespace SteamGridDB.Xbox.Tests
 
             IBuffer cropped = await TileImage.CropPortraitToTileAsync(portrait);
 
-            (uint Width, uint Height) size = await TileImage.WithDecoderAsync(
-                cropped,
-                decoder => Task.FromResult((decoder.PixelWidth, decoder.PixelHeight)),
-                (0u, 0u),
-                "decode failed");
-
-            Assert.Equal((64u, 64u), size);
+            Assert.Equal((64u, 64u), await SizeOfAsync(cropped));
         }
 
         [Fact]
@@ -165,7 +159,7 @@ namespace SteamGridDB.Xbox.Tests
         {
             IBuffer tile = await TileImage.EncodeSquareJpegAsync(await TestImages.OpaquePngAsync(64, 64), 72);
 
-            Assert.False(TestImages.IsPng(TestImages.ToArray(tile)));
+            Assert.False(TileImage.IsPng(TestImages.ToArray(tile)));
         }
 
         [Fact]
@@ -271,7 +265,7 @@ namespace SteamGridDB.Xbox.Tests
 
             IBuffer png = await TileImage.EnsurePngAsync(icon);
 
-            Assert.True(TestImages.IsPng(TestImages.ToArray(png)));
+            Assert.True(TileImage.IsPng(TestImages.ToArray(png)));
             Assert.Equal((64u, 64u), await SizeOfAsync(png));
         }
 
