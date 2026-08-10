@@ -30,6 +30,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+. "$PSScriptRoot\ImageMagick.Common.ps1"
+
 # Icon sizes required by Xbox widget
 $sizes = @(256, 44, 32, 24, 20, 16)
 
@@ -42,7 +44,7 @@ Write-Host ""
 # Check if ImageMagick is installed
 Write-Host "Checking dependencies..." -ForegroundColor Yellow
 try {
-    $null = magick --version 2>&1
+    $null = Get-ImageMagickVersion
     Write-Host "  [OK] ImageMagick installed" -ForegroundColor Green
 } catch {
     Write-Host "  [FAIL] ImageMagick not found!" -ForegroundColor Red
@@ -112,7 +114,7 @@ try {
         $regularPath = Join-Path $outputDirPath $regularFileName
         
         Write-Host "  [$size x $size] Regular... " -NoNewline -ForegroundColor Cyan
-        
+
         $args = @(
             $sourceImagePath
             '-resize', "${size}x${size}"
@@ -120,16 +122,16 @@ try {
             '-define', 'png:compression-level=9'
             $regularPath
         )
-        
-        $output = & magick @args 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
+
+        $result = Invoke-Magick $args
+
+        if ($result.Succeeded) {
             $fileInfo = Get-Item $regularPath
             Write-Host "Done ($($fileInfo.Length) bytes)" -ForegroundColor Green
             $successCount++
         } else {
             Write-Host "Failed" -ForegroundColor Red
-            Write-Host "    Error: $output" -ForegroundColor Red
+            Write-Host "    Error: $($result.Output)" -ForegroundColor Red
             $failCount++
         }
         
@@ -138,7 +140,7 @@ try {
         $lightPath = Join-Path $outputDirPath $lightFileName
         
         Write-Host "  [$size x $size] Light...   " -NoNewline -ForegroundColor Cyan
-        
+
         $args = @(
             $sourceImagePath
             '-resize', "${size}x${size}"
@@ -149,16 +151,16 @@ try {
             '-define', 'png:compression-level=9'
             $lightPath
         )
-        
-        $output = & magick @args 2>&1
-        
-        if ($LASTEXITCODE -eq 0) {
+
+        $result = Invoke-Magick $args
+
+        if ($result.Succeeded) {
             $fileInfo = Get-Item $lightPath
             Write-Host "Done ($($fileInfo.Length) bytes)" -ForegroundColor Green
             $successCount++
         } else {
             Write-Host "Failed" -ForegroundColor Red
-            Write-Host "    Error: $output" -ForegroundColor Red
+            Write-Host "    Error: $($result.Output)" -ForegroundColor Red
             $failCount++
         }
     }

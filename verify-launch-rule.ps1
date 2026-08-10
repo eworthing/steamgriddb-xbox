@@ -23,7 +23,13 @@
 #
 # Reads only; touches nothing. Run it with no arguments.
 
-param([string]$AppInfo = "${env:ProgramFiles(x86)}\Steam\appcache\appinfo.vdf")
+param(
+    [string]$AppInfo = "${env:ProgramFiles(x86)}\Steam\appcache\appinfo.vdf",
+    # Steam library roots to search for each app's appmanifest_<id>.acf. Not derived from
+    # libraryfolders.vdf - that is a feature, not a cleanup this script attempts - so a library on
+    # another drive or another machine needs to be passed explicitly.
+    [string[]]$SteamLibraryRoots = @("C:\Program Files (x86)\Steam\steamapps", "D:\SteamLibrary\steamapps")
+)
 
 $b = [System.IO.File]::ReadAllBytes($AppInfo)
 $magic = [BitConverter]::ToUInt32($b, 0)
@@ -105,6 +111,9 @@ function Get-LaunchVerdict($app, [string]$InstallDir = '') {
 }
 
 # ---- report over the Xbox manifest --------------------------------------
+# Microsoft.GamingApp_8wekyb3d8bbwe is XboxAppData.PackageFamilyName (Services\Xbox\XboxAppData.cs)
+# spelled out again on this side of the C#/PowerShell boundary - there is no shared constant to
+# reach for across it, so the two copies just have to be kept in sync by hand.
 $dir = "$env:LOCALAPPDATA\Packages\Microsoft.GamingApp_8wekyb3d8bbwe\LocalState\ThirdPartyLibraries\Steam"
 $gc  = (Get-Content "$dir\steam.manifest" -Raw | ConvertFrom-Json).gameCache
 
@@ -112,7 +121,7 @@ $rows = foreach ($e in @($gc.PSObject.Properties | Where-Object { $_.Name -ne 'v
     $id = [uint32]($e.Name -replace '^steam:', '')
 
     # Where this game is actually installed, from Steam's own install manifest
-    $acf = "C:\Program Files (x86)\Steam\steamapps", "D:\SteamLibrary\steamapps" |
+    $acf = $SteamLibraryRoots |
         ForEach-Object { Join-Path $_ "appmanifest_$id.acf" } | Where-Object { Test-Path $_ } | Select-Object -First 1
     $install = ''
     if ($acf -and (Get-Content $acf -Raw) -match '"installdir"\s+"(.+?)"') {

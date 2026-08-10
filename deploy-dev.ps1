@@ -6,7 +6,8 @@
 param(
     [string]$Platform = "x64",
     [string]$Configuration = "Debug",
-    [string]$CertThumbprint = "196354983C0E5E43346AB1739021DC0DB68BC65F"
+    [string]$CertThumbprint = "196354983C0E5E43346AB1739021DC0DB68BC65F",
+    [string]$PackageName = "eworthing.SteamGridDBforXbox.Dev"
 )
 
 $ErrorActionPreference = "Stop"
@@ -31,7 +32,7 @@ try {
     $version = [Version]$manifest.Package.Identity.Version
 
     # Relative to whatever is installed, not to the source, so repeated deploys keep climbing
-    $installed = Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev | Select-Object -First 1
+    $installed = Get-AppxPackage -Name $PackageName | Select-Object -First 1
     if ($installed -and [Version]$installed.Version -ge $version) { $version = [Version]$installed.Version }
 
     $manifest.Package.Identity.Version = "{0}.{1}.{2}.0" -f $version.Major, $version.Minor, ($version.Build + 1)
@@ -56,7 +57,7 @@ if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
 # (-PreserveApplicationData is not an option here: it only applies to development-mode registrations,
 # and Game Bar only lists fully installed packages.)
 $updated = $false
-if (Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev) {
+if (Get-AppxPackage -Name $PackageName) {
     try {
         Add-AppxPackage -Path $msix -ForceUpdateFromAnyVersion -ForceApplicationShutdown -ErrorAction Stop
         $updated = $true
@@ -66,7 +67,7 @@ if (Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev) {
 }
 
 if (-not $updated) {
-    foreach ($existing in @(Get-AppxPackage -Name eworthing.SteamGridDBforXbox.Dev)) {
+    foreach ($existing in @(Get-AppxPackage -Name $PackageName)) {
         Remove-AppxPackage $existing.PackageFullName
     }
     Add-AppxPackage -Path $msix
