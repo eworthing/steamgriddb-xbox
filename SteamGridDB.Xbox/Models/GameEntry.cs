@@ -21,6 +21,33 @@ namespace SteamGridDB.Xbox.Models
         private bool hasBackup;
         private bool hasSteamGridDBMatch;
 
+        /// <summary>
+        /// Backs every settable property below: skips the assignment and both notifications when the
+        /// value is unchanged, otherwise assigns, raises <see cref="OnPropertyChanged(string)"/> for
+        /// <paramref name="propertyName"/>, then again for each name in <paramref name="alsoChanged"/>
+        /// in order - the same calls, in the same order, each setter used to make by hand.
+        /// <paramref name="propertyName"/> is a normal argument rather than
+        /// <see cref="CallerMemberNameAttribute"/> because that attribute requires the last parameter,
+        /// which here is <paramref name="alsoChanged"/>.
+        /// </summary>
+        private bool Set<T>(ref T field, T value, string propertyName, params string[] alsoChanged)
+        {
+            if (EqualityComparer<T>.Default.Equals(field, value))
+            {
+                return false;
+            }
+
+            field = value;
+            OnPropertyChanged(propertyName);
+
+            foreach (string dependent in alsoChanged)
+            {
+                OnPropertyChanged(dependent);
+            }
+
+            return true;
+        }
+
         public StorageFolder ImageFolder
         {
             get; set;
@@ -29,14 +56,7 @@ namespace SteamGridDB.Xbox.Models
         public string Name
         {
             get => name;
-            set
-            {
-                if (name != value)
-                {
-                    name = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => Set(ref name, value, nameof(Name));
         }
 
         /// <summary>
@@ -46,41 +66,19 @@ namespace SteamGridDB.Xbox.Models
         public string ExternalPlatformId
         {
             get => externalPlatformId;
-            set
-            {
-                if (externalPlatformId != value)
-                {
-                    externalPlatformId = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => Set(ref externalPlatformId, value, nameof(ExternalPlatformId));
         }
 
         public GamePlatform Platform
         {
             get => platform;
-            set
-            {
-                if (platform != value)
-                {
-                    platform = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => Set(ref platform, value, nameof(Platform));
         }
 
         public DateTime AddedDate
         {
             get => addedDate;
-            set
-            {
-                if (addedDate != value)
-                {
-                    addedDate = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(AddedDateSuffix));
-                }
-            }
+            set => Set(ref addedDate, value, nameof(AddedDate), nameof(AddedDateSuffix));
         }
 
         /// <summary>
@@ -98,42 +96,19 @@ namespace SteamGridDB.Xbox.Models
         public string ImageFileName
         {
             get => imageFileName;
-            set
-            {
-                if (imageFileName != value)
-                {
-                    imageFileName = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => Set(ref imageFileName, value, nameof(ImageFileName));
         }
 
         public string ImageFilePath
         {
             get => imageFilePath;
-            set
-            {
-                if (imageFilePath != value)
-                {
-                    imageFilePath = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => Set(ref imageFilePath, value, nameof(ImageFilePath));
         }
 
         public bool HasSteamGridDBMatch
         {
             get => hasSteamGridDBMatch;
-            set
-            {
-                if (hasSteamGridDBMatch != value)
-                {
-                    hasSteamGridDBMatch = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(EditButtonVisibility));
-                    OnPropertyChanged(nameof(SearchButtonVisibility));
-                }
-            }
+            set => Set(ref hasSteamGridDBMatch, value, nameof(HasSteamGridDBMatch), nameof(EditButtonVisibility), nameof(SearchButtonVisibility));
         }
 
         /// <summary>
@@ -182,15 +157,7 @@ namespace SteamGridDB.Xbox.Models
         public bool HasBackup
         {
             get => hasBackup;
-            set
-            {
-                if (hasBackup != value)
-                {
-                    hasBackup = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(RestoreButtonVisibility));
-                }
-            }
+            set => Set(ref hasBackup, value, nameof(HasBackup), nameof(RestoreButtonVisibility));
         }
 
         public Visibility RestoreButtonVisibility => HasBackup ? Visibility.Visible : Visibility.Collapsed;
@@ -198,16 +165,7 @@ namespace SteamGridDB.Xbox.Models
         public BitmapImage Image
         {
             get => image;
-            set
-            {
-                if (image != value)
-                {
-                    image = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(ImageVisibility));
-                    OnPropertyChanged(nameof(PlaceholderVisibility));
-                }
-            }
+            set => Set(ref image, value, nameof(Image), nameof(ImageVisibility), nameof(PlaceholderVisibility));
         }
 
         public Visibility ImageVisibility => Image != null ? Visibility.Visible : Visibility.Collapsed;

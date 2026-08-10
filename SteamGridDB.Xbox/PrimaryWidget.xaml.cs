@@ -1868,18 +1868,7 @@ namespace SteamGridDB.Xbox
             // Add items to grid view
             foreach (GridSelectionItems.Result artwork in sortedArtworks)
             {
-                GridImagesView.Items.Add(new GridImageItem
-                {
-                    Id = artwork.Id,
-                    Url = artwork.Url,
-                    ThumbUrl = artwork.ThumbUrl,
-                    Author = artwork.Author,
-                    Style = artwork.Style,
-                    Width = artwork.Width,
-                    Height = artwork.Height,
-                    IsApplied = artwork.IsApplied,
-                    SessionId = artwork.SessionId
-                });
+                GridImagesView.Items.Add(new GridImageItem(artwork));
             }
 
             int gridCount = grids?.Count ?? 0;

@@ -1,103 +1,62 @@
-using System.ComponentModel;
 using Windows.UI.Xaml;
-using System.Runtime.CompilerServices;
+
+using SteamGridDB.Xbox.Services.Artwork;
 
 namespace SteamGridDB.Xbox.Models
 {
     /// <summary>
     /// Represents a grid image item for display in the selection panel.
+    ///
+    /// Built once per tile by <see cref="GridImageItem(GridSelectionItems.Result)"/> and never mutated
+    /// afterward - PrimaryWidget.xaml.cs only reads <see cref="Url"/>, <see cref="Id"/> and
+    /// <see cref="SessionId"/> back out of it - so this carries plain auto-properties rather than
+    /// INotifyPropertyChanged, and the three members PrimaryWidget.xaml binds
+    /// (<see cref="Description"/>, <see cref="ThumbUrl"/>, <see cref="AppliedVisibility"/>) are bound
+    /// Mode=OneTime.
     /// </summary>
-    public class GridImageItem : INotifyPropertyChanged
+    public class GridImageItem
     {
-        private string url;
-        private string thumbUrl;
-        private string style;
-        private string author;
-        private int width;
-        private int height;
-        private int id;
-        private bool isApplied;
+        internal GridImageItem(GridSelectionItems.Result artwork)
+        {
+            Id = artwork.Id;
+            Url = artwork.Url;
+            ThumbUrl = artwork.ThumbUrl;
+            Author = artwork.Author;
+            Style = artwork.Style;
+            Width = artwork.Width;
+            Height = artwork.Height;
+            IsApplied = artwork.IsApplied;
+            SessionId = artwork.SessionId;
+        }
 
         public string Url
         {
-            get => url;
-            set
-            {
-                if (url != value)
-                {
-                    url = value;
-                    OnPropertyChanged();
-                }
-            }
+            get; set;
         }
 
         public string ThumbUrl
         {
-            get => thumbUrl;
-            set
-            {
-                if (thumbUrl != value)
-                {
-                    thumbUrl = value;
-                    OnPropertyChanged();
-                }
-            }
+            get; set;
         }
 
         public string Style
         {
-            get => style;
-            set
-            {
-                if (style != value)
-                {
-                    style = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(Description));
-                }
-            }
+            get; set;
         }
 
         public string Author
         {
-            get => author;
-            set
-            {
-                if (author != value)
-                {
-                    author = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(Description));
-                }
-            }
+            get; set;
         }
 
         public int Width
         {
-            get => width;
-            set
-            {
-                if (width != value)
-                {
-                    width = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(Description));
-                }
-            }
+            get; set;
         }
 
         public int Height
         {
-            get => height;
-            set
-            {
-                if (height != value)
-                {
-                    height = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(Description));
-                }
-            }
+            get; set;
         }
 
         /// <summary>
@@ -113,15 +72,7 @@ namespace SteamGridDB.Xbox.Models
 
         public int Id
         {
-            get => id;
-            set
-            {
-                if (id != value)
-                {
-                    id = value;
-                    OnPropertyChanged();
-                }
-            }
+            get; set;
         }
 
         /// <summary>
@@ -130,16 +81,7 @@ namespace SteamGridDB.Xbox.Models
         /// </summary>
         public bool IsApplied
         {
-            get => isApplied;
-            set
-            {
-                if (isApplied != value)
-                {
-                    isApplied = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(AppliedVisibility));
-                }
-            }
+            get; set;
         }
 
         /// <summary>
@@ -158,13 +100,6 @@ namespace SteamGridDB.Xbox.Models
         public int SessionId
         {
             get; set;
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }
