@@ -106,11 +106,34 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// </summary>
         /// <param name="gogId">The GOG game ID</param>
         /// <returns>What GOG said - see <see cref="NameLookup"/>.</returns>
-        internal static async Task<NameLookup> GetGogGameNameAsync(string gogId)
+        internal static Task<NameLookup> GetGogGameNameAsync(string gogId)
+        {
+            string url = $"https://api.gog.com/v2/games/{gogId}";
+
+            return FetchNameAsync(url, gameData =>
+            {
+                JsonObject embedded = JsonRead.Object(gameData, "_embedded");
+                JsonObject product = JsonRead.Object(embedded, "product");
+
+                return JsonRead.String(product, "title");
+            }, $"GOG game name for {gogId}");
+        }
+
+        /// <summary>
+        /// Shared fetch skeleton for <see cref="GetGogGameNameAsync"/> and
+        /// <see cref="GetEpicGameNameAsync"/>: GET the URL, and turn the response into a
+        /// <see cref="NameLookup"/> the same way both stores need it turned - a parsed 200 read with
+        /// <paramref name="readTitle"/>, an unparseable 200 or any non-404 failure as unavailable, and
+        /// a 404 as a real, cacheable answer of no name.
+        /// </summary>
+        /// <param name="url">The store's URL to fetch.</param>
+        /// <param name="readTitle">Reads the title out of the parsed response body.</param>
+        /// <param name="describe">What this request is, for the error log line on failure.</param>
+        /// <returns>What the store said - see <see cref="NameLookup"/>.</returns>
+        private static async Task<NameLookup> FetchNameAsync(string url, Func<JsonObject, string> readTitle, string describe)
         {
             try
             {
-                string url = $"https://api.gog.com/v2/games/{gogId}";
                 HttpResponseMessage response = await httpClient.GetAsync(new Uri(url));
 
                 if (response.IsSuccessStatusCode)
@@ -119,12 +142,9 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                     if (JsonObject.TryParse(jsonContent, out JsonObject gameData))
                     {
-                        JsonObject embedded = JsonRead.Object(gameData, "_embedded");
-                        JsonObject product = JsonRead.Object(embedded, "product");
-
                         // A parsed body with no title is still an answer: GOG has this product and it
                         // has no name we can use, which asking again will not change
-                        return NameLookup.Answer(JsonRead.String(product, "title"));
+                        return NameLookup.Answer(readTitle(gameData));
                     }
 
                     // A 200 that will not parse is not an answer about the game
@@ -133,13 +153,17 @@ namespace SteamGridDB.Xbox.Services.Stores
 
                 // Only "no such product" is a fact about the game. A 429, a 500 or a gateway error is
                 // a fact about GOG's afternoon, and caching it would make this ID permanently nameless
+                //
+                // The database is a directory of files in a git repository, so a 404 is simply "not in
+                // it" - the flat, permanent answer worth remembering. GitHub's own rate limiting and
+                // outages come back as other codes and must not be
                 return response.StatusCode == HttpStatusCode.NotFound
                     ? NameLookup.Answer(null)
                     : NameLookup.Unavailable;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error fetching GOG game name for {gogId}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error fetching {describe}: {ex.Message}");
 
                 return NameLookup.Unavailable;
             }
@@ -293,38 +317,11 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// </summary>
         /// <param name="epicId">Epic catalog item ID.</param>
         /// <returns>What the database said - see <see cref="NameLookup"/>.</returns>
-        internal static async Task<NameLookup> GetEpicGameNameAsync(string epicId)
+        internal static Task<NameLookup> GetEpicGameNameAsync(string epicId)
         {
-            try
-            {
-                string url = $"https://raw.githubusercontent.com/nachoaldamav/items-tracker/refs/heads/main/database/items/{epicId}.json";
-                HttpResponseMessage response = await httpClient.GetAsync(new Uri(url));
+            string url = $"https://raw.githubusercontent.com/nachoaldamav/items-tracker/refs/heads/main/database/items/{epicId}.json";
 
-                if (response.IsSuccessStatusCode)
-                {
-                    string jsonContent = await response.Content.ReadAsStringAsync();
-
-                    if (JsonObject.TryParse(jsonContent, out JsonObject gameData))
-                    {
-                        return NameLookup.Answer(JsonRead.String(gameData, "title"));
-                    }
-
-                    return NameLookup.Unavailable;
-                }
-
-                // The database is a directory of files in a git repository, so a 404 is simply "not in
-                // it" - the flat, permanent answer worth remembering. GitHub's own rate limiting and
-                // outages come back as other codes and must not be
-                return response.StatusCode == HttpStatusCode.NotFound
-                    ? NameLookup.Answer(null)
-                    : NameLookup.Unavailable;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error fetching Epic game name for {epicId}: {ex.Message}");
-
-                return NameLookup.Unavailable;
-            }
+            return FetchNameAsync(url, gameData => JsonRead.String(gameData, "title"), $"Epic game name for {epicId}");
         }
 
         /// <summary>
