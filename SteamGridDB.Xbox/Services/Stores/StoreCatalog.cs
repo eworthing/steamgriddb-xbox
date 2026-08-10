@@ -5,8 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
-using Windows.Web.Http;
-using Windows.Web.Http.Headers;
 
 using SteamGridDB.Xbox.Services;
 
@@ -58,7 +56,12 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// </summary>
         private static readonly string[] tileArtworkPurposes = { "BoxArt", "FeaturePromotionalSquareArt" };
 
-        private readonly HttpClient httpClient;
+        /// <summary>
+        /// GET requests through this return null on any failure - see <see cref="JsonHttpClient.GetStringAsync"/>.
+        /// A catalogue that cannot be reached means first-party games do not appear this load - never
+        /// that the library failed to load.
+        /// </summary>
+        private readonly JsonHttpClient jsonClient;
         private readonly TimeSpan timeout;
         private bool disposed;
 
@@ -66,13 +69,11 @@ namespace SteamGridDB.Xbox.Services.Stores
         {
             timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
-            httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Accept.Add(new HttpMediaTypeWithQualityHeaderValue("application/json"));
-            AppIdentity.Identify(httpClient.DefaultRequestHeaders);
+            jsonClient = new JsonHttpClient(acceptJson: true);
 
             // The catalogue expects a correlation vector on every request and answers 400 without one.
             // Its value is only ever used for Microsoft's own request tracing, so one per client is enough.
-            httpClient.DefaultRequestHeaders.Add("MS-CV", Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 16) + ".0");
+            jsonClient.Client.DefaultRequestHeaders.Add("MS-CV", Convert.ToBase64String(Guid.NewGuid().ToByteArray()).Substring(0, 16) + ".0");
         }
 
         /// <summary>
@@ -122,7 +123,7 @@ namespace SteamGridDB.Xbox.Services.Stores
                 string batch = string.Join(",", pending.Skip(offset).Take(BatchSize));
                 string url = $"{baseUrl}?bigIds={Uri.EscapeDataString(batch)}{requestSuffix}";
 
-                products.AddRange(ParseProducts(await GetStringAsync(url, cancellationToken)));
+                products.AddRange(ParseProducts(await jsonClient.GetStringAsync(url, timeout, cancellationToken)));
             }
 
             return products;
@@ -154,7 +155,7 @@ namespace SteamGridDB.Xbox.Services.Stores
             {
                 string url = $"{baseUrl}/lookup?alternateId=PackageFamilyName&value={Uri.EscapeDataString(familyName)}{requestSuffix}";
 
-                products.AddRange(ParseProducts(await GetStringAsync(url, cancellationToken)));
+                products.AddRange(ParseProducts(await jsonClient.GetStringAsync(url, timeout, cancellationToken)));
             }
 
             return products;
@@ -277,40 +278,11 @@ namespace SteamGridDB.Xbox.Services.Stores
             return uri.StartsWith("//", StringComparison.Ordinal) ? "https:" + uri : uri;
         }
 
-        /// <summary>
-        /// GET returning the raw body, or null on any failure. A catalogue that cannot be reached means
-        /// first-party games do not appear this load - never that the library failed to load.
-        /// </summary>
-        private async Task<string> GetStringAsync(string url, CancellationToken cancellationToken)
-        {
-            try
-            {
-                using (CancellationTokenSource timeoutCts = new CancellationTokenSource(timeout))
-                using (CancellationTokenSource linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token))
-                {
-                    HttpResponseMessage response = await httpClient.GetAsync(new Uri(url)).AsTask(linkedCts.Token);
-
-                    if (response.IsSuccessStatusCode)
-                    {
-                        return await response.Content.ReadAsStringAsync().AsTask(linkedCts.Token);
-                    }
-
-                    System.Diagnostics.Debug.WriteLine($"Store catalogue error: {response.StatusCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Store catalogue exception: {ex.Message}");
-            }
-
-            return null;
-        }
-
         public void Dispose()
         {
             if (!disposed)
             {
-                httpClient?.Dispose();
+                jsonClient?.Dispose();
                 disposed = true;
             }
         }

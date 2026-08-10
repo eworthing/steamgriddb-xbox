@@ -53,16 +53,9 @@ namespace SteamGridDB.Xbox.Services.Stores
         // A second long-lived client, separate from PrimaryWidget's artwork-download one: this one
         // only ever talks to the three store name-lookup endpoints below, and a Services/Stores type
         // should not reach back into the UI class for a shared instance.
-        private static readonly HttpClient httpClient = CreateHttpClient();
-
-        private static HttpClient CreateHttpClient()
-        {
-            var client = new HttpClient();
-
-            AppIdentity.Identify(client.DefaultRequestHeaders);
-
-            return client;
-        }
+        // acceptJson stays false: unlike SteamGridDbClient and StoreCatalog, none of the three
+        // endpoints below ever relied on that header being set, so this preserves what was here before.
+        private static readonly HttpClient httpClient = new JsonHttpClient(acceptJson: false).Client;
 
         /// <summary>
         /// What a store said about a name, keeping "there is no such game" apart from "the store could

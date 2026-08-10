@@ -21,6 +21,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
     /// </summary>
     public class SteamGridDbClient : IDisposable
     {
+        private readonly JsonHttpClient jsonClient;
         private readonly HttpClient httpClient;
         private const string baseUrl = "https://www.steamgriddb.com/api/v2";
 
@@ -117,10 +118,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
             timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
-            httpClient = new HttpClient();
+            jsonClient = new JsonHttpClient(acceptJson: true);
+            httpClient = jsonClient.Client;
             httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
-            httpClient.DefaultRequestHeaders.Accept.Add(new HttpMediaTypeWithQualityHeaderValue("application/json"));
-            AppIdentity.Identify(httpClient.DefaultRequestHeaders);
         }
 
         /// <summary>
@@ -485,6 +485,19 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         }
 
         /// <summary>
+        /// Caches the <see cref="DataContractJsonSerializer"/> for each closed <typeparamref name="T"/>
+        /// <see cref="DeserializeJson{T}"/> is asked to build. The type builds its contract by
+        /// reflection and is designed to be built once and reused - constructing a fresh one per call
+        /// paid that cost on every request a cold library load made, roughly 150 times over.
+        /// A static field on a generic class gets its own copy per closed type, so each T's serializer
+        /// is independent and built at most once, the first time that T is deserialised.
+        /// </summary>
+        private static class SerializerFor<T> where T : class
+        {
+            internal static readonly DataContractJsonSerializer Instance = new DataContractJsonSerializer(typeof(T));
+        }
+
+        /// <summary>
         /// Deserialises JSON to object using DataContractJsonSerializer.
         /// </summary>
         private T DeserializeJson<T>(string json) where T : class
@@ -496,10 +509,9 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
 
             try
             {
-                var serializer = new DataContractJsonSerializer(typeof(T));
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
                 {
-                    return serializer.ReadObject(stream) as T;
+                    return SerializerFor<T>.Instance.ReadObject(stream) as T;
                 }
             }
             catch (Exception ex)
@@ -516,7 +528,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         {
             if (!disposed)
             {
-                httpClient?.Dispose();
+                jsonClient?.Dispose();
                 disposed = true;
             }
         }
