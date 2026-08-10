@@ -78,13 +78,10 @@ namespace SteamGridDB.Xbox.Models
                 {
                     addedDate = value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(AddedDateFormatted));
                     OnPropertyChanged(nameof(AddedDateSuffix));
                 }
             }
         }
-
-        public string AddedDateFormatted => AddedDate.ToString();
 
         /// <summary>
         /// The date for the platform line, separator included, or nothing when there is no date to
@@ -96,7 +93,7 @@ namespace SteamGridDB.Xbox.Models
         /// print an unset DateTime as "1/1/0001" the segment is left out entirely. The separator lives
         /// here because the line is built from Runs, which cannot be collapsed individually.
         /// </summary>
-        public string AddedDateSuffix => AddedDate == default ? string.Empty : $" • {AddedDateFormatted}";
+        public string AddedDateSuffix => AddedDate == default ? string.Empty : $" • {AddedDate.ToString()}";
 
         public string ImageFileName
         {
@@ -207,14 +204,12 @@ namespace SteamGridDB.Xbox.Models
                 {
                     image = value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(HasImage));
                     OnPropertyChanged(nameof(ImageVisibility));
                     OnPropertyChanged(nameof(PlaceholderVisibility));
                 }
             }
         }
 
-        public bool HasImage => Image != null;
         public Visibility ImageVisibility => Image != null ? Visibility.Visible : Visibility.Collapsed;
         public Visibility PlaceholderVisibility => Image == null ? Visibility.Visible : Visibility.Collapsed;
 

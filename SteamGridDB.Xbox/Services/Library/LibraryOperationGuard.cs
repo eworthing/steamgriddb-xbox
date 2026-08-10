@@ -21,10 +21,8 @@ namespace SteamGridDB.Xbox.Services.Library
     /// </summary>
     internal sealed class LibraryOperationGuard
     {
-        private bool isRunning;
-
         /// <summary>Whether an operation is currently running.</summary>
-        internal bool IsRunning => isRunning;
+        internal bool IsRunning { get; private set; }
 
         /// <summary>
         /// Claims the guard for a new operation. Returns false, leaving the guard untouched, when one
@@ -32,12 +30,12 @@ namespace SteamGridDB.Xbox.Services.Library
         /// </summary>
         internal bool TryBegin()
         {
-            if (isRunning)
+            if (IsRunning)
             {
                 return false;
             }
 
-            isRunning = true;
+            IsRunning = true;
 
             return true;
         }
@@ -45,7 +43,7 @@ namespace SteamGridDB.Xbox.Services.Library
         /// <summary>Releases the guard. Safe to call even when nothing is running.</summary>
         internal void End()
         {
-            isRunning = false;
+            IsRunning = false;
         }
     }
 }

@@ -115,10 +115,6 @@ namespace SteamGridDB.Xbox
 
                     Window.Current.Activate();
                 }
-                else
-                {
-                    // You can perform whatever behavior you need based on the URI payload.
-                }
             }
         }
 
@@ -148,7 +144,6 @@ namespace SteamGridDB.Xbox
 
                 if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
                 {
-                    //TODO: Load state from previously suspended application
                 }
 
                 // Place the frame in the current Window

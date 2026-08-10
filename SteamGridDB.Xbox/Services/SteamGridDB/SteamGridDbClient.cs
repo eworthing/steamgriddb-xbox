@@ -22,7 +22,7 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
     public class SteamGridDbClient : IDisposable
     {
         private readonly HttpClient httpClient;
-        private readonly string baseUrl = "https://www.steamgriddb.com/api/v2";
+        private const string baseUrl = "https://www.steamgriddb.com/api/v2";
 
         // Root for Valve's own store assets. The paths SteamGridDB reports under platformdata are
         // relative to "<appid>/", and the cloudflare-branded host redirects here.
