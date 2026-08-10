@@ -33,7 +33,13 @@ namespace SteamGridDB.Xbox.Services.Artwork
         // and "Playstation 5" not - so half a batch of identically-badged art was being demoted and
         // half of it was winning. The Xbox names were already bare for this reason; the PlayStation
         // ones only appeared in their "PS5 dashboard icon" forms.
-        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|playstation ?[1-5]|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+        //
+        // "xbox 360" is here for the same reason one generation later. It was the last Xbox name
+        // missing while the pixel table carried two Xbox 360 spine renderings, and a survey of 1539
+        // candidates outside this library found it on 6 uploads across 6 unrelated games - more
+        // support than either console family already listed. The notes say what they are outright:
+        // five read "XBOX 360 Backwards Compatability", one "Xbox 360 Retrocompatibility styled grid".
+        private static readonly Regex consoleBadgeGridMetadata = new Regex(@"\b(playstation hits|ps hits|playstation ?[1-5]|ps ?[45] ?(dashboard |store )?icon|ps ?[45] ?square|nintendo switch|switch ?2? ?icon|dashboard icon|xbox one|xbox series|xbox ?360)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         // Artwork for the game's soundtrack release rather than the game. It is official art, it is the
         // right franchise, and it is often striking - so nothing else here catches it. Slay the Spire

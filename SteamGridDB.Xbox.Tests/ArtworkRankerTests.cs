@@ -111,11 +111,17 @@ namespace SteamGridDB.Xbox.Tests
         [InlineData("Playstation 5")]
         [InlineData("Xbox One")]
         [InlineData("Xbox Series S/X")]
+        [InlineData("XBOX 360 Backwards Compatability")]
+        [InlineData("Xbox 360 Retrocompatibility styled grid")]
         public void A_bare_console_name_is_as_much_a_badge_as_the_badge_shaped_phrasings(string notes)
         {
             // One uploader's set of Far Cry 6 covers, identical but for the console spine down the
             // left edge. The Xbox two were caught and the PlayStation two were not, so "Playstation 4"
             // won the tile on a game whose notes said what was wrong with it.
+            //
+            // The 360 pair are the same hole a generation later, found by surveying artwork for games
+            // outside this library: the name was the last Xbox one missing while the pixel table
+            // already carried two Xbox 360 spine renderings. Both spellings are real notes.
             Assert.True(ArtworkRanker.IsDemotedGrid(Grid(notes: notes), "Far Cry 6"));
         }
 

@@ -29,6 +29,7 @@ Three evidence sources, all reproducible:
 | §4.6b bare PlayStation console names | **implemented** — found in use; 5 candidates demoted, 1 pick moved |
 | §4.6c corner-badge pixel check | **implemented** — 25 renderings, 603 of 4741 flagged, near-miss band human-reviewed |
 | §4.6d soundtrack sleeves | **implemented** — reported in use; 4 candidates demoted, 1 pick moved |
+| §4.6e survey of games outside this library | **implemented as tooling** — 1000 covers reviewed; 1 vocabulary change, 4 proposals rejected |
 | §4.3 icon fallback | **implemented** — but two of its three ideas graded worse; see below |
 | §4.5 failures reported as misses | **implemented** |
 | §4.4 JPEG written to `.png` | **implemented** — transcoded on save |
@@ -703,6 +704,59 @@ B is a different failure entirely — "right palette, wrong picture" — and des
 rather than being adopted as a side effect of this. C and D are the "rank by similarity" idea that
 §4.1 already rejected, wearing a margin; the margin makes them defensible but the graded set did not
 support any of them.
+
+### 4.6e Surveying artwork for games this library does not contain — IMPLEMENTED as tooling
+
+Every badge and template above was found the same way: a bad tile appeared in the Xbox app and got
+reported. That makes the discovery rate a function of one person's library. `tools/badge-survey.py`
+removes that limit — it samples games from the stores `GamePlatform.cs` supports, runs each one
+through the real selection path (ranking imported from `compare-artwork.py`, badge table parsed out
+of `BadgeOverlay.cs` at run time), and renders the picks as a contact sheet. Anything still showing a
+badge in that sheet is by construction a case the shipped pipeline misses.
+
+**Scope is the load-bearing part.** The first run had no store filter and three covers came back
+flagged; two were for games never released on PC — a PS2 title and an NES one. Both were real
+templates, neither could ever reach a tile. SteamGridDB's autocomplete returns a `types` list per
+game, so the filter is free, and it is checked against `GamePlatform.cs`'s own table rather than a
+second copy of it. Note what it cannot do: SteamGridDB has **no Xbox platform at all** (the sweep
+returns `steam`, `gog`, `origin`, `eshop`, `flashpoint`, `egs`, `uplay`), so first-party Xbox games
+are invisible to it — the same reason `GamePlatform.Xbox` carries a null API string and is matched by
+name.
+
+1000 in-scope covers were reviewed by eye across two sheets, and 9800 candidates measured. **One
+change shipped: `xbox 360` in the console vocabulary** (§4.6a), 6 uploads across 6 unrelated games,
+more support than either console family already listed.
+
+Four things were measured and rejected. They are worth recording because each reads as obviously
+correct until measured:
+
+| proposal | what killed it |
+| --- | --- |
+| fit new renderings from the flagged covers | every group was 1–2 distinct games; `BadgeOverlay` needs more, and the two-member Bloons TD 6 fit is on record as a failure |
+| a geometric spine detector | **0 of 289 picks move.** The 25 candidates scoring ≥0.90 exist but never win a pick — ranking and the notes vocabulary remove them first |
+| extend the corner check to all four corners | 147 of the 172 highest geometric scorers are *already* flagged by the existing eleven spine renderings |
+| a one-edge-vs-four-edge frame discriminator | no separation: real box scans have four-sided case edges too (Toy Story 3 scores 0.94, OneShot's decorative frame 0.75) |
+
+The spine detector deserves its own note, because precision was the wrong measure for it and saying so
+was wrong twice over. A flag is not a demotion — `ArtworkDownloader` *skips* a flagged candidate and
+writes the best-ranked one anyway if everything is flagged — so 64% precision is much cheaper than it
+sounds, and the measure that decides it is picks moved. Measured that way it is worse, not better: the
+detector is **anti-correlated** with the problem. Box scans that reach a tile are low-contrast and
+score low (Manhunt 0.35, Sonic Frontiers 0.32, Rogue Squadron 0.15); the ones that score high are
+already caught.
+
+Two method notes, both learned by getting them wrong:
+
+- **Group-finding cannot use mean distance.** The first version ranked candidates by mean difference
+  over the whole 16×16 corner and reported "no group" for every seed. A spine occupies a quarter of
+  that corner and the rest is different artwork, which buries the signal: Cuphead and No More Heroes
+  carry the identical Nintendo Switch spine and measured **70.1 apart while sharing 96 of 256 pixels
+  exactly**. Counting near-identical pixels is the measure that matches what a composited overlay is.
+  Every "sample of one" verdict from before that fix was an artifact.
+- **The eye check is not a formality.** With the corrected measure the Switch spine proposed four
+  members; looking at them cut it to two. Street Fighter 6 and Dead Rising matched on flat red colour
+  against a red spine, not on a shared overlay. The pixel-overlap measure has that false-positive mode
+  and nothing but looking will catch it.
 
 ### 4.7 Record the applied artwork ID — IMPLEMENTED
 
