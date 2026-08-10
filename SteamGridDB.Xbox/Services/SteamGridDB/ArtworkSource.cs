@@ -1,5 +1,7 @@
 using System;
 
+using SteamGridDB.Xbox.Models;
+
 namespace SteamGridDB.Xbox.Services.SteamGridDB
 {
     /// <summary>
@@ -48,6 +50,33 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
             }
 
             return new ArtworkSource($"game/{gameId}");
+        }
+
+        /// <summary>
+        /// How to address a game's artwork: by its store ID, or by SteamGridDB's own ID when the game
+        /// was found by name because no store ID matched.
+        ///
+        /// Takes the three primitive values this decision actually needs rather than a <c>GameEntry</c>,
+        /// which cannot leave the app container (it exposes <c>Visibility</c> and <c>BitmapImage</c>,
+        /// which bind to Windows.UI.Xaml) - the same trick
+        /// <see cref="SteamGridDB.Xbox.Services.Library.GameImages"/> uses to stay clear of it.
+        /// </summary>
+        /// <param name="steamGridDbGameId">The game's own SteamGridDB ID, or 0 when none is known.</param>
+        /// <param name="platform">The game's platform.</param>
+        /// <param name="externalPlatformId">The game's own store ID, as derived by <see cref="SteamGridDB.Xbox.Services.Library.ManifestEntryIdentity"/>.</param>
+        /// <returns>The source, or null when the game cannot be addressed at all.</returns>
+        public static ArtworkSource SourceFor(int steamGridDbGameId, GamePlatform platform, string externalPlatformId)
+        {
+            if (steamGridDbGameId > 0)
+            {
+                return ForGame(steamGridDbGameId);
+            }
+
+            string platformString = GamePlatformHelper.GamePlatformToSGDBApiString(platform);
+
+            return string.IsNullOrEmpty(platformString) || string.IsNullOrEmpty(externalPlatformId)
+                ? null
+                : ForPlatform(platformString, externalPlatformId);
         }
     }
 }

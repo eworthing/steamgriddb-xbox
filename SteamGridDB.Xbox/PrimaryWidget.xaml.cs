@@ -74,16 +74,55 @@ namespace SteamGridDB.Xbox
             Error
         }
 
-        // Buttons to restore focus to once their panel closes. Each panel owns exactly one of these:
-        // EditGameImage_Click sets gridPanelFocusRestoreTarget for the grid picker; SearchGameImage_Click
-        // sets searchPanelFocusRestoreTarget for the search panel. The one exception is SearchResult_Click,
-        // which hands searchPanelFocusRestoreTarget over to gridPanelFocusRestoreTarget before opening the
-        // grid picker for the chosen result - focus should return to the button that originally opened
-        // the search panel once the grid picker (opened next, not the search panel) eventually closes.
-        // That handoff is the only place either field is written by anything other than its own panel's
-        // own open handler or its own panel's own close handler - see the handoff's own comment.
-        private Button gridPanelFocusRestoreTarget;
-        private Button searchPanelFocusRestoreTarget;
+        /// <summary>
+        /// Per-panel state for the grid picker and search panel. Introduced to replace six loose fields
+        /// (gridPanelSessionId/searchPanelSessionId, gridPanelFocusRestoreTarget/searchPanelFocusRestoreTarget,
+        /// gridPanelCloseGuard/searchPanelCloseGuard) that all existed for the same two panels and had to
+        /// be threaded through <see cref="HidePanelAsync"/> as three delegates apiece - see each member
+        /// below for what it replaces.
+        /// </summary>
+        private sealed class PanelState
+        {
+            // Incremented every time the artwork picker is (re)populated - by EditGameImage_Click,
+            // SearchGameImage_Click or a search result choosing a game - and stamped onto every
+            // GridImageItem that population creates (see PopulateGridSelectionPanelAsync). Opening the
+            // picker for a different game does not wait for the previous one to finish: ShowGridPanelAsync
+            // alone takes ~250ms, during which the previous game's tiles are still on screen and clickable
+            // while CurrentSelectedGame may already point at the new game. Without this, clicking one of
+            // those stale tiles would write its artwork to the wrong game with no error. GridImage_Click
+            // compares a clicked tile's stamp against gridPanel's SessionId and ignores the click when
+            // they differ.
+            //
+            // searchPanel's own SessionId is the same shape, one screen upstream: PerformGameSearchAsync
+            // can be triggered again (Enter key or the Search button) before a prior search's network
+            // round trip has returned, and ShowSearchPanelAsync can be reopened for the same or a
+            // different game while one is still in flight - neither is blocked by anything but the
+            // bulk-operation gate. Bumped by both, so a stale search's completion is discarded whether it
+            // is superseded by a new search or by the panel being shown again. Checked in
+            // PerformGameSearchAsync before any result-list write.
+            internal int SessionId;
+
+            // Guards HidePanelAsync against running twice at once for the same session: each panel's own
+            // Close button and its own successful-download auto-close (DownloadAndReplaceImageAsync's
+            // call at the end of a successful download) both call the same Hide method, and nothing stops
+            // a user closing the panel by hand while their own click's download is still in flight from
+            // the auto-close arriving a moment later. SessionId above already guards against a
+            // *different* session's stale close finishing late; it does nothing for two closes of the
+            // *same* session overlapping, which would run the slide-down animation and the
+            // visibility/selection teardown twice. Reuses LibraryOperationGuard's own TryBegin/End shape
+            // rather than a fourth hand-rolled bool flag - see its own doc comment.
+            internal readonly LibraryOperationGuard CloseGuard = new LibraryOperationGuard();
+
+            // Button to restore focus to once this panel closes. Each panel owns exactly one of these:
+            // EditGameImage_Click sets gridPanel's for the grid picker; SearchGameImage_Click sets
+            // searchPanel's for the search panel. The one exception is SearchResult_Click, which hands
+            // searchPanel's over to gridPanel's before opening the grid picker for the chosen result -
+            // focus should return to the button that originally opened the search panel once the grid
+            // picker (opened next, not the search panel) eventually closes. That handoff is the only
+            // place either is written by anything other than its own panel's own open handler or its own
+            // panel's own close handler - see the handoff's own comment.
+            internal Button FocusRestoreTarget;
+        }
 
         // Guards the library-wide operations against each other - they all rewrite the same files and
         // rebuild the same collection, so overlapping runs duplicate entries or race on disk - AND
@@ -95,35 +134,8 @@ namespace SteamGridDB.Xbox
         // could not be tested in place.
         private readonly LibraryOperationGuard libraryOperationGuard = new LibraryOperationGuard();
 
-        // Incremented every time the artwork picker is (re)populated - by EditGameImage_Click,
-        // SearchGameImage_Click or a search result choosing a game - and stamped onto every
-        // GridImageItem that population creates (see PopulateGridSelectionPanelAsync). Opening the
-        // picker for a different game does not wait for the previous one to finish: ShowGridPanelAsync
-        // alone takes ~250ms, during which the previous game's tiles are still on screen and clickable
-        // while CurrentSelectedGame may already point at the new game. Without this, clicking one of
-        // those stale tiles would write its artwork to the wrong game with no error. GridImage_Click
-        // compares a clicked tile's stamp against this field and ignores the click when they differ.
-        private int gridPanelSessionId;
-
-        // Same shape as gridPanelSessionId, one screen upstream: PerformGameSearchAsync can be
-        // triggered again (Enter key or the Search button) before a prior search's network round trip
-        // has returned, and ShowSearchPanelAsync can be reopened for the same or a different game while
-        // one is still in flight - neither is blocked by anything but the bulk-operation gate. Bumped by
-        // both, so a stale search's completion is discarded whether it is superseded by a new search or
-        // by the panel being shown again. Checked in PerformGameSearchAsync before any result-list write.
-        private int searchPanelSessionId;
-
-        // Guards HideGridPanelAsync/HideSearchPanelAsync against running twice at once for the same
-        // session: each panel's own Close button and its own successful-download auto-close
-        // (DownloadAndReplaceImageAsync's call at the end of a successful download) both call the same
-        // Hide method, and nothing stops a user closing the panel by hand while their own click's
-        // download is still in flight from the auto-close arriving a moment later. The session field
-        // above already guards against a *different* session's stale close finishing late; it does
-        // nothing for two closes of the *same* session overlapping, which would run the slide-down
-        // animation and the visibility/selection teardown twice. Reuses LibraryOperationGuard's own
-        // TryBegin/End shape rather than a fourth hand-rolled bool flag - see its own doc comment.
-        private readonly LibraryOperationGuard gridPanelCloseGuard = new LibraryOperationGuard();
-        private readonly LibraryOperationGuard searchPanelCloseGuard = new LibraryOperationGuard();
+        private readonly PanelState gridPanel = new PanelState();
+        private readonly PanelState searchPanel = new PanelState();
 
         // Whitespace counts as missing, matching SteamGridDbClient's own validation - a key that fails
         // this test would otherwise sail past the guards and throw out of the client's constructor.
@@ -569,110 +581,7 @@ namespace SteamGridDB.Xbox
                             continue;
                         }
 
-                        string manifestFileName = $"{folder.Name}{manifestFileExtension}";
-
-                        try
-                        {
-                            // Try to get the manifest file
-                            StorageFile manifestFile = await folder.GetFileAsync(manifestFileName);
-
-                            // Read and parse the manifest JSON file
-                            string jsonContent = await FileIO.ReadTextAsync(manifestFile);
-
-                            if (JsonObject.TryParse(jsonContent, out JsonObject root))
-                            {
-                                // Get the gameCache object
-                                JsonObject gameCache = JsonRead.Object(root, "gameCache");
-
-                                if (gameCache == null)
-                                {
-                                    continue;
-                                }
-
-                                // Iterate through all entries in the gameCache
-                                foreach (KeyValuePair<string, IJsonValue> entry in gameCache)
-                                {
-                                    // Skip the "version" property if it exists
-                                    if (entry.Key == "version")
-                                    {
-                                        continue;
-                                    }
-
-                                    // Only process entries that are objects
-                                    if (entry.Value.ValueType != JsonValueType.Object)
-                                    {
-                                        continue;
-                                    }
-
-                                    JsonObject entryObject = entry.Value.GetObject();
-
-                                    // From the "id" property, not the gameCache key, and read with
-                                    // JsonRead: that treats a present-but-JSON-null "id" the same as a
-                                    // missing one, where the raw GetNamedString/ContainsKey pair it
-                                    // replaced did not - ContainsKey returns true for a null-valued
-                                    // member and GetNamedString throws on one, which nothing caught, so
-                                    // a single null "id" silently dropped every entry after it in the
-                                    // folder (JsonRead.cs's docstring has the same failure class
-                                    // shipping once already).
-                                    //
-                                    // Read here rather than in ParseManifestEntryAsync because it
-                                    // cannot throw, and because an entry with no ID is not a stale one:
-                                    // it names nothing on disk that could have gone missing, so it is
-                                    // skipped without being counted, exactly as it always was.
-                                    string entryId = JsonRead.String(entryObject, "id");
-
-                                    if (string.IsNullOrEmpty(entryId))
-                                    {
-                                        continue;
-                                    }
-
-                                    // Scoped to this one entry, not to the folder. The folder-level
-                                    // catch below used to be the only one, so anything that threw part
-                                    // way through a manifest - a file removed between the lookup that
-                                    // found it and the read that opens it, a rendition the Xbox app has
-                                    // locked - silently discarded every remaining entry in that folder,
-                                    // uncounted and unlogged. That is the same failure the "id" comment
-                                    // in ParseManifestEntryAsync describes shipping once already;
-                                    // hardening one JSON read fixed that instance rather than the
-                                    // shape, so any other throw still reproduced it.
-                                    try
-                                    {
-                                        GameEntry parsed = await ParseManifestEntryAsync(
-                                            entryObject, platform, entryId, folder, sgdbClient, canQuerySteamGridDb);
-
-                                        if (parsed == null)
-                                        {
-                                            staleEntryCount++;
-                                        }
-                                        else
-                                        {
-                                            tmpGameList.Add(parsed);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        // One entry that could not be read is one game missing, not the
-                                        // rest of the folder. Named in the load log for the same reason
-                                        // the stale entries are: a library that silently shrinks is
-                                        // worse than one that says why.
-                                        FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} ({ex.GetType().Name}: {ex.Message})");
-
-                                        System.Diagnostics.Debug.WriteLine($"Skipping entry {entryId} in {folder.Name}: {ex.Message}");
-                                    }
-                                }
-                            }
-                        }
-                        catch (FileNotFoundException)
-                        {
-                            // Manifest file doesn't exist in this directory, skip it
-
-                            continue;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Log error but continue processing other directories
-                            System.Diagnostics.Debug.WriteLine($"Error processing {folder.Name}: {ex.Message}");
-                        }
+                        staleEntryCount += await AddManifestFolderEntriesAsync(folder, platform, sgdbClient, canQuerySteamGridDb, tmpGameList);
                     }
 
                     // Sort games alphabetically by name, with "Unknown" at the end
@@ -748,6 +657,87 @@ namespace SteamGridDB.Xbox
                 // last-load.log holding a previous, unrelated load.
                 await FixLog.SaveAsync();
             }
+        }
+
+        /// <summary>
+        /// Reads one Xbox app ThirdPartyLibraries folder's manifest and adds its rows to
+        /// <paramref name="tmpGameList"/> - the per-folder body of <see cref="LoadGameEntriesAsync"/>'s
+        /// folder loop, lifted out so that loop reads as "for each folder, add its entries" rather than
+        /// nesting the manifest read, the manifest's own entries and their per-entry try/catch inside
+        /// the same method as everything else a library load does.
+        /// </summary>
+        /// <param name="folder">The Xbox app folder to read.</param>
+        /// <param name="platform">The folder's platform, already derived from its name.</param>
+        /// <param name="sgdbClient">The load's SteamGridDB client, or null when there is no API key.</param>
+        /// <param name="canQuerySteamGridDb">Whether SteamGridDB can be queried at all.</param>
+        /// <param name="tmpGameList">Collects every row this folder produced.</param>
+        /// <returns>How many of this folder's manifest entries were stale - see <see cref="LoadGameEntriesAsync"/>.</returns>
+        private async Task<int> AddManifestFolderEntriesAsync(
+            StorageFolder folder,
+            GamePlatform platform,
+            SteamGridDbClient sgdbClient,
+            bool canQuerySteamGridDb,
+            List<GameEntry> tmpGameList)
+        {
+            int staleCount = 0;
+            string manifestFileName = $"{folder.Name}{manifestFileExtension}";
+
+            try
+            {
+                // Try to get the manifest file
+                StorageFile manifestFile = await folder.GetFileAsync(manifestFileName);
+
+                // Read and parse the manifest JSON file
+                string jsonContent = await FileIO.ReadTextAsync(manifestFile);
+
+                foreach ((string entryId, JsonObject entryObject) in ManifestGameCache.Entries(jsonContent))
+                {
+                    // Scoped to this one entry, not to the folder. The folder-level
+                    // catch below used to be the only one, so anything that threw part
+                    // way through a manifest - a file removed between the lookup that
+                    // found it and the read that opens it, a rendition the Xbox app has
+                    // locked - silently discarded every remaining entry in that folder,
+                    // uncounted and unlogged. That is the same failure the "id" comment
+                    // in ParseManifestEntryAsync describes shipping once already;
+                    // hardening one JSON read fixed that instance rather than the
+                    // shape, so any other throw still reproduced it.
+                    try
+                    {
+                        GameEntry parsed = await ParseManifestEntryAsync(
+                            entryObject, platform, entryId, folder, sgdbClient, canQuerySteamGridDb);
+
+                        if (parsed == null)
+                        {
+                            staleCount++;
+                        }
+                        else
+                        {
+                            tmpGameList.Add(parsed);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // One entry that could not be read is one game missing, not the
+                        // rest of the folder. Named in the load log for the same reason
+                        // the stale entries are: a library that silently shrinks is
+                        // worse than one that says why.
+                        FixLog.Write($"not shown {platform}/{entryId} from {folder.Name} ({ex.GetType().Name}: {ex.Message})");
+
+                        System.Diagnostics.Debug.WriteLine($"Skipping entry {entryId} in {folder.Name}: {ex.Message}");
+                    }
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                // Manifest file doesn't exist in this directory, skip it
+            }
+            catch (Exception ex)
+            {
+                // Log error but continue processing other directories
+                System.Diagnostics.Debug.WriteLine($"Error processing {folder.Name}: {ex.Message}");
+            }
+
+            return staleCount;
         }
 
         /// <summary>
@@ -1235,7 +1225,7 @@ namespace SteamGridDB.Xbox
                             // for an unnamed game rather than falling back to its image file name
                             await SetStatusAsync(report.Step(game.Name));
 
-                            ArtworkSource source = SourceFor(game);
+                            ArtworkSource source = ArtworkSource.SourceFor(game.SteamGridDbGameId, game.Platform, game.ExternalPlatformId);
 
                             if (source == null)
                             {
@@ -1253,7 +1243,7 @@ namespace SteamGridDB.Xbox
                             // shows first, typically the official box art).
                             FixLog.Write($"{game.Name} capsule={(string.IsNullOrEmpty(game.OfficialCapsuleUrl) ? "none" : game.OfficialCapsuleUrl)}");
 
-                            List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, source);
+                            List<SteamGridDbGrid> grids = await client.GetTitleBearingGridsAsync(source);
 
                             if (grids == null)
                             {
@@ -1675,7 +1665,7 @@ namespace SteamGridDB.Xbox
         {
             // Find the folder for this game
             await HandleGameImagePanelButtonClickAsync(
-                sender, button => gridPanelFocusRestoreTarget = button, LoadGridSelectionPanelAsync);
+                sender, button => gridPanel.FocusRestoreTarget = button, LoadGridSelectionPanelAsync);
         }
 
         /// <summary>
@@ -1684,7 +1674,7 @@ namespace SteamGridDB.Xbox
         private async Task LoadGridSelectionPanelAsync(GameEntry game)
         {
             await LoadGridSelectionAsync(
-                SourceFor(game),
+                ArtworkSource.SourceFor(game.SteamGridDbGameId, game.Platform, game.ExternalPlatformId),
                 $"Select artwork for {game.Name} (platform: {game.Platform}, ID: {game.ExternalPlatformId})",
                 game.Name ?? $"{game.Platform} / {game.ExternalPlatformId}");
         }
@@ -1714,7 +1704,7 @@ namespace SteamGridDB.Xbox
         {
             // Claimed before any await, so even the earliest possible re-entry (another Edit/Search
             // click landing while this population is still in flight) is stamped into a newer session.
-            int session = ++gridPanelSessionId;
+            int session = ++gridPanel.SessionId;
 
             try
             {
@@ -1746,7 +1736,7 @@ namespace SteamGridDB.Xbox
                 {
                     // Icons do not depend on the grids result, so the two round trips overlap
                     Task<List<SteamGridDbGrid>> iconsTask = client.GetSquareIconsAsync(source);
-                    List<SteamGridDbGrid> grids = await GetTitleBearingGridsAsync(client, source);
+                    List<SteamGridDbGrid> grids = await client.GetTitleBearingGridsAsync(source);
                     List<SteamGridDbGrid> icons = await iconsTask;
 
                     // A newer picker session has started while this fetch was in flight (its own
@@ -1756,7 +1746,7 @@ namespace SteamGridDB.Xbox
                     // so could clear or append onto whatever the live session already showed, mixing a
                     // stale (and, per GridImage_Click's session check, permanently unclickable) tile set
                     // into the current one, or hiding its loading state.
-                    if (session != gridPanelSessionId)
+                    if (session != gridPanel.SessionId)
                     {
                         return;
                     }
@@ -1784,57 +1774,13 @@ namespace SteamGridDB.Xbox
             }
         }
 
-        /// <summary>
-        /// How to address a game's artwork: by its store ID, or by SteamGridDB's own ID when the game
-        /// was found by name because no store ID matched.
-        /// </summary>
-        /// <param name="game">Game to fetch artwork for.</param>
-        /// <returns>The source, or null when the game cannot be addressed at all.</returns>
-        private static ArtworkSource SourceFor(GameEntry game)
-        {
-            if (game.SteamGridDbGameId > 0)
-            {
-                return ArtworkSource.ForGame(game.SteamGridDbGameId);
-            }
-
-            string platform = GamePlatformHelper.GamePlatformToSGDBApiString(game.Platform);
-
-            return string.IsNullOrEmpty(platform) || string.IsNullOrEmpty(game.ExternalPlatformId)
-                ? null
-                : ArtworkSource.ForPlatform(platform, game.ExternalPlatformId);
-        }
-
-        /// <summary>
-        /// The square grids worth showing for a game: one page, and if that page happens to hold nothing
-        /// but icon-like styles, a second request restricted to the title-bearing ones.
-        ///
-        /// Both the auto-fixer and the manual picker need this. When only the fixer made the second
-        /// call, opening the picker on such a game offered a strictly worse set than the fixer had
-        /// already chosen from - which reads as the picker being broken.
-        /// </summary>
-        /// <param name="client">Client to fetch with.</param>
-        /// <param name="source">How to address the game's artwork.</param>
-        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
-        private static async Task<List<SteamGridDbGrid>> GetTitleBearingGridsAsync(SteamGridDbClient client, ArtworkSource source)
-        {
-            List<SteamGridDbGrid> grids = await client.GetSquareGridsAsync(source);
-
-            if (grids == null || grids.Count == 0 || grids.Any(g => ArtworkRanker.GridStylePriority(g.Style) == 0))
-            {
-                return grids;
-            }
-
-            List<SteamGridDbGrid> textBearing = await client.GetSquareGridsAsync(source, ArtworkRanker.TextBearingGridStyles);
-
-            return textBearing != null && textBearing.Count > 0 ? textBearing : grids;
-        }
 
         /// <summary>
         /// Populates the grid selection panel with the provided grids and icons.
         /// </summary>
         /// <param name="grids">Collection of grid artworks</param>
         /// <param name="icons">Collection of icon artworks</param>
-        /// <param name="sessionId">The picker session these artworks were fetched for - see <see cref="gridPanelSessionId"/>.</param>
+        /// <param name="sessionId">The picker session these artworks were fetched for - see <see cref="PanelState.SessionId"/>.</param>
         private async Task PopulateGridSelectionPanelAsync(IList<SteamGridDbGrid> grids, IList<SteamGridDbGrid> icons, int sessionId)
         {
             // Which of these, if any, is already on the tile
@@ -1847,7 +1793,7 @@ namespace SteamGridDB.Xbox
             // session no longer live, so ranking or adding them now would rank by a game name that has
             // since changed, or mix stale, permanently unclickable tiles into whatever the live session's
             // own population already claimed the panel with.
-            if (sessionId != gridPanelSessionId)
+            if (sessionId != gridPanel.SessionId)
             {
                 return;
             }
@@ -1896,7 +1842,7 @@ namespace SteamGridDB.Xbox
         /// Handles grid image selection. Downloads and replaces the game's image.
         ///
         /// Ignores a tile whose <see cref="GridImageItem.SessionId"/> no longer matches
-        /// <see cref="gridPanelSessionId"/>: the picker was opened again since this tile was rendered,
+        /// <see cref="PanelState.SessionId"/>: the picker was opened again since this tile was rendered,
         /// so CurrentSelectedGame may no longer be the game this tile belongs to. Silently doing nothing
         /// is correct here - the tile is already gone from the panel a moment later once the newer
         /// session's population clears it, so there is no missed action to explain to the user.
@@ -1913,7 +1859,7 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void GridImage_Click(object sender, ItemClickEventArgs e)
         {
-            if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanelSessionId)
+            if (e.ClickedItem is GridImageItem gridItem && CurrentSelectedGame != null && gridItem.SessionId == gridPanel.SessionId)
             {
                 // The refusal goes to the panel's own status line, not the main one: this panel is an
                 // opaque full-screen sibling of the main grid and covers StatusText completely, so a
@@ -1942,7 +1888,7 @@ namespace SteamGridDB.Xbox
                 // read before any await, so it could not have changed out from under it - but the panel
                 // this method is about to touch below now belongs to a different, live session: writing
                 // its status text, then closing it, would interrupt whatever the live session is doing.
-                if (gridItem.SessionId != gridPanelSessionId)
+                if (gridItem.SessionId != gridPanel.SessionId)
                 {
                     return;
                 }
@@ -2031,27 +1977,24 @@ namespace SteamGridDB.Xbox
         /// <see cref="RunUnderLibraryOperationGuardAsync"/> were themselves extracted to stop duplicating.
         /// </summary>
         private async Task HidePanelAsync(
-            LibraryOperationGuard closeGuard,
-            Func<int> getSessionId,
+            PanelState state,
             TranslateTransform transform,
             UIElement panel,
             ItemsControl itemsControl,
-            Func<Button> getFocusRestoreTarget,
-            Action<Button> setFocusRestoreTarget,
             Action extraTeardown = null)
         {
-            if (!closeGuard.TryBegin())
+            if (!state.CloseGuard.TryBegin())
             {
                 return;
             }
 
             try
             {
-                int session = getSessionId();
+                int session = state.SessionId;
 
                 await SlidePanelAsync(transform, 0, 800, 200, EasingMode.EaseIn);
 
-                if (session != getSessionId())
+                if (session != state.SessionId)
                 {
                     return;
                 }
@@ -2060,12 +2003,12 @@ namespace SteamGridDB.Xbox
                 itemsControl.Items.Clear();
                 extraTeardown?.Invoke();
 
-                getFocusRestoreTarget()?.Focus(FocusState.Programmatic);
-                setFocusRestoreTarget(null);
+                state.FocusRestoreTarget?.Focus(FocusState.Programmatic);
+                state.FocusRestoreTarget = null;
             }
             finally
             {
-                closeGuard.End();
+                state.CloseGuard.End();
             }
         }
 
@@ -2077,13 +2020,10 @@ namespace SteamGridDB.Xbox
         private async Task HideGridPanelAsync()
         {
             await HidePanelAsync(
-                gridPanelCloseGuard,
-                () => gridPanelSessionId,
+                gridPanel,
                 GridPanelTransform,
                 GridSelectionPanel,
                 GridImagesView,
-                () => gridPanelFocusRestoreTarget,
-                target => gridPanelFocusRestoreTarget = target,
                 () => CurrentSelectedGame = null);
         }
 
@@ -2101,7 +2041,7 @@ namespace SteamGridDB.Xbox
         private async void SearchGameImage_Click(object sender, RoutedEventArgs e)
         {
             await HandleGameImagePanelButtonClickAsync(
-                sender, button => searchPanelFocusRestoreTarget = button, gameEntry => ShowSearchPanelAsync());
+                sender, button => searchPanel.FocusRestoreTarget = button, gameEntry => ShowSearchPanelAsync());
         }
 
         /// <summary>
@@ -2160,7 +2100,7 @@ namespace SteamGridDB.Xbox
         {
             // Claimed before any await, so a second search fired while this one is still in flight -
             // or the panel being reopened, see ShowSearchPanelAsync - is stamped into a newer session.
-            int session = ++searchPanelSessionId;
+            int session = ++searchPanel.SessionId;
 
             try
             {
@@ -2191,7 +2131,7 @@ namespace SteamGridDB.Xbox
                     // A newer search (or a reopened panel) has superseded this one while the request was
                     // in flight - it must not touch the results list now: doing so would mix a stale,
                     // unrelated search's games into whatever the live search already showed.
-                    if (session != searchPanelSessionId)
+                    if (session != searchPanel.SessionId)
                     {
                         return;
                     }
@@ -2245,8 +2185,8 @@ namespace SteamGridDB.Xbox
                 // Hand off focus-restore ownership from the search panel to the grid panel about to
                 // open: the button that originally opened the search panel is the one focus should
                 // return to once the grid panel (not the search panel) eventually closes.
-                gridPanelFocusRestoreTarget = searchPanelFocusRestoreTarget;
-                searchPanelFocusRestoreTarget = null;
+                gridPanel.FocusRestoreTarget = searchPanel.FocusRestoreTarget;
+                searchPanel.FocusRestoreTarget = null;
 
                 await HideSearchPanelAsync();
                 await LoadGridSelectionByGameIdAsync(selectedGame);
@@ -2260,8 +2200,8 @@ namespace SteamGridDB.Xbox
         private async Task ShowSearchPanelAsync()
         {
             // Invalidates any search still in flight from a prior showing of this panel (same or a
-            // different game) - see searchPanelSessionId.
-            ++searchPanelSessionId;
+            // different game) - see PanelState.SessionId.
+            ++searchPanel.SessionId;
 
             // Update header with game information
             if (CurrentSelectedGame != null)
@@ -2316,19 +2256,16 @@ namespace SteamGridDB.Xbox
         /// Hide the search panel with animation. See <see cref="HidePanelAsync"/> for the shared
         /// sequence; the search panel has no extra teardown of its own. The focus-restore target is
         /// already null here when <see cref="SearchResult_Click"/> has just handed it over to
-        /// <see cref="gridPanelFocusRestoreTarget"/> instead of clearing it - <see cref="HidePanelAsync"/>'s
-        /// null-conditional focus call stays correct either way.
+        /// <see cref="PanelState.FocusRestoreTarget"/> on <see cref="gridPanel"/> instead of clearing it -
+        /// <see cref="HidePanelAsync"/>'s null-conditional focus call stays correct either way.
         /// </summary>
         private async Task HideSearchPanelAsync()
         {
             await HidePanelAsync(
-                searchPanelCloseGuard,
-                () => searchPanelSessionId,
+                searchPanel,
                 SearchPanelTransform,
                 GameSearchPanel,
-                SearchResultsListView,
-                () => searchPanelFocusRestoreTarget,
-                target => searchPanelFocusRestoreTarget = target);
+                SearchResultsListView);
         }
 
         /// <summary>

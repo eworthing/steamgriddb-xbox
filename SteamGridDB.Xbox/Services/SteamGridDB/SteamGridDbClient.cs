@@ -11,6 +11,7 @@ using Windows.Data.Json;
 using Windows.Web.Http;
 using Windows.Web.Http.Headers;
 
+using SteamGridDB.Xbox.Services.Artwork;
 using SteamGridDB.Xbox.Services.SteamGridDB.Models;
 
 namespace SteamGridDB.Xbox.Services.SteamGridDB
@@ -306,6 +307,30 @@ namespace SteamGridDB.Xbox.Services.SteamGridDB
         public async Task<List<SteamGridDbGrid>> GetSquareIconsAsync(ArtworkSource source, string[] styles = null, CancellationToken cancellationToken = default)
         {
             return await GetArtworkListAsync(BuildUrl($"icons/{source.Segment}", squareIconDimensions, styles), cancellationToken);
+        }
+
+        /// <summary>
+        /// The square grids worth showing for a game: one page, and if that page happens to hold nothing
+        /// but icon-like styles, a second request restricted to the title-bearing ones.
+        ///
+        /// Both the auto-fixer and the manual picker need this. When only the fixer made the second
+        /// call, opening the picker on such a game offered a strictly worse set than the fixer had
+        /// already chosen from - which reads as the picker being broken.
+        /// </summary>
+        /// <param name="source">How to address the game's artwork.</param>
+        /// <returns>Candidates, empty when there are none, null when the request failed.</returns>
+        public async Task<List<SteamGridDbGrid>> GetTitleBearingGridsAsync(ArtworkSource source)
+        {
+            List<SteamGridDbGrid> grids = await GetSquareGridsAsync(source);
+
+            if (grids == null || grids.Count == 0 || grids.Any(g => ArtworkRanker.GridStylePriority(g.Style) == 0))
+            {
+                return grids;
+            }
+
+            List<SteamGridDbGrid> textBearing = await GetSquareGridsAsync(source, ArtworkRanker.TextBearingGridStyles);
+
+            return textBearing != null && textBearing.Count > 0 ? textBearing : grids;
         }
 
         /// <summary>
