@@ -31,17 +31,23 @@ namespace SteamGridDB.Xbox.Models
         /// from the Microsoft Store catalog and the Xbox app renders them from its own image cache, so
         /// they are enumerated rather than read out of a manifest - and SteamGridDB carries no Microsoft
         /// Store platform, so like Custom they are matched by name instead of by store ID.
+        ///
+        /// CarriesOwnPaths is true only for Custom: a Custom entry's manifest carries absolute paths of
+        /// its own (its image path, and its install location/executable name in place of a store ID),
+        /// where every other platform derives those from the entry ID and the manifest folder instead.
+        /// Read by <see cref="CarriesOwnPaths"/>, whose two call sites - ManifestEntryIdentity and
+        /// ManifestEntryImage - used to each write this same fact as a bare `platform == GamePlatform.Custom`.
         /// </summary>
-        private static readonly (GamePlatform Platform, string XboxDirectory, string SGDBApiString)[] platforms =
+        private static readonly (GamePlatform Platform, string XboxDirectory, string SGDBApiString, bool CarriesOwnPaths)[] platforms =
         {
-            (GamePlatform.Steam, "steam", "steam"),
-            (GamePlatform.GOG, "gog", "gog"),
-            (GamePlatform.Epic, "epic", "egs"),
-            (GamePlatform.Ubisoft, "ubisoft", "uplay"),
-            (GamePlatform.BattleNet, "battlenet", "bnet"),
-            (GamePlatform.EA, "ea", "origin"),
-            (GamePlatform.Custom, "customlibrarymanagement", null),
-            (GamePlatform.Xbox, null, null),
+            (GamePlatform.Steam, "steam", "steam", false),
+            (GamePlatform.GOG, "gog", "gog", false),
+            (GamePlatform.Epic, "epic", "egs", false),
+            (GamePlatform.Ubisoft, "ubisoft", "uplay", false),
+            (GamePlatform.BattleNet, "battlenet", "bnet", false),
+            (GamePlatform.EA, "ea", "origin", false),
+            (GamePlatform.Custom, "customlibrarymanagement", null, true),
+            (GamePlatform.Xbox, null, null, false),
         };
 
         /// <summary>
@@ -100,6 +106,24 @@ namespace SteamGridDB.Xbox.Models
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Whether this platform's manifest entries carry their own absolute paths, rather than having
+        /// their identifiers and image path derived from the entry ID and the manifest folder the way
+        /// every other platform's entries are. True only for Custom.
+        /// </summary>
+        public static bool CarriesOwnPaths(GamePlatform platform)
+        {
+            foreach (var row in platforms)
+            {
+                if (row.Platform == platform)
+                {
+                    return row.CarriesOwnPaths;
+                }
+            }
+
+            return false;
         }
     }
 }

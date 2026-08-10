@@ -81,7 +81,7 @@ namespace SteamGridDB.Xbox.Services.Library
             string imageFilePath;
             StorageFolder imageFolder;
 
-            if (platform == GamePlatform.Custom) // Custom contains full path for the image filename
+            if (GamePlatformHelper.CarriesOwnPaths(platform)) // Custom contains full path for the image filename
             {
                 imageFilePath = JsonRead.String(entryObject, "imagePath");
 

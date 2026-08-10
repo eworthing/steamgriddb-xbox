@@ -56,7 +56,7 @@ namespace SteamGridDB.Xbox.Services.Library
             string externalPlatformId;
             string epicCatalogItemId = null;
 
-            if (platform == GamePlatform.Custom)
+            if (GamePlatformHelper.CarriesOwnPaths(platform))
             {
                 // gameName keeps its default when title is missing or JSON null, same as every other
                 // platform's fallback

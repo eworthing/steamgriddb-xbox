@@ -78,21 +78,46 @@ namespace SteamGridDB.Xbox.Services.Library
             Ea
         }
 
+        /// <summary>
+        /// One row per store <see cref="ResolveAsync"/> can fall back to when the platform-ID match
+        /// misses. This used to be three independent switches on <see cref="GamePlatform"/> or
+        /// <see cref="StoreNameLookupTarget"/> - <see cref="SelectStoreNameLookupTarget"/>,
+        /// <see cref="ResolvesNameFromInstalledFiles"/>, and the store segment inside
+        /// <see cref="BuildUnmatchedLogLine"/> - all on the same axis, with nothing making them agree:
+        /// a store added to one silently kept the others' defaults instead of failing to compile. One
+        /// table, one place to add a store - the same fix <see cref="GamePlatformHelper"/> already made
+        /// for its own pair of switches.
+        ///
+        /// LogKey and LoadSummary are non-null only for the stores that read local manifests (Epic, EA)
+        /// - GOG's name comes from its API and Ubisoft's from a list on GitHub, so neither writes an
+        /// audit-line segment or answers <see cref="ResolvesNameFromInstalledFiles"/>. LoadSummary is a
+        /// <see cref="Func{TResult}"/> rather than a plain string: <c>EpicLibrary.LoadSummary</c> and
+        /// <c>EaLibrary.LoadSummary</c> are mutable statics that only hold their real value after that
+        /// store's manifest read has actually run, so capturing the string itself here would freeze it
+        /// at "not read yet" forever instead of reading it at call time.
+        ///
+        /// Every platform absent from this table (Steam, BattleNet, Custom, Xbox, Unknown) selects
+        /// <see cref="StoreNameLookupTarget.None"/>, exactly as the old switches' default case did.
+        /// </summary>
+        private static readonly (GamePlatform Platform, StoreNameLookupTarget Target, string LogKey, Func<string> LoadSummary)[] stores =
+        {
+            (GamePlatform.GOG, StoreNameLookupTarget.Gog, null, null),
+            (GamePlatform.Epic, StoreNameLookupTarget.Epic, "epic", () => EpicLibrary.LoadSummary),
+            (GamePlatform.Ubisoft, StoreNameLookupTarget.Ubisoft, null, null),
+            (GamePlatform.EA, StoreNameLookupTarget.Ea, "ea", () => EaLibrary.LoadSummary),
+        };
+
         internal static StoreNameLookupTarget SelectStoreNameLookupTarget(GamePlatform platform)
         {
-            switch (platform)
+            foreach (var row in stores)
             {
-                case GamePlatform.GOG:
-                    return StoreNameLookupTarget.Gog;
-                case GamePlatform.Epic:
-                    return StoreNameLookupTarget.Epic;
-                case GamePlatform.Ubisoft:
-                    return StoreNameLookupTarget.Ubisoft;
-                case GamePlatform.EA:
-                    return StoreNameLookupTarget.Ea;
-                default:
-                    return StoreNameLookupTarget.None;
+                if (row.Platform == platform)
+                {
+                    return row.Target;
+                }
             }
+
+            return StoreNameLookupTarget.None;
         }
 
         /// <summary>
@@ -105,19 +130,23 @@ namespace SteamGridDB.Xbox.Services.Library
         /// </summary>
         internal static string BuildUnmatchedLogLine(GamePlatform platform, string externalPlatformId, string epicCatalogItemId, string storeLoadSummary, string gameName, int steamGridDbGameId)
         {
-            string storeSegment;
+            string storeSegment = string.Empty;
 
-            switch (platform)
+            // Epic stays an explicit special case rather than a table column: it is the one platform
+            // whose entry ID holds two identifiers (see ManifestEntryIdentity), so its catalog item ID
+            // prefixes the table-driven segment below instead of living in the table alongside it.
+            if (platform == GamePlatform.Epic)
             {
-                case GamePlatform.Epic:
-                    storeSegment = $" catalog={epicCatalogItemId ?? "none"} epic=[{storeLoadSummary}]";
+                storeSegment = $" catalog={epicCatalogItemId ?? "none"}";
+            }
+
+            foreach (var row in stores)
+            {
+                if (row.Platform == platform && row.LogKey != null)
+                {
+                    storeSegment += $" {row.LogKey}=[{storeLoadSummary}]";
                     break;
-                case GamePlatform.EA:
-                    storeSegment = $" ea=[{storeLoadSummary}]";
-                    break;
-                default:
-                    storeSegment = string.Empty;
-                    break;
+                }
             }
 
             return $"unmatched {platform}/{externalPlatformId}"
@@ -203,21 +232,22 @@ namespace SteamGridDB.Xbox.Services.Library
         ///
         /// Split out rather than folded into <see cref="AnswersTheName"/> because it is a fact about
         /// each store, in the same shape and on the same axis as
-        /// <see cref="SelectStoreNameLookupTarget"/> - so a store added there has to be considered here
-        /// too, instead of silently inheriting whichever behaviour the enum's default happened to give
-        /// it.
+        /// <see cref="SelectStoreNameLookupTarget"/>. Both now read the same <c>stores</c> table below,
+        /// so a store added there is automatically considered here too, instead of silently inheriting
+        /// whichever behaviour the enum's default happened to give it.
         /// </summary>
         /// <param name="target">The store lookup that applies to the entry's platform.</param>
         internal static bool ResolvesNameFromInstalledFiles(StoreNameLookupTarget target)
         {
-            switch (target)
+            foreach (var row in stores)
             {
-                case StoreNameLookupTarget.Ea:
-                case StoreNameLookupTarget.Epic:
-                    return true;
-                default:
-                    return false;
+                if (row.Target == target)
+                {
+                    return row.LoadSummary != null;
+                }
             }
+
+            return false;
         }
 
         /// <summary>
@@ -355,53 +385,33 @@ namespace SteamGridDB.Xbox.Services.Library
                 // say whether that read found anything - each store reports its own, at the point it
                 // is consulted, rather than the log line reaching into all of them
                 string storeLoadSummary = null;
+                string storeName = null;
 
                 switch (SelectStoreNameLookupTarget(platform))
                 {
                     case StoreNameLookupTarget.Gog:
-                        string gogName = await StoreNameLookup.GetOrFetchGogNameAsync(externalPlatformId);
-
-                        if (!string.IsNullOrEmpty(gogName))
-                        {
-                            gameName = gogName;
-                        }
-
+                        storeName = await StoreNameLookup.GetOrFetchGogNameAsync(externalPlatformId);
                         break;
 
                     case StoreNameLookupTarget.Epic:
-                        string epicName = await StoreNameLookup.GetOrFetchEpicNameAsync(externalPlatformId, epicCatalogItemId);
-
-                        if (!string.IsNullOrEmpty(epicName))
-                        {
-                            gameName = epicName;
-                        }
-
+                        storeName = await StoreNameLookup.GetOrFetchEpicNameAsync(externalPlatformId, epicCatalogItemId);
                         storeLoadSummary = EpicLibrary.LoadSummary;
-
                         break;
 
                     case StoreNameLookupTarget.Ubisoft:
-                        string ubisoftName = await StoreNameLookup.GetUbisoftGameNameAsync(externalPlatformId);
-
-                        if (!string.IsNullOrEmpty(ubisoftName))
-                        {
-                            gameName = ubisoftName;
-                        }
-
+                        storeName = await StoreNameLookup.GetUbisoftGameNameAsync(externalPlatformId);
                         break;
 
                     case StoreNameLookupTarget.Ea:
                         // Local file reads only; EA's public catalogue API is gone. See EaLibrary.
-                        string eaName = await EaLibrary.GetDisplayNameAsync(externalPlatformId);
-
-                        if (!string.IsNullOrEmpty(eaName))
-                        {
-                            gameName = eaName;
-                        }
-
+                        storeName = await EaLibrary.GetDisplayNameAsync(externalPlatformId);
                         storeLoadSummary = EaLibrary.LoadSummary;
-
                         break;
+                }
+
+                if (!string.IsNullOrEmpty(storeName))
+                {
+                    gameName = storeName;
                 }
 
                 // A name is enough to find the game even when no store ID matches - SteamGridDB has
