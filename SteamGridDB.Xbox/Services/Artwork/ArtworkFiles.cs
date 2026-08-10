@@ -120,16 +120,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         internal static async Task<bool> HasBackupAsync(StorageFolder folder, string imageFileName)
         {
-            try
-            {
-                await folder.GetFileAsync(BackupNameFor(imageFileName));
-
-                return true;
-            }
-            catch (FileNotFoundException)
-            {
-                return false;
-            }
+            return await ExistsAsync(folder, BackupNameFor(imageFileName));
         }
 
         /// <summary>
@@ -143,9 +134,17 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         internal static async Task<bool> HasSavedCustomisationAsync(StorageFolder folder, string imageFileName)
         {
+            return await ExistsAsync(folder, CustomisedNameFor(imageFileName));
+        }
+
+        /// <summary>
+        /// Whether a file with this name exists in the folder.
+        /// </summary>
+        private static async Task<bool> ExistsAsync(StorageFolder folder, string fileName)
+        {
             try
             {
-                await folder.GetFileAsync(CustomisedNameFor(imageFileName));
+                await folder.GetFileAsync(fileName);
 
                 return true;
             }

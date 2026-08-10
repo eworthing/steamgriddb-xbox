@@ -318,10 +318,7 @@ namespace SteamGridDB.Xbox
         /// <param name="text">The line to show.</param>
         private async Task SetStatusAsync(string text)
         {
-            await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
-            {
-                StatusText.Text = text;
-            });
+            await OnUiThreadAsync(() => StatusText.Text = text);
         }
 
         /// <summary>
@@ -584,19 +581,13 @@ namespace SteamGridDB.Xbox
 
                             if (JsonObject.TryParse(jsonContent, out JsonObject root))
                             {
-                                // Check if gameCache exists in the root
-                                if (!root.ContainsKey("gameCache"))
-                                {
-                                    continue;
-                                }
-
                                 // Get the gameCache object
-                                if (root.GetNamedValue("gameCache").ValueType != JsonValueType.Object)
+                                JsonObject gameCache = JsonRead.Object(root, "gameCache");
+
+                                if (gameCache == null)
                                 {
                                     continue;
                                 }
-
-                                JsonObject gameCache = root.GetNamedObject("gameCache");
 
                                 // Iterate through all entries in the gameCache
                                 foreach (KeyValuePair<string, IJsonValue> entry in gameCache)
@@ -1682,21 +1673,9 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void EditGameImage_Click(object sender, RoutedEventArgs e)
         {
-            if (IsLibraryOperationBlocking())
-            {
-                return;
-            }
-
-            Button button = sender as Button;
-
-            if (button?.Tag is GameEntry gameEntry)
-            {
-                gridPanelFocusRestoreTarget = button;
-                CurrentSelectedGame = gameEntry;
-
-                // Find the folder for this game
-                await LoadGridSelectionPanelAsync(gameEntry);
-            }
+            // Find the folder for this game
+            await HandleGameImagePanelButtonClickAsync(
+                sender, button => gridPanelFocusRestoreTarget = button, LoadGridSelectionPanelAsync);
         }
 
         /// <summary>
@@ -2132,6 +2111,24 @@ namespace SteamGridDB.Xbox
         /// </summary>
         private async void SearchGameImage_Click(object sender, RoutedEventArgs e)
         {
+            await HandleGameImagePanelButtonClickAsync(
+                sender, button => searchPanelFocusRestoreTarget = button, gameEntry => ShowSearchPanelAsync());
+        }
+
+        /// <summary>
+        /// The shape shared by every button that opens an artwork panel for the row it sits on: bail out
+        /// while a library operation is running, resolve the row's <see cref="GameEntry"/> from the
+        /// button that was clicked, remember that button so focus can return to it when the panel
+        /// closes, select the row, then open the panel. <see cref="EditGameImage_Click"/> and
+        /// <see cref="SearchGameImage_Click"/> differ only in which focus-restore field they set and
+        /// which panel they open.
+        /// </summary>
+        /// <param name="sender">The event's sender, expected to be the row's <see cref="Button"/>.</param>
+        /// <param name="setFocusRestoreTarget">Remembers the button, for the panel that is about to open.</param>
+        /// <param name="openPanelAsync">Opens the panel for the resolved game.</param>
+        private async Task HandleGameImagePanelButtonClickAsync(
+            object sender, Action<Button> setFocusRestoreTarget, Func<GameEntry, Task> openPanelAsync)
+        {
             if (IsLibraryOperationBlocking())
             {
                 return;
@@ -2141,10 +2138,10 @@ namespace SteamGridDB.Xbox
 
             if (button?.Tag is GameEntry gameEntry)
             {
-                searchPanelFocusRestoreTarget = button;
+                setFocusRestoreTarget(button);
                 CurrentSelectedGame = gameEntry;
 
-                await ShowSearchPanelAsync();
+                await openPanelAsync(gameEntry);
             }
         }
 

@@ -187,21 +187,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         public static async Task<IBuffer> EncodePngAsync(SoftwareBitmap bitmap)
         {
-            using (var target = new InMemoryRandomAccessStream())
-            {
-                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, target);
-
-                encoder.SetSoftwareBitmap(bitmap);
-
-                await encoder.FlushAsync();
-                target.Seek(0);
-
-                var encoded = new Windows.Storage.Streams.Buffer((uint)target.Size);
-
-                await target.ReadAsync(encoded, (uint)target.Size, InputStreamOptions.None);
-
-                return encoded;
-            }
+            return await EncodeAsync(bitmap, BitmapEncoder.PngEncoderId, null);
         }
 
         /// <summary>
@@ -211,14 +197,27 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// <param name="quality">Encoder quality, 0 to 1.</param>
         public static async Task<IBuffer> EncodeJpegAsync(SoftwareBitmap bitmap, double quality)
         {
+            var options = new BitmapPropertySet
+            {
+                { "ImageQuality", new BitmapTypedValue(quality, Windows.Foundation.PropertyType.Single) }
+            };
+
+            return await EncodeAsync(bitmap, BitmapEncoder.JpegEncoderId, options);
+        }
+
+        /// <summary>
+        /// Encodes a bitmap with the given encoder, and reads the result back out as a buffer.
+        /// </summary>
+        /// <param name="bitmap">Bitmap to encode.</param>
+        /// <param name="encoderId">Which encoder to use - see <see cref="BitmapEncoder"/>'s *EncoderId fields.</param>
+        /// <param name="options">Encoder-specific options, or null for an encoder's defaults.</param>
+        private static async Task<IBuffer> EncodeAsync(SoftwareBitmap bitmap, Guid encoderId, BitmapPropertySet options)
+        {
             using (var target = new InMemoryRandomAccessStream())
             {
-                var options = new BitmapPropertySet
-                {
-                    { "ImageQuality", new BitmapTypedValue(quality, Windows.Foundation.PropertyType.Single) }
-                };
-
-                BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, target, options);
+                BitmapEncoder encoder = options == null
+                    ? await BitmapEncoder.CreateAsync(encoderId, target)
+                    : await BitmapEncoder.CreateAsync(encoderId, target, options);
 
                 encoder.SetSoftwareBitmap(bitmap);
 

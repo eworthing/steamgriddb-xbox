@@ -108,18 +108,7 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <param name="products">Everything both catalogue lookups returned.</param>
         internal static List<StoreCatalog.Product> SelectGames(IEnumerable<StoreCatalog.Product> products)
         {
-            List<StoreCatalog.Product> games = new List<StoreCatalog.Product>();
-            HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            foreach (StoreCatalog.Product product in products ?? Enumerable.Empty<StoreCatalog.Product>())
-            {
-                if (product.IsGame && seen.Add(product.StoreId))
-                {
-                    games.Add(product);
-                }
-            }
-
-            return games;
+            return SelectDistinct(products, product => product.IsGame, product => product.StoreId, product => product);
         }
 
         /// <summary>
@@ -133,18 +122,37 @@ namespace SteamGridDB.Xbox.Services.Stores
         /// <param name="configs">Every config both sweeps read.</param>
         internal static List<string> SelectGameStoreIds(IEnumerable<XboxGameConfig.Result> configs)
         {
-            List<string> storeIds = new List<string>();
+            return SelectDistinct(configs, config => config.LooksLikeGame, config => config.StoreId, config => config.StoreId);
+        }
+
+        /// <summary>
+        /// Filters a sequence to the items worth keeping, and keeps only the first of each once
+        /// projected to a key - the shared shape behind <see cref="SelectGames"/> and
+        /// <see cref="SelectGameStoreIds"/>, which differ only in the predicate, the key and what they
+        /// keep for each surviving item.
+        /// </summary>
+        /// <param name="source">Items to filter and dedupe.</param>
+        /// <param name="predicate">Whether an item is worth keeping at all.</param>
+        /// <param name="key">The identity an item is deduped by.</param>
+        /// <param name="select">What to keep for each item that survives.</param>
+        private static List<TResult> SelectDistinct<TSource, TResult>(
+            IEnumerable<TSource> source,
+            Func<TSource, bool> predicate,
+            Func<TSource, string> key,
+            Func<TSource, TResult> select)
+        {
+            List<TResult> results = new List<TResult>();
             HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (XboxGameConfig.Result config in configs ?? Enumerable.Empty<XboxGameConfig.Result>())
+            foreach (TSource item in source ?? Enumerable.Empty<TSource>())
             {
-                if (config.LooksLikeGame && seen.Add(config.StoreId))
+                if (predicate(item) && seen.Add(key(item)))
                 {
-                    storeIds.Add(config.StoreId);
+                    results.Add(select(item));
                 }
             }
 
-            return storeIds;
+            return results;
         }
 
         /// <summary>

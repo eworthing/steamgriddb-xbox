@@ -29,7 +29,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
 
         private static readonly List<string> lines = new List<string>();
 
-        private static string fileName = "last-fix.log";
+        /// <summary>The file a run is written to when the caller does not name one of its own.</summary>
+        private const string DefaultFileName = "last-fix.log";
+
+        private static string fileName = DefaultFileName;
 
         private static StorageFolder logFolder;
 
@@ -49,7 +52,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         /// <param name="what">Short description of the operation, for the header.</param>
         /// <param name="file">File to write to, so a library load and a fix do not overwrite each other.</param>
-        public static void Start(string what, string file = "last-fix.log")
+        public static void Start(string what, string file = DefaultFileName)
         {
             lock (syncRoot)
             {

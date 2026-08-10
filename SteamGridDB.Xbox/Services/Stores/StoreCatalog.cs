@@ -40,6 +40,9 @@ namespace SteamGridDB.Xbox.Services.Stores
         private const string market = "US";
         private const string language = "en-us";
 
+        /// <summary>The market/language/fields suffix every catalogue request carries.</summary>
+        private const string requestSuffix = "&market=" + market + "&languages=" + language + "&fieldsTemplate=Details";
+
         /// <summary>
         /// How many products one bigIds request asks for. The endpoint accepts more, but a request that
         /// grows past a few dozen IDs starts being refused for URL length rather than for its contents,
@@ -117,7 +120,7 @@ namespace SteamGridDB.Xbox.Services.Stores
             for (int offset = 0; offset < pending.Count; offset += BatchSize)
             {
                 string batch = string.Join(",", pending.Skip(offset).Take(BatchSize));
-                string url = $"{baseUrl}?bigIds={Uri.EscapeDataString(batch)}&market={market}&languages={language}&fieldsTemplate=Details";
+                string url = $"{baseUrl}?bigIds={Uri.EscapeDataString(batch)}{requestSuffix}";
 
                 products.AddRange(ParseProducts(await GetStringAsync(url, cancellationToken)));
             }
@@ -149,8 +152,7 @@ namespace SteamGridDB.Xbox.Services.Stores
 
             foreach (string familyName in pending)
             {
-                string url = $"{baseUrl}/lookup?alternateId=PackageFamilyName&value={Uri.EscapeDataString(familyName)}"
-                    + $"&market={market}&languages={language}&fieldsTemplate=Details";
+                string url = $"{baseUrl}/lookup?alternateId=PackageFamilyName&value={Uri.EscapeDataString(familyName)}{requestSuffix}";
 
                 products.AddRange(ParseProducts(await GetStringAsync(url, cancellationToken)));
             }
