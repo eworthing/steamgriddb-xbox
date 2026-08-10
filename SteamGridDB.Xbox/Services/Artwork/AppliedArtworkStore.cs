@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
@@ -24,18 +23,10 @@ namespace SteamGridDB.Xbox.Services.Artwork
     {
         private const string fileName = "applied-artwork.json";
 
-        // Writes are rare - one per artwork applied - but a bulk operation and a per-row button can
-        // both reach here, and a half-written file would be read back as damaged. GetAsync and
-        // UpdateAsync both take this same gate directly (below) to serialize against each other and
-        // against the lazy load - not a second lock of their own.
-        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
-
         // Loaded once and written through. The widget is the only writer, and a Game Bar widget has a
         // single instance, so there is no reconciling to do against another process.
-        private static AsyncLazyCache<Dictionary<string, int>> appliedCache =
-            new AsyncLazyCache<Dictionary<string, int>>(gate, LoadMapFromDiskAsync);
-
-        private static StorageFolder recordFolder;
+        private static readonly JsonRecordStore<int> store = new JsonRecordStore<int>(
+            fileName, "applied artwork", ReadArtworkId, artworkId => JsonValue.CreateNumberValue(artworkId));
 
         /// <summary>
         /// Where the record is kept. Defaults to the widget's own local data, which is what it always
@@ -47,13 +38,8 @@ namespace SteamGridDB.Xbox.Services.Artwork
         /// </summary>
         internal static StorageFolder RecordFolder
         {
-            get => recordFolder ?? ApplicationData.Current.LocalFolder;
-
-            set
-            {
-                recordFolder = value;
-                appliedCache = new AsyncLazyCache<Dictionary<string, int>>(gate, LoadMapFromDiskAsync);
-            }
+            get => store.RecordFolder;
+            set => store.RecordFolder = value;
         }
 
         /// <summary>
@@ -68,20 +54,8 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return null;
             }
 
-            Dictionary<string, int> map = await appliedCache.GetOrLoadAsync();
-
-            // UpdateAsync holds `gate` while it mutates this same Dictionary instance in place; a read
-            // that skipped the gate could race that mutation. Same lock, read or write.
-            await gate.WaitAsync();
-
-            try
-            {
-                return map.TryGetValue(Key(imageFilePath), out int id) ? id : (int?)null;
-            }
-            finally
-            {
-                gate.Release();
-            }
+            return await store.ReadAsync(map =>
+                map.TryGetValue(Key(imageFilePath), out int id) ? id : (int?)null);
         }
 
         /// <summary>
@@ -96,7 +70,19 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return;
             }
 
-            await UpdateAsync(map => map[Key(imageFilePath)] = artworkId);
+            string key = Key(imageFilePath);
+
+            await store.UpdateAsync(map =>
+            {
+                if (map.TryGetValue(key, out int existing) && existing == artworkId)
+                {
+                    return false;
+                }
+
+                map[key] = artworkId;
+
+                return true;
+            });
         }
 
         /// <summary>
@@ -110,7 +96,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return;
             }
 
-            await UpdateAsync(map => map.Remove(Key(imageFilePath)));
+            await store.UpdateAsync(map => map.Remove(Key(imageFilePath)));
         }
 
         /// <summary>
@@ -132,7 +118,7 @@ namespace SteamGridDB.Xbox.Services.Artwork
                 return;
             }
 
-            await UpdateAsync(map =>
+            await store.UpdateAsync(map =>
             {
                 List<string> orphaned = map.Keys.Where(isOrphaned).ToList();
 
@@ -150,85 +136,18 @@ namespace SteamGridDB.Xbox.Services.Artwork
             return imageFilePath.ToLowerInvariant();
         }
 
-        private static async Task<Dictionary<string, int>> LoadMapFromDiskAsync()
+        private static bool ReadArtworkId(IJsonValue value, out int result)
         {
-            var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-
-            try
+            if (value.ValueType == JsonValueType.Number)
             {
-                StorageFile file = await RecordFolder.GetFileAsync(fileName);
-                string json = await FileIO.ReadTextAsync(file);
-
-                if (JsonObject.TryParse(json, out JsonObject root))
-                {
-                    foreach (var pair in root)
-                    {
-                        if (pair.Value.ValueType == JsonValueType.Number)
-                        {
-                            map[pair.Key] = (int)pair.Value.GetNumber();
-                        }
-                    }
-                }
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                // Nothing applied yet
-            }
-            catch (Exception ex)
-            {
-                // A damaged record is not worth failing a library load over - start again
-                System.Diagnostics.Debug.WriteLine($"Could not read applied artwork: {ex.Message}");
-            }
-
-            return map;
-        }
-
-        private static Task UpdateAsync(Action<Dictionary<string, int>> change)
-        {
-            return UpdateAsync(map =>
-            {
-                change(map);
+                result = (int)value.GetNumber();
 
                 return true;
-            });
-        }
-
-        /// <param name="change">Mutates the map, returning whether it actually changed anything -
-        /// false skips the write entirely.</param>
-        private static async Task UpdateAsync(Func<Dictionary<string, int>, bool> change)
-        {
-            Dictionary<string, int> map = await appliedCache.GetOrLoadAsync();
-
-            await gate.WaitAsync();
-
-            try
-            {
-                if (!change(map))
-                {
-                    return;
-                }
-
-                var root = new JsonObject();
-
-                foreach (var pair in map)
-                {
-                    root[pair.Key] = JsonValue.CreateNumberValue(pair.Value);
-                }
-
-                StorageFile file = await RecordFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-
-                await FileIO.WriteTextAsync(file, root.Stringify());
             }
-            catch (Exception ex)
-            {
-                // Losing the record costs the picker its marker, not the artwork
-                System.Diagnostics.Debug.WriteLine($"Could not save applied artwork: {ex.Message}");
-            }
-            finally
-            {
-                gate.Release();
-            }
+
+            result = 0;
+
+            return false;
         }
     }
 }

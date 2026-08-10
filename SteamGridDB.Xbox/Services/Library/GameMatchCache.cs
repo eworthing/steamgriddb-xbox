@@ -1,7 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
@@ -52,12 +50,8 @@ namespace SteamGridDB.Xbox.Services.Library
         // Same shape and the same reasoning as AppliedArtworkStore's and XboxTileStore's gates: a
         // library load writes one entry per game in quick succession, and a half-written file would be
         // read back as damaged - which here costs a whole library's worth of lookups to rebuild.
-        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
-
-        private static AsyncLazyCache<Dictionary<string, Entry>> matchCache =
-            new AsyncLazyCache<Dictionary<string, Entry>>(gate, LoadMapFromDiskAsync);
-
-        private static StorageFolder recordFolder;
+        private static readonly JsonRecordStore<Entry> store = new JsonRecordStore<Entry>(
+            fileName, "the game match cache", TryReadEntry, WriteEntry);
 
         /// <summary>
         /// Where the record is kept. Defaults to the widget's own local data.
@@ -68,13 +62,8 @@ namespace SteamGridDB.Xbox.Services.Library
         /// </summary>
         internal static StorageFolder RecordFolder
         {
-            get => recordFolder ?? ApplicationData.Current.LocalFolder;
-
-            set
-            {
-                recordFolder = value;
-                matchCache = new AsyncLazyCache<Dictionary<string, Entry>>(gate, LoadMapFromDiskAsync);
-            }
+            get => store.RecordFolder;
+            set => store.RecordFolder = value;
         }
 
         /// <summary>
@@ -120,20 +109,10 @@ namespace SteamGridDB.Xbox.Services.Library
                 return null;
             }
 
-            Dictionary<string, Entry> map = await matchCache.GetOrLoadAsync();
-
-            await gate.WaitAsync();
-
-            try
-            {
-                return map.TryGetValue(Key(platform, externalPlatformId), out Entry entry) && IsFresh(entry, now)
+            return await store.ReadAsync(map =>
+                map.TryGetValue(Key(platform, externalPlatformId), out Entry entry) && IsFresh(entry, now)
                     ? entry
-                    : (Entry?)null;
-            }
-            finally
-            {
-                gate.Release();
-            }
+                    : (Entry?)null);
         }
 
         /// <summary>
@@ -150,7 +129,7 @@ namespace SteamGridDB.Xbox.Services.Library
                 return;
             }
 
-            await UpdateAsync(map =>
+            await store.UpdateAsync(map =>
             {
                 map[Key(platform, externalPlatformId)] = entry;
 
@@ -161,6 +140,11 @@ namespace SteamGridDB.Xbox.Services.Library
                 {
                     map.Remove(stale);
                 }
+
+                // Every entry carries a fresh Fetched timestamp, which is the value the freshness rule
+                // above reads - so this write always changes something, even when it only touches the
+                // one entry it just set.
+                return true;
             });
         }
 
@@ -189,37 +173,18 @@ namespace SteamGridDB.Xbox.Services.Library
             return $"{platform}/{externalPlatformId}".ToLowerInvariant();
         }
 
-        private static async Task<Dictionary<string, Entry>> LoadMapFromDiskAsync()
+        private static bool TryReadEntry(IJsonValue value, out Entry result)
         {
-            var map = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+            if (value.ValueType == JsonValueType.Object)
+            {
+                result = ReadEntry(value.GetObject());
 
-            try
-            {
-                StorageFile file = await RecordFolder.GetFileAsync(fileName);
-                string json = await FileIO.ReadTextAsync(file);
-
-                if (JsonObject.TryParse(json, out JsonObject root))
-                {
-                    foreach (var pair in root)
-                    {
-                        if (pair.Value.ValueType == JsonValueType.Object)
-                        {
-                            map[pair.Key] = ReadEntry(pair.Value.GetObject());
-                        }
-                    }
-                }
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                // Nothing looked up yet
-            }
-            catch (Exception ex)
-            {
-                // A damaged record costs a library's worth of lookups, once - not a failed load
-                System.Diagnostics.Debug.WriteLine($"Could not read the game match cache: {ex.Message}");
+                return true;
             }
 
-            return map;
+            result = default(Entry);
+
+            return false;
         }
 
         private static Entry ReadEntry(JsonObject entry)
@@ -254,39 +219,6 @@ namespace SteamGridDB.Xbox.Services.Library
             }
 
             return written;
-        }
-
-        private static async Task UpdateAsync(Action<Dictionary<string, Entry>> change)
-        {
-            Dictionary<string, Entry> map = await matchCache.GetOrLoadAsync();
-
-            await gate.WaitAsync();
-
-            try
-            {
-                change(map);
-
-                var root = new JsonObject();
-
-                foreach (var pair in map)
-                {
-                    root[pair.Key] = WriteEntry(pair.Value);
-                }
-
-                StorageFile file = await RecordFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-
-                await FileIO.WriteTextAsync(file, root.Stringify());
-            }
-            catch (Exception ex)
-            {
-                // Losing the record costs the next load its lookups, not its correctness
-                System.Diagnostics.Debug.WriteLine($"Could not save the game match cache: {ex.Message}");
-            }
-            finally
-            {
-                gate.Release();
-            }
         }
     }
 }

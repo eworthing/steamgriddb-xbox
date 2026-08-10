@@ -318,11 +318,9 @@ namespace SteamGridDB.Xbox.Services.Xbox
 
             // Saved before anything is applied, and before the game is even returned: once a rendition
             // is overwritten it no longer matches the artwork that just found it, so this record
-            // becomes the only route back to these files
-            if (known == null || !renditions.SequenceEqual(known, StringComparer.OrdinalIgnoreCase))
-            {
-                await XboxTileStore.SetAsync(product.StoreId, renditions);
-            }
+            // becomes the only route back to these files. SetAsync already skips the write when the
+            // store's own record already matches, so there is nothing left for this call to guard.
+            await XboxTileStore.SetAsync(product.StoreId, renditions);
 
             return renditions;
         }

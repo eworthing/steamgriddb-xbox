@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 
 using Windows.Data.Json;
@@ -33,12 +32,8 @@ namespace SteamGridDB.Xbox.Services.Xbox
         // Same shape and the same reasoning as AppliedArtworkStore's gate: writes are rare, but a bulk
         // fix and a per-row button can both reach here, and a half-written record loses the only route
         // back to a game's renditions.
-        private static readonly SemaphoreSlim gate = new SemaphoreSlim(1, 1);
-
-        private static AsyncLazyCache<Dictionary<string, List<string>>> tileCache =
-            new AsyncLazyCache<Dictionary<string, List<string>>>(gate, LoadMapFromDiskAsync);
-
-        private static StorageFolder recordFolder;
+        private static readonly JsonRecordStore<List<string>> store = new JsonRecordStore<List<string>>(
+            fileName, "the Xbox tile record", ReadRenditions, WriteRenditions);
 
         private static StorageFolder vaultFolder;
 
@@ -51,13 +46,12 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// </summary>
         internal static StorageFolder RecordFolder
         {
-            get => recordFolder ?? ApplicationData.Current.LocalFolder;
+            get => store.RecordFolder;
 
             set
             {
-                recordFolder = value;
                 vaultFolder = null;
-                tileCache = new AsyncLazyCache<Dictionary<string, List<string>>>(gate, LoadMapFromDiskAsync);
+                store.RecordFolder = value;
             }
         }
 
@@ -109,6 +103,12 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// <summary>
         /// The cached images known to be this game's tile, largest first, or null when it has never
         /// been discovered.
+        ///
+        /// Returns the map's own <see cref="List{T}"/> by reference, not a copy - cheap for the common
+        /// case of reading it straight back out, but it means a caller that mutated the list and handed
+        /// that same instance to <see cref="SetAsync"/> would be comparing the map's entry to itself and
+        /// silently skip the write. No current caller does this: every value reaching SetAsync is a
+        /// freshly built list.
         /// </summary>
         /// <param name="storeId">The game's Microsoft Store product ID.</param>
         internal static async Task<IReadOnlyList<string>> GetAsync(string storeId)
@@ -118,18 +118,8 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return null;
             }
 
-            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
-
-            await gate.WaitAsync();
-
-            try
-            {
-                return map.TryGetValue(storeId, out List<string> renditions) ? renditions : null;
-            }
-            finally
-            {
-                gate.Release();
-            }
+            return await store.ReadAsync(map =>
+                map.TryGetValue(storeId, out List<string> r) ? (IReadOnlyList<string>)r : null);
         }
 
         /// <summary>
@@ -142,11 +132,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
         /// </summary>
         internal static async Task<HashSet<string>> AllRenditionsAsync()
         {
-            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
-
-            await gate.WaitAsync();
-
-            try
+            return await store.ReadAsync(map =>
             {
                 var all = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -159,11 +145,7 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 }
 
                 return all;
-            }
-            finally
-            {
-                gate.Release();
-            }
+            });
         }
 
         /// <summary>
@@ -186,7 +168,18 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return;
             }
 
-            await UpdateAsync(map => map[storeId] = renditions);
+            await store.UpdateAsync(map =>
+            {
+                if (map.TryGetValue(storeId, out List<string> known)
+                    && known.SequenceEqual(renditions, StringComparer.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                map[storeId] = renditions;
+
+                return true;
+            });
         }
 
         /// <summary>
@@ -200,90 +193,48 @@ namespace SteamGridDB.Xbox.Services.Xbox
                 return;
             }
 
-            await UpdateAsync(map => map.Remove(storeId));
+            await store.UpdateAsync(map => map.Remove(storeId));
         }
 
-        private static async Task<Dictionary<string, List<string>>> LoadMapFromDiskAsync()
+        // A member that is not an array is refused outright; one that is an array but yields no usable
+        // string is refused too, rather than kept as an empty list - an entry with no renditions
+        // describes nothing and is exactly what SetAsync already declines to write.
+        private static bool ReadRenditions(IJsonValue value, out List<string> result)
         {
-            var map = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-
-            try
+            if (value.ValueType != JsonValueType.Array)
             {
-                StorageFile file = await RecordFolder.GetFileAsync(fileName);
-                string json = await FileIO.ReadTextAsync(file);
+                result = null;
 
-                if (JsonObject.TryParse(json, out JsonObject root))
-                {
-                    foreach (var pair in root)
-                    {
-                        if (pair.Value.ValueType != JsonValueType.Array)
-                        {
-                            continue;
-                        }
-
-                        List<string> renditions = pair.Value.GetArray()
-                            .Where(v => v.ValueType == JsonValueType.String)
-                            .Select(v => v.GetString())
-                            .ToList();
-
-                        if (renditions.Count > 0)
-                        {
-                            map[pair.Key] = renditions;
-                        }
-                    }
-                }
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                // Nothing discovered yet
-            }
-            catch (Exception ex)
-            {
-                // A damaged record costs the discoveries it held, which can be made again as long as
-                // nothing has been applied over them - not a failed library load
-                System.Diagnostics.Debug.WriteLine($"Could not read the Xbox tile record: {ex.Message}");
+                return false;
             }
 
-            return map;
+            List<string> renditions = value.GetArray()
+                .Where(v => v.ValueType == JsonValueType.String)
+                .Select(v => v.GetString())
+                .ToList();
+
+            if (renditions.Count == 0)
+            {
+                result = null;
+
+                return false;
+            }
+
+            result = renditions;
+
+            return true;
         }
 
-        private static async Task UpdateAsync(Action<Dictionary<string, List<string>>> change)
+        private static IJsonValue WriteRenditions(List<string> renditions)
         {
-            Dictionary<string, List<string>> map = await tileCache.GetOrLoadAsync();
+            var array = new JsonArray();
 
-            await gate.WaitAsync();
-
-            try
+            foreach (string name in renditions)
             {
-                change(map);
-
-                var root = new JsonObject();
-
-                foreach (var pair in map)
-                {
-                    var renditions = new JsonArray();
-
-                    foreach (string name in pair.Value)
-                    {
-                        renditions.Add(JsonValue.CreateStringValue(name));
-                    }
-
-                    root[pair.Key] = renditions;
-                }
-
-                StorageFile file = await RecordFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-
-                await FileIO.WriteTextAsync(file, root.Stringify());
+                array.Add(JsonValue.CreateStringValue(name));
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Could not save the Xbox tile record: {ex.Message}");
-            }
-            finally
-            {
-                gate.Release();
-            }
+
+            return array;
         }
     }
 }
