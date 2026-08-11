@@ -16,11 +16,13 @@
 param(
     [string]$Subject = "CN=3A3A4DF3-61EC-44B3-8236-B38DEB2BFA98",
 
-    # Accounts allowed to sign without elevation. SYSTEM and Administrators keep access anyway.
-    # Defaults to whoever runs this; pass every profile that needs to deploy, e.g.
-    #   .\setup-machine-cert.ps1 -SigningAccounts "$env:USERDOMAIN\alice", "$env:USERDOMAIN\bob"
-    # Anyone listed here can sign code this machine trusts, so keep the list short.
-    [string[]]$SigningAccounts = @("$env:USERDOMAIN\$env:USERNAME")
+    # Who may sign without elevation. SYSTEM and Administrators keep access regardless.
+    # Defaults to the built-in Users group, which every local account belongs to, so any profile
+    # on the PC can deploy without this having to name them. Given by SID rather than name because
+    # "BUILTIN\Users" is localised and does not resolve on a non-English Windows.
+    # Accepts SIDs or account names: -SigningAccounts "$env:USERDOMAIN\alice" narrows it to one
+    # profile. Note that whoever is listed can sign code this machine trusts.
+    [string[]]$SigningAccounts = @("S-1-5-32-545")
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,8 +69,15 @@ if (-not (Test-Path $keyFile)) { throw "Private key file not found at $keyFile" 
 
 $acl = Get-Acl $keyFile
 foreach ($account in $SigningAccounts) {
-    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($account, "Read", "Allow")))
-    Write-Host "Granted Read to $account" -ForegroundColor Green
+    # A SID string is turned into a SecurityIdentifier; anything else is treated as an account name.
+    try   { $identity = [System.Security.Principal.SecurityIdentifier]$account }
+    catch { $identity = [System.Security.Principal.NTAccount]$account }
+
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($identity, "Read", "Allow")))
+
+    $shown = $account
+    try { $shown = $identity.Translate([System.Security.Principal.NTAccount]).Value } catch { }
+    Write-Host "Granted Read to $shown" -ForegroundColor Green
 }
 Set-Acl -Path $keyFile -AclObject $acl
 
