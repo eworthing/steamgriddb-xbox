@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace SteamGridDB.Xbox.Services.Library
@@ -105,6 +106,37 @@ namespace SteamGridDB.Xbox.Services.Library
         internal static string When(int count, string clause)
         {
             return count > 0 ? clause : null;
+        }
+
+        /// <summary>
+        /// The name to show for a game in progress and status lines - its own, or the image file it is
+        /// backed by when the manifests never gave it one.
+        /// </summary>
+        internal static string DisplayName(ILibraryGame game)
+        {
+            return game.Name != LibraryLoader.UnknownName ? game.Name : Path.GetFileName(game.ImageFilePath);
+        }
+
+        /// <summary>
+        /// What to say after a write that succeeded, at least in part.
+        ///
+        /// A first-party game is several cached images and any of them can be refused on its own, so
+        /// "updated successfully" is only the whole truth when none were. Where some were, the surfaces
+        /// that did change and the ones that did not are both real, and a library still showing the old
+        /// tile is exactly what an unqualified success would fail to explain.
+        /// </summary>
+        /// <param name="game">The game that was written.</param>
+        /// <param name="imageFileName">Its image's name, for a game the manifests never named.</param>
+        /// <param name="writeFailures">Renditions the cache refused, from <c>XboxTiles.ApplyAsync</c>.</param>
+        internal static string AppliedMessage(ILibraryGame game, string imageFileName, IReadOnlyList<string> writeFailures)
+        {
+            string applied = game.Name == LibraryLoader.UnknownName
+                ? $"Artwork {imageFileName} updated successfully"
+                : $"Artwork for {game.Name} updated successfully";
+
+            return writeFailures.Count == 0
+                ? applied
+                : $"Artwork for {DisplayName(game)} partly updated - " + WriteFailureClause(writeFailures);
         }
 
         /// <summary>
