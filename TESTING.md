@@ -51,9 +51,20 @@ Two consequences worth knowing:
   why `GameImages` is generic over a key selector - `GameEntry` exposes `Visibility` and
   `BitmapImage`, and taking one would have dragged those modules back inside the app container.
 
-  The bulk operation loops themselves stay in the widget for the same reason: they iterate
-  `GameEntry` and assign to it. What they *compute* - which games to visit, the progress line, the
-  summary - is extracted and covered. What they *do* to the UI is not.
+  What is left in it is the UI: the panels, the dialogs, the collections the list binds to, and the
+  four methods that put a decoded image on screen. The library load and the three bulk operations
+  used to be there too, on the grounds that they iterate `GameEntry` and assign to it. Reading them
+  showed that only the first half was true - every write already went through two named chokepoints -
+  so they moved out behind two small seams and are covered now:
+
+  - `ILibraryGame` is the twelve members of a row that are not `Visibility` or `BitmapImage`.
+    `GameEntry` implements it; so does `LibraryRow`, which is what `LibraryLoader` produces and what
+    the tests use as a stand-in.
+  - `IArtworkTarget<TGame>` is the five things a bulk run asks of the widget. `RecordingArtworkTarget`
+    is the test's implementation of it.
+
+  A row still carries a `StorageFile` rather than a decoded thumbnail, because decoding one is the
+  single step that genuinely needs the UI thread - the same place `ManifestEntryImage` already stopped.
 - **Anything over the network.** `SteamGridDbClient` and most of `StoreNameLookup` call SteamGridDB,
   GOG, Epic and Ubisoft. A test that did that would be grading their uptime.
 
@@ -81,6 +92,12 @@ The suite has been checked against deliberate mutations: reversing the "only bac
 moving the saved-customisation delete ahead of the backup lookup fails
 `Restore_with_no_backup_keeps_the_saved_customisation`, and making the progress counter zero-based
 fails three of the `OperationReport` tests. Worth repeating for any new test that passes first time.
+
+The bulk-operation tests were checked the same way: moving `FixLog.Start` below the fixer's early
+returns fails all three `LibraryFixerTests` that read a log back, and counting a missing backup as a
+failure rather than as an ordinary state of the library fails
+`The_three_outcomes_are_counted_separately`. Both of those rules were previously held by a comment
+alone, which is the entire reason the loops were worth moving.
 
 The first-party tile paths were checked the same way: making the cross-folder restore use `RenameAsync`
 - which cannot leave a folder, so it silently restores nothing - fails
