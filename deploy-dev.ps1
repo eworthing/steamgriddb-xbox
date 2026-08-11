@@ -1,13 +1,19 @@
 # Builds, signs, and installs the dev fork package (SteamGridDB (fork)).
-# The signing cert (CN=3A3A4DF3-61EC-44B3-8236-B38DEB2BFA98) must exist in Cert:\CurrentUser\My
+# The signing cert (CN=3A3A4DF3-61EC-44B3-8236-B38DEB2BFA98) must exist in Cert:\LocalMachine\My
 # and its public key must be trusted in Cert:\LocalMachine\TrustedPeople.
+# The key is in the machine store, not Cert:\CurrentUser\My, so that any profile on this PC can
+# deploy: a CurrentUser key is DPAPI-bound and simply unreadable from a different profile, which
+# left the widget undeployable from anywhere but the profile that originally created the cert.
+# Read access to the key is granted per account - see setup-machine-cert.ps1.
 # Game Bar only lists fully installed packages, so a loose Add-AppxPackage -Register deploy
 # will build and run but never appear in the widget menu - always deploy via this script.
 param(
     [string]$Platform = "x64",
     [string]$Configuration = "Debug",
-    [string]$CertThumbprint = "196354983C0E5E43346AB1739021DC0DB68BC65F",
-    [string]$PackageName = "eworthing.SteamGridDBforXbox.Dev"
+    [string]$CertThumbprint = "96F76DBC8417378C301DF456BDE07AE15D79745F",
+    [string]$PackageName = "eworthing.SteamGridDBforXbox.Dev",
+    # For a cert held in a personal store instead, e.g. the older per-profile 196354...C65F one.
+    [switch]$UserStore
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,7 +53,10 @@ finally {
 }
 
 $msix = Get-ChildItem "$root\SteamGridDB.Xbox\AppPackages\*_${Platform}_${Configuration}_Test\*_${Platform}_${Configuration}.msix" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-& $signtool sign /fd SHA256 /sha1 $CertThumbprint $msix
+# signtool looks in the current user's store unless /sm sends it to the machine store.
+$signArgs = @("sign", "/fd", "SHA256", "/sha1", $CertThumbprint)
+if (-not $UserStore) { $signArgs += "/sm" }
+& $signtool @signArgs $msix
 if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
 
 # Update in place rather than uninstall and reinstall, so LocalState survives - that is where
@@ -73,5 +82,12 @@ if (-not $updated) {
     Add-AppxPackage -Path $msix
 }
 
-Get-Process -Name GameBar, GameBarFTServer, XboxGameBarWidgets -ErrorAction SilentlyContinue | Stop-Process -Force
+# Restart only this session's Game Bar. Another profile signed in on the same PC - even a
+# disconnected one - has its own GameBar processes, which are listed here but cannot be killed
+# without admin. That made Stop-Process throw and, under ErrorActionPreference Stop, exit a
+# completely successful deploy with an error.
+$session = (Get-Process -Id $PID).SessionId
+Get-Process -Name GameBar, GameBarFTServer, XboxGameBarWidgets -ErrorAction SilentlyContinue |
+    Where-Object SessionId -eq $session |
+    Stop-Process -Force -ErrorAction SilentlyContinue
 Write-Host "Deployed $(Split-Path $msix -Leaf) - Game Bar restarted, widget list will refresh on next Win+G" -ForegroundColor Green
